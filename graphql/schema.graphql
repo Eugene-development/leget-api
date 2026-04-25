@@ -1,0 +1,174 @@
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+"Arbitrary JSON data."
+scalar JSON @scalar(class: "App\\GraphQL\\Scalars\\JSON")
+
+type Query {
+    "Render a page for the resolved tenant site. Requires X-Forwarded-Host or Host header."
+    renderPage(slug: String!): RenderPageResponse!
+        @field(resolver: "App\\GraphQL\\Queries\\RenderPage")
+
+    "List all licenses for the authenticated user."
+    myLicenses: [License!]! @guard @field(resolver: "App\\GraphQL\\Queries\\MyLicenses")
+
+    "Get a license by ID (site settings). Requires authentication."
+    license(id: ID! @eq): License! @guard @find
+
+    "List all pages for a license. Requires authentication."
+    pages(licenseId: ID! @eq(key: "license_id")): [Page!]! @guard @all
+
+    "Get a single page by license and page ID. Requires authentication."
+    page(licenseId: ID! @eq(key: "license_id"), id: ID! @eq): Page! @guard @find
+
+    "List components for a page. Requires authentication."
+    pageComponents(licenseId: ID!, pageId: ID!): [PageComponent!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\PageComponents")
+
+    "List available component types for a given template and page slug. Requires authentication."
+    templateComponents(templateId: Int!, slug: String!): [TemplateComponent!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\TemplateComponents")
+}
+
+type Mutation {
+    "Create a new license for the authenticated user with the given template. Requires authentication."
+    createLicense(
+        templateId: Int! @rename(attribute: "template_id")
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateLicense")
+
+    "Update license site settings. Requires authentication."
+    updateLicense(
+        id: ID!
+        name: String
+        metaDescription: String @rename(attribute: "meta_description")
+        templateId: Int @rename(attribute: "template_id")
+        headerData: JSON @rename(attribute: "header_data")
+        footerData: JSON @rename(attribute: "footer_data")
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdateLicense")
+
+    "Create a new page. Requires authentication."
+    createPage(
+        licenseId: ID! @rename(attribute: "license_id")
+        slug: String!
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreatePage")
+
+    "Update an existing page. Requires authentication."
+    updatePage(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+        slug: String
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdatePage")
+
+    "Delete a page. Requires authentication."
+    deletePage(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeletePage")
+
+    "Generate a pre-signed S3 upload URL. Requires authentication."
+    generateUploadUrl(
+        filename: String!
+        mimeType: String!
+    ): UploadUrlResponse! @guard @field(resolver: "App\\GraphQL\\Mutations\\GenerateUploadUrl")
+
+    "Create or update a page component. Requires authentication."
+    upsertPageComponent(
+        pageId: ID! @rename(attribute: "page_id")
+        licenseId: ID! @rename(attribute: "license_id")
+        type: String!
+        data: JSON!
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertPageComponent")
+
+    "Toggle the active state of a page component. Requires authentication."
+    togglePageComponent(
+        id: ID!
+        isActive: Boolean! @rename(attribute: "is_active")
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\TogglePageComponent")
+
+    "Delete a page component. Requires authentication."
+    deletePageComponent(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeletePageComponent")
+
+    "Cancel a license. Stops daily billing and deactivates the site. Requires authentication."
+    cancelLicense(
+        id: ID!
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CancelLicense")
+}
+
+type License {
+    id: ID!
+    userId: Int! @rename(attribute: "user_id")
+    domain: String!
+    name: String
+    metaDescription: String @rename(attribute: "meta_description")
+    headerData: JSON @rename(attribute: "header_data")
+    footerData: JSON @rename(attribute: "footer_data")
+    templateId: Int @rename(attribute: "template_id")
+    isActive: Boolean! @rename(attribute: "is_active")
+    status: String!
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+    pages: [Page!]! @hasMany
+}
+
+type Page {
+    id: ID!
+    licenseId: ID! @rename(attribute: "license_id")
+    slug: String!
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+    license: License! @belongsTo
+}
+
+type RenderPageResponse {
+    site: SiteSettings!
+    page: PageContent!
+}
+
+type SiteSettings {
+    name: String
+    metaDescription: String
+    templateId: Int
+    header: SiteComponent
+    footer: SiteComponent
+}
+
+"A site-wide component (header or footer) with arbitrary JSON data."
+type SiteComponent {
+    data: JSON!
+}
+
+type PageContent {
+    slug: String!
+    id: ID
+    licenseId: ID @rename(attribute: "license_id")
+    componentsData: JSON
+}
+
+type UploadUrlResponse {
+    uploadUrl: String!
+    objectUrl: String!
+    expiresIn: Int!
+}
+
+"A single component type available for a template page."
+type TemplateComponent {
+    type: String!
+    label: String!
+}
+
+type PageComponent {
+    id: ID!
+    pageId: ID! @rename(attribute: "page_id")
+    licenseId: ID! @rename(attribute: "license_id")
+    type: String!
+    data: JSON!
+    isActive: Boolean! @rename(attribute: "is_active")
+    sortOrder: Int! @rename(attribute: "sort_order")
+    createdAt: DateTime! @rename(attribute: "created_at")
+    updatedAt: DateTime! @rename(attribute: "updated_at")
+}
