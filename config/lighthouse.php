@@ -28,6 +28,9 @@ return [
          * Make sure to return spec-compliant responses in case an error is thrown.
          */
         'middleware' => [
+            // Handle CORS headers for cross-origin requests.
+            \Illuminate\Http\Middleware\HandleCors::class,
+
             // Ensures the request is not vulnerable to cross-site request forgery.
             // Nuwave\Lighthouse\Http\Middleware\EnsureXHR::class,
 
