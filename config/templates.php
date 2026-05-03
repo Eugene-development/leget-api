@@ -67,7 +67,7 @@ return [
                 ['type' => 'PartnershipCTA',     'defaults' => ['title' => 'Присоединяйтесь к нам', 'subtitle' => 'Начните работать вместе с нами уже сегодня', 'buttonText' => 'Обсудить сотрудничество', 'phone' => '']],
             ],
             '/testimonials' => [
-                ['type' => 'Hero',             'defaults' => ['eyebrow' => 'Отзывы', 'title' => 'Мы работаем ради таких отзывов клиентов о нашей работе']],
+                ['type' => 'Hero',             'defaults' => ['eyebrow' => 'Отзывы', 'title' => 'Отзывы о нас', 'subtitle' => 'Мы работаем ради таких отзывов клиентов о нашей работе']],
                 ['type' => 'TestimonialsGrid', 'defaults' => ['featured' => [], 'reviews' => []]],
             ],
             '/installment' => [
