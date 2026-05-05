@@ -18,6 +18,12 @@ return [
 
     1 => [
         'name'  => 'Promo-1',
+        'header' => [
+            'siteName' => 'Новострой',
+        ],
+        'footer' => [
+            'siteName' => 'Новострой',
+        ],
         'pages' => [
             '/' => [
                 ['type' => 'HeroMain',   'defaults' => ['companyName' => 'Компания', 'title' => 'Мебель и Техника', 'description' => 'Мебель по вашим размерам с бесплатным проектом от дизайнера.', 'buttonText' => 'Бесплатный дизайн-проект с расчётом стоимости', 'buttonHref' => '/contact']],
@@ -28,10 +34,6 @@ return [
                 ['type' => 'Incentives', 'defaults' => ['badge' => 'Выгода', 'title' => 'С нами выгодно', 'text' => '<p>Помогаем клиентам сделать правильный выбор фурнитуры, материалов и производителя мебели.</p>']],
                 ['type' => 'Direction',  'defaults' => []],
                 ['type' => 'Brands',     'defaults' => ['badge' => 'Материалы', 'title' => 'Бренды, говорящие о качестве', 'partnersLabel' => 'Наши партнёры-производители']],
-                ['type' => 'Hero',       'defaults' => ['title' => 'Добро пожаловать', 'subtitle' => 'Мы делаем лучшую мебель']],
-                ['type' => 'Features',   'defaults' => ['items' => []]],
-                ['type' => 'Text',       'defaults' => ['content' => 'Расскажите о вашей компании']],
-                ['type' => 'CTA',        'defaults' => ['title' => 'Свяжитесь с нами', 'buttonText' => 'Написать']],
             ],
             '/about' => [
                 ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О нас', 'lead' => '', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
