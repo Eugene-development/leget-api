@@ -109,6 +109,12 @@ return [
                 ['type' => 'DesignProjectWhy',      'defaults' => ['title' => 'Почему нужен дизайн-проект?']],
                 ['type' => 'DesignProjectCTA',      'defaults' => ['title_part1' => 'Готовы создать', 'title_part2' => 'свой идеал?', 'cta_text' => 'Заказать проект']],
             ],
+            '/measurement' => [
+                ['type' => 'MeasurementHero',     'defaults' => ['badge' => 'Услуга компании', 'title_part1' => 'Проектный замер', 'title_part2' => 'помещения', 'description' => 'Точные обмеры — основа качественного дизайн-проекта. Профессиональный замер с фиксацией всех коммуникаций и особенностей помещения.', 'cta_text' => 'Заказать замер']],
+                ['type' => 'MeasurementFeatures', 'defaults' => ['badge' => 'Что мы фиксируем', 'title' => 'Детальный обмер помещения']],
+                ['type' => 'MeasurementWhy',      'defaults' => ['title' => 'Зачем нужен профессиональный замер?']],
+                ['type' => 'MeasurementCTA',      'defaults' => ['title' => 'Готовы начать с точного замера?', 'description' => 'Закажите профессиональный замер — первый шаг к идеальному интерьеру', 'cta_text' => 'Заказать замер']],
+            ],
         ],
     ],
 
