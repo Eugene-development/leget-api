@@ -231,6 +231,209 @@ return [
                 ]],
             ],
 
+            '/bytovaya-tehnika' => [
+                ['type' => 'ByttehnikaSidebar', 'defaults' => [
+                    'brands' => [
+                        ['title' => 'Bosch',     'slug' => 'bosch'],
+                        ['title' => 'Siemens',   'slug' => 'siemens'],
+                        ['title' => 'Electrolux','slug' => 'electrolux'],
+                        ['title' => 'Hansa',     'slug' => 'hansa'],
+                        ['title' => 'Gorenje',   'slug' => 'gorenje'],
+                    ]
+                ]],
+                ['type' => 'ByttehnikaHero', 'defaults' => [
+                    'title'         => 'Бытовая техника',
+                    'description'   => 'Встраиваемая и отдельностоящая техника от ведущих мировых производителей. Подберём оптимальное решение с учётом ваших пожеланий и бюджета.',
+                    'primaryButton' => 'Подобрать технику',
+                    'bgImage'       => '/appliances_hero.png',
+                ]],
+                ['type' => 'ByttehnikaBrands', 'defaults' => [
+                    'title'  => 'Работаем с лучшими брендами',
+                    'brands' => [
+                        ['title' => 'Bosch',     'slug' => 'bosch'],
+                        ['title' => 'Siemens',   'slug' => 'siemens'],
+                        ['title' => 'Electrolux','slug' => 'electrolux'],
+                        ['title' => 'Hansa',     'slug' => 'hansa'],
+                        ['title' => 'Gorenje',   'slug' => 'gorenje'],
+                        ['title' => 'Whirlpool', 'slug' => 'whirlpool'],
+                    ]
+                ]],
+                ['type' => 'ByttehnikaBenefits', 'defaults' => [
+                    'title' => 'Почему покупают у нас',
+                    'items' => [
+                        ['title' => 'Официальная гарантия', 'desc' => 'Вся техника с официальной гарантией производителя до 5 лет', 'icon' => 'shield', 'color' => 'emerald'],
+                        ['title' => 'Выгодные цены',        'desc' => 'Прямые поставки техники от производителей без посредников',  'icon' => 'wallet', 'color' => 'sky'],
+                        ['title' => 'Быстрая доставка',     'desc' => 'Доставим технику в удобное время с подъёмом на этаж',        'icon' => 'bolt',   'color' => 'amber'],
+                    ]
+                ]],
+                ['type' => 'ByttehnikaCategories', 'defaults' => [
+                    'title' => 'Популярные категории',
+                    'items' => [
+                        ['title' => 'Варочные панели', 'desc' => 'Индукционные, газовые, электрические',  'image' => 'https://storage.yandexcloud.net/novostroy/bg/varochna.jpg'],
+                        ['title' => 'Духовые шкафы',   'desc' => 'Встраиваемые с конвекцией и грилем',    'image' => 'https://storage.yandexcloud.net/novostroy/bg/duhshkaf.jpg'],
+                    ]
+                ]],
+                ['type' => 'ByttehnikaComplex', 'defaults' => [
+                    'title'       => 'Комплексное решение',
+                    'description' => 'Закажите кухню вместе с техникой и получите скидку до 15% на весь комплект. Наши дизайнеры подберут технику, которая идеально впишется в ваш проект.',
+                    'buttonText'  => 'Заказать проект мебели',
+                    'perks'       => [
+                        'Единый проект кухни и техники',
+                        'Скидка на комплект до 15%',
+                        'Одновременная доставка и установка',
+                    ]
+                ]],
+                ['type' => 'ByttehnikaCTA', 'defaults' => [
+                    'title'       => 'Нужна помощь с выбором?',
+                    'description' => 'Наши специалисты помогут подобрать технику под ваши задачи и бюджет',
+                    'buttonText'  => 'Получить консультацию',
+                ]],
+            ],
+
+            '/santehnika' => [
+                ['type' => 'SantehnikaSidebar', 'defaults' => [
+                    'brands' => [
+                        ['title' => 'Blanco',   'slug' => 'blanco'],
+                        ['title' => 'Grohe',    'slug' => 'grohe'],
+                        ['title' => 'Hansgrohe','slug' => 'hansgrohe'],
+                        ['title' => 'Franke',   'slug' => 'franke'],
+                        ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaHero', 'defaults' => [
+                    'title'         => 'Сантехника',
+                    'description'   => 'Кухонные мойки, смесители, измельчители и аксессуары от ведущих производителей. Подберём идеальное сочетание цвета и формы для вашей кухни.',
+                    'primaryButton' => 'Подобрать комплект',
+                    'bgImage'       => '/plumbing_hero.png',
+                ]],
+                ['type' => 'SantehnikaBrands', 'defaults' => [
+                    'title'  => 'Бренды сантехники',
+                    'brands' => [
+                        ['title' => 'Blanco',   'slug' => 'blanco'],
+                        ['title' => 'Grohe',    'slug' => 'grohe'],
+                        ['title' => 'Hansgrohe','slug' => 'hansgrohe'],
+                        ['title' => 'Franke',   'slug' => 'franke'],
+                        ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
+                        ['title' => 'Elikor',   'slug' => 'elikor'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaSinkTypes', 'defaults' => [
+                    'title' => 'Типы кухонных моек',
+                    'items' => [
+                        ['title' => 'Нержавеющая сталь',    'desc' => 'Классика для любой кухни. Прочные, гигиеничные, доступные по цене',                 'icon' => 'cube',     'color' => 'slate'],
+                        ['title' => 'Гранитные композитные', 'desc' => 'Стильный внешний вид, устойчивость к царапинам и высоким температурам',            'icon' => 'sparkles', 'color' => 'amber'],
+                        ['title' => 'Керамические',          'desc' => 'Элегантность и долговечность. Идеально для классических интерьеров',                'icon' => 'palette',  'color' => 'sky'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaCategories', 'defaults' => [
+                    'title' => 'Популярные категории',
+                    'items' => [
+                        ['title' => 'Кухонные мойки', 'desc' => 'Врезные, накладные, интегрированные',         'image' => '/kitchen_sink.png'],
+                        ['title' => 'Смесители',       'desc' => 'С выдвижным изливом, сенсорные, классические', 'image' => '/kitchen_faucet.png'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaBenefits', 'defaults' => [
+                    'title' => 'Почему выбирают нас',
+                    'items' => [
+                        ['title' => 'Оригинальная продукция',  'desc' => 'Только сертифицированная сантехника от официальных дистрибьюторов', 'icon' => 'shield', 'color' => 'emerald'],
+                        ['title' => 'Профессиональный монтаж', 'desc' => 'Установка с подключением и проверкой на герметичность',             'icon' => 'tools',  'color' => 'sky'],
+                        ['title' => 'Выгодные комплекты',      'desc' => 'Скидки при покупке мойки со смесителем и аксессуарами',             'icon' => 'coin',   'color' => 'amber'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaComplex', 'defaults' => [
+                    'title'       => 'Комплект для кухни',
+                    'description' => 'Закажите мойку вместе со смесителем, измельчителем и диспенсером — получите скидку до 20% на комплект.',
+                    'buttonText'  => 'Собрать комплект',
+                    'perks'       => [
+                        'Мойка + смеситель в едином стиле',
+                        'Измельчитель пищевых отходов',
+                        'Диспенсер для моющего средства',
+                    ]
+                ]],
+                ['type' => 'SantehnikaCTA', 'defaults' => [
+                    'title'       => 'Нужна помощь с выбором?',
+                    'description' => 'Наши специалисты помогут подобрать сантехнику под вашу кухню и бюджет',
+                    'buttonText'  => 'Получить консультацию',
+                ]],
+            ],
+
+            '/furnitura' => [
+                ['type' => 'FurnituraSidebar', 'defaults' => [
+                    'shops' => []
+                ]],
+                ['type' => 'FurnituraHero', 'defaults' => [
+                    'title'         => 'Фурнитура',
+                    'description'   => 'Каталог интернет-магазинов и поставщиков мебельной фурнитуры. Петли, направляющие, подъёмники и системы хранения от проверенных поставщиков.',
+                    'primaryButton' => 'Подобрать фурнитуру',
+                    'bgImage'       => '/furniture_fittings_hero.png',
+                ]],
+                ['type' => 'FurnituraShops', 'defaults' => [
+                    'title' => 'Магазины и поставщики',
+                    'shops' => []
+                ]],
+                ['type' => 'FurnituraCTA', 'defaults' => [
+                    'title'       => 'Подберём фурнитуру под ваш проект',
+                    'description' => 'Поможем выбрать оптимальное решение с учётом бюджета и требований к мебели',
+                    'buttonText'  => 'Получить консультацию',
+                ]],
+            ],
+
+            '/plitka' => [
+                ['type' => 'PliitkaSidebar', 'defaults' => [
+                    'brands' => [
+                        ['title' => 'Italon',   'slug' => 'italon'],
+                        ['title' => 'Kerama Marazzi', 'slug' => 'kerama-marazzi'],
+                        ['title' => 'Atlas Concorde', 'slug' => 'atlas-concorde'],
+                        ['title' => 'Estima',   'slug' => 'estima'],
+                    ]
+                ]],
+                ['type' => 'PliitkaHero', 'defaults' => [
+                    'title'         => 'Плитка',
+                    'description'   => 'Керамическая плитка, керамогранит и мозаика от ведущих мировых производителей. Подберём оптимальное решение для любого интерьера.',
+                    'primaryButton' => 'Подобрать плитку',
+                    'bgImage'       => '',
+                ]],
+                ['type' => 'PliitkaBrands', 'defaults' => [
+                    'title'  => 'Работаем с лучшими брендами',
+                    'brands' => [
+                        ['title' => 'Italon',   'slug' => 'italon'],
+                        ['title' => 'Kerama Marazzi', 'slug' => 'kerama-marazzi'],
+                        ['title' => 'Atlas Concorde', 'slug' => 'atlas-concorde'],
+                        ['title' => 'Estima',   'slug' => 'estima'],
+                    ]
+                ]],
+                ['type' => 'PliitkaBenefits', 'defaults' => [
+                    'title' => 'Почему выбирают нас',
+                    'items' => [
+                        ['title' => 'Сертифицированная продукция', 'desc' => 'Вся плитка сертифицирована и соответствует стандартам качества', 'icon' => 'shield', 'color' => 'emerald'],
+                        ['title' => 'Широкий ассортимент',         'desc' => 'Более 1000 коллекций плитки различных стилей и форматов', 'icon' => 'grid', 'color' => 'sky'],
+                        ['title' => 'Профессиональный подбор',      'desc' => 'Поможем подобрать плитку, подходящую по стилю и бюджету вашего проекта', 'icon' => 'bolt', 'color' => 'amber'],
+                    ]
+                ]],
+                ['type' => 'PliitkaCategories', 'defaults' => [
+                    'title' => 'Популярные категории',
+                    'items' => [
+                        ['title' => 'Керамогранит',        'desc' => 'Прочный и долговечный материал для пола и стен', 'gradient' => 'from-amber-50 to-orange-50'],
+                        ['title' => 'Керамическая плитка', 'desc' => 'Классическое решение для ванной и кухни',        'gradient' => 'from-sky-50 to-blue-50'],
+                    ]
+                ]],
+                ['type' => 'PliitkaComplex', 'defaults' => [
+                    'title'       => 'Комплексное решение',
+                    'description' => 'Закажите плитку вместе с дизайн-проектом и получите скидку на весь комплект. Наши дизайнеры подберут плитку, которая идеально впишется в ваш интерьер.',
+                    'buttonText'  => 'Заказать дизайн-проект',
+                    'perks'       => [
+                        'Подбор плитки под дизайн-проект',
+                        'Расчёт количества материала',
+                        'Доставка и укладка под ключ',
+                    ]
+                ]],
+                ['type' => 'PliitkaCTA', 'defaults' => [
+                    'title'       => 'Нужна помощь с выбором?',
+                    'description' => 'Наши специалисты помогут подобрать плитку под ваши задачи и бюджет',
+                    'buttonText'  => 'Получить консультацию',
+                ]],
+            ],
+
         ],
     ],
 
