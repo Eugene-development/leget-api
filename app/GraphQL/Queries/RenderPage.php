@@ -14,6 +14,10 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class RenderPage
 {
+    public function __construct(
+        private \App\Services\TemplateService $templateService
+    ) {}
+
     /**
      * Resolve a public page for the tenant site identified by the request domain.
      *
@@ -63,18 +67,23 @@ final class RenderPage
             ->where('slug', $slug)
             ->first();
 
+        // If page doesn't exist in DB, check if it exists in the template config
         if (! $page) {
-            throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+            $definitions = $this->templateService->getPageComponents((int) $license->template_id, $slug);
+            if (empty($definitions)) {
+                throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+            }
+
+            // Create a virtual page object for the response
+            $page = new Page([
+                'id' => 0, // Virtual ID
+                'license_id' => $license->id,
+                'slug' => $slug,
+            ]);
         }
 
-        $components = PageComponent::where('page_id', $page->id)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('created_at')
-            ->get()
-            ->map(fn($c) => ['type' => $c->type, 'data' => $c->data])
-            ->values()
-            ->all();
+        // Use TemplateService to get merged components (handles virtual components too)
+        $components = $this->templateService->getMergedPageComponents($license->id, $page);
 
         $response = [
             'site' => [
@@ -88,7 +97,7 @@ final class RenderPage
                 'id'             => (string) $page->id,
                 'license_id'     => (string) $license->id,
                 'slug'           => $page->slug,
-                'componentsData' => $components,
+                'componentsData' => $components->filter(fn($c) => $c->is_active)->map(fn($c) => ['type' => $c->type, 'data' => $c->data])->values()->all(),
             ],
         ];
 

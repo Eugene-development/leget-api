@@ -61,16 +61,30 @@ class TemplateService
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
      */
-    public function getMergedPageComponents(string $licenseId, string $pageId): \Illuminate\Database\Eloquent\Collection
+    public function getMergedPageComponents(string $licenseId, Page|string $pageOrId): \Illuminate\Database\Eloquent\Collection
     {
         $license = \App\Models\License::findOrFail($licenseId);
-        $page    = \App\Models\Page::where('id', $pageId)->where('license_id', $licenseId)->firstOrFail();
+        
+        if ($pageOrId instanceof Page) {
+            $page = $pageOrId;
+            $pageId = (string) $page->id;
+        } else {
+            $pageId = $pageOrId;
+            $page = Page::where('id', $pageId)->where('license_id', $licenseId)->first();
+        }
 
-        $definitions = $this->getPageComponents((int) $license->template_id, $page->slug);
-        $dbComponents = PageComponent::where('page_id', $pageId)
-            ->where('license_id', $licenseId)
-            ->get()
-            ->keyBy('type');
+        // If page is null (virtual or deleted), we can't merge DB components effectively
+        // but we can still return defaults if we know the slug.
+        // For virtual pages passed as objects, we have the slug.
+        $slug = $page ? $page->slug : ''; 
+        $definitions = $this->getPageComponents((int) $license->template_id, $slug);
+        
+        $dbComponents = $page && $page->exists
+            ? PageComponent::where('page_id', $page->id)
+                ->where('license_id', $licenseId)
+                ->get()
+                ->keyBy('type')
+            : collect();
 
         $result = new \Illuminate\Database\Eloquent\Collection();
 
