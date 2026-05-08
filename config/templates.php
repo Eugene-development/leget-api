@@ -174,6 +174,63 @@ return [
                     'buttonText' => 'Получить консультацию'
                 ]],
             ],
+            '/stoleshnica' => [
+                ['type' => 'StoleshnicaSidebar', 'defaults' => [
+                    'categories' => [
+                        ['title' => 'Кварц', 'slug' => 'kvarc'],
+                        ['title' => 'Акриловый камень', 'slug' => 'akril'],
+                        ['title' => 'ДСП / Постформинг', 'slug' => 'dsp'],
+                        ['title' => 'Массив дерева', 'slug' => 'massiv'],
+                        ['title' => 'Керамика', 'slug' => 'keramika']
+                    ]
+                ]],
+                ['type' => 'StoleshnicaHero', 'defaults' => [
+                    'title'           => 'Столешницы',
+                    'description'     => 'Изготавливаем столешницы из искусственного камня, кварца, массива и других материалов. Точный раскрой под вашу кухню с вырезами под мойку и варочную панель.',
+                    'primaryButton'   => 'Рассчитать стоимость',
+                    'secondaryButton' => 'Вызвать замерщика',
+                ]],
+                ['type' => 'StoleshnicaMaterials', 'defaults' => [
+                    'title' => 'Сравнение материалов',
+                    'rows'  => [
+                        ['material' => 'Кварцевый агломерат', 'price' => 'Высокая', 'strength' => 'Высокая', 'care' => 'Простой',       'strengthColor' => 'emerald', 'careColor' => 'emerald'],
+                        ['material' => 'Акриловый камень',    'price' => 'Средняя', 'strength' => 'Средняя', 'care' => 'Простой',       'strengthColor' => 'amber',   'careColor' => 'emerald'],
+                        ['material' => 'ДСП / Постформинг',  'price' => 'Низкая',  'strength' => 'Средняя', 'care' => 'Простой',       'strengthColor' => 'amber',   'careColor' => 'emerald'],
+                        ['material' => 'Массив дерева',       'price' => 'Высокая', 'strength' => 'Низкая',  'care' => 'Требует ухода', 'strengthColor' => 'sky',     'careColor' => 'amber'],
+                        ['material' => 'Керамика',            'price' => 'Высокая', 'strength' => 'Высокая', 'care' => 'Простой',       'strengthColor' => 'emerald', 'careColor' => 'emerald'],
+                    ]
+                ]],
+                ['type' => 'StoleshnicaBenefits', 'defaults' => [
+                    'title' => 'Наши преимущества',
+                    'items' => [
+                        ['title' => 'Точный расчёт',              'desc' => 'Замер с точностью до миллиметра для идеальной подгонки',         'icon' => 'calc',   'color' => 'amber'],
+                        ['title' => 'Профессиональный монтаж',    'desc' => 'Установка с герметизацией стыков и вырезами под технику',        'icon' => 'tools',  'color' => 'sky'],
+                        ['title' => 'Гарантия 2-10 лет',          'desc' => 'Гарантия на материал и работы по установке вашего изделия',      'icon' => 'shield', 'color' => 'emerald'],
+                    ]
+                ]],
+                ['type' => 'StoleshnicaSolutions', 'defaults' => [
+                    'title' => 'Популярные решения',
+                    'items' => [
+                        ['title' => 'Кварцевый агломерат', 'desc' => 'Прочность и элегантность натурального камня', 'image' => '/stoleshnica_popular_kvarc.png', 'href' => '/stoleshnica/kvarc'],
+                        ['title' => 'Акриловый камень',    'desc' => 'Бесшовное соединение и любые формы',          'image' => '/stoleshnica_popular_akril.png', 'href' => '/stoleshnica/akril'],
+                    ]
+                ]],
+                ['type' => 'StoleshnicaServices', 'defaults' => [
+                    'title'    => 'Что входит в стоимость',
+                    'services' => [
+                        ['title' => 'Выезд замерщика',    'desc' => 'Бесплатный замер помещения'],
+                        ['title' => 'Изготовление',       'desc' => 'Производство по вашим размерам'],
+                        ['title' => 'Вырезы под технику', 'desc' => 'Под мойку, варочную панель, смеситель'],
+                        ['title' => 'Доставка и монтаж',  'desc' => 'Профессиональная установка'],
+                    ]
+                ]],
+                ['type' => 'StoleshnicaCTA', 'defaults' => [
+                    'title'       => 'Рассчитайте стоимость столешницы',
+                    'description' => 'Оставьте заявку и получите расчёт стоимости с учётом всех вырезов и монтажа',
+                    'buttonText'  => 'Получить расчёт',
+                ]],
+            ],
+
         ],
     ],
 
