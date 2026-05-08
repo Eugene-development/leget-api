@@ -12,6 +12,10 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class PageComponents
 {
+    public function __construct(
+        private \App\Services\TemplateService $templateService
+    ) {}
+
     /**
      * Return all components for a page, verifying license ownership.
      *
@@ -34,10 +38,6 @@ final class PageComponents
             throw new GraphQLException('License not found', 'LICENSE_NOT_FOUND');
         }
 
-        return PageComponent::where('page_id', $args['pageId'])
-            ->where('license_id', $args['licenseId'])
-            ->orderBy('sort_order')
-            ->orderBy('created_at')
-            ->get();
+        return $this->templateService->getMergedPageComponents($args['licenseId'], $args['pageId']);
     }
 }

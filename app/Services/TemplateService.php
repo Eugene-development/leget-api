@@ -56,6 +56,53 @@ class TemplateService
     }
 
     /**
+     * Return a merged list of components for a page.
+     * Combines config/templates.php definitions with actual DB records.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     */
+    public function getMergedPageComponents(string $licenseId, string $pageId): \Illuminate\Database\Eloquent\Collection
+    {
+        $license = \App\Models\License::findOrFail($licenseId);
+        $page    = \App\Models\Page::where('id', $pageId)->where('license_id', $licenseId)->firstOrFail();
+
+        $definitions = $this->getPageComponents((int) $license->template_id, $page->slug);
+        $dbComponents = PageComponent::where('page_id', $pageId)
+            ->where('license_id', $licenseId)
+            ->get()
+            ->keyBy('type');
+
+        $result = new \Illuminate\Database\Eloquent\Collection();
+
+        foreach ($definitions as $index => $definition) {
+            $type = $definition['type'];
+
+            if ($dbComponents->has($type)) {
+                $component = $dbComponents->get($type);
+                // We could merge data here if we want to support adding new keys to defaults
+                // $component->data = array_merge($definition['defaults'] ?? [], $component->data ?? []);
+                $result->push($component);
+            } else {
+                // Create a virtual component (not persisted in DB)
+                $component = new PageComponent([
+                    'id'         => (string) Str::ulid(),
+                    'page_id'    => $page->id,
+                    'license_id' => $license->id,
+                    'type'       => $type,
+                    'data'       => $definition['defaults'] ?? [],
+                    'is_active'  => true,
+                    'sort_order' => $index,
+                ]);
+                // Set exists to false to make sure it's treated as new if someone tries to save it
+                $component->exists = false;
+                $result->push($component);
+            }
+        }
+
+        return $result->sortBy('sort_order')->values();
+    }
+
+    /**
      * Seed default page_components for a newly created page.
      *
      * Skips component types that already exist for the page (idempotent).
@@ -63,34 +110,6 @@ class TemplateService
      */
     public function seedDefaultComponents(Page $page, int $templateId): void
     {
-        $definitions = $this->getPageComponents($templateId, $page->slug);
-
-        if (empty($definitions)) {
-            return;
-        }
-
-        // Load existing types to avoid duplicates
-        $existingTypes = PageComponent::where('page_id', $page->id)
-            ->pluck('type')
-            ->flip()
-            ->all();
-
-        foreach ($definitions as $sortOrder => $definition) {
-            $type = $definition['type'];
-
-            if (isset($existingTypes[$type])) {
-                continue;
-            }
-
-            PageComponent::create([
-                'id'         => (string) Str::ulid(),
-                'page_id'    => $page->id,
-                'license_id' => $page->license_id,
-                'type'       => $type,
-                'data'       => $definition['defaults'] ?? [],
-                'is_active'  => true,
-                'sort_order' => $sortOrder,
-            ]);
-        }
+        // No longer needed due to lazy loading via getMergedPageComponents
     }
 }
