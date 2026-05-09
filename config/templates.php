@@ -174,6 +174,32 @@ return [
                     'buttonText' => 'Получить консультацию'
                 ]],
             ],
+            '/mebel/{category}' => [
+                ['type' => 'MebelSidebar',    'defaults' => [
+                    'categories' => [] // Will be enriched
+                ]],
+                ['type' => 'MebelCategoryHero', 'defaults' => [
+                    'title' => 'Категория',
+                    'description' => 'Описание категории',
+                    'buttonText' => 'Создать проект'
+                ]],
+                ['type' => 'MebelProjectsGrid', 'defaults' => [
+                    'projects' => [] // Will be enriched
+                ]],
+                ['type' => 'MebelBenefits',  'defaults' => [
+                    'title' => 'Почему выбирают нас',
+                    'items' => [
+                        ['title' => 'Гарантия качества', 'desc' => 'Используются только сертифицированные материалы', 'icon' => 'shield'],
+                        ['title' => 'Точные сроки', 'desc' => 'Соблюдаем оговорённые сроки', 'icon' => 'clock'],
+                        ['title' => '3D-проект бесплатно', 'desc' => 'Визуализация вашего будущего интерьера', 'icon' => 'design']
+                    ]
+                ]],
+                ['type' => 'MebelCTA',       'defaults' => [
+                    'title' => 'Не нашли подходящий вариант?',
+                    'description' => 'Мы изготовим мебель по вашему индивидуальному проекту',
+                    'buttonText' => 'Заказать проект'
+                ]],
+            ],
             '/stoleshnica' => [
                 ['type' => 'StoleshnicaSidebar', 'defaults' => [
                     'categories' => [

@@ -64,42 +64,89 @@ final class RenderPage
             return $cached;
         }
 
-        // Cache miss — query the page
+        // ── Resolve Page or Dynamic Route ────────────────────────────────────
         $page = Page::where('license_id', $license->id)
             ->where('slug', $slug)
             ->first();
 
-        // If page doesn't exist in DB, check if it exists in the template config
+        $category = null;
+        $templateSlug = $slug;
+
+        // If page doesn't exist in DB, check for dynamic patterns
         if (! $page) {
-            $definitions = $this->templateService->getPageComponents((int) $license->template_id, $slug);
+            // Pattern: mebel/{category_slug}
+            if (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
+                $categorySlug = $matches[1];
+                $category = Category::where('slug', $categorySlug)->first();
+                
+                if ($category) {
+                    $templateSlug = '/mebel/{category}';
+                }
+            }
+
+            $definitions = $this->templateService->getPageComponents((int) $license->template_id, $templateSlug);
             if (empty($definitions)) {
                 throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
             }
 
-            // Create a virtual page object for the response
+            // Create a virtual page object
             $page = new Page([
-                'id' => 0, // Virtual ID
+                'id' => 0,
                 'license_id' => $license->id,
                 'slug' => $slug,
             ]);
         }
 
         // Use TemplateService to get merged components (handles virtual components too)
-        $components = $this->templateService->getMergedPageComponents($license->id, $page);
+        $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
-        // ── Enrich catalog components with live database data ─────────────────
-        // For the mebel page, inject real categories from the DB into MebelSidebar
-        // so the sidebar always reflects the actual catalog state without extra
-        // client-side GraphQL calls.
-        $components = $components->map(function ($component) {
+        // ── Enrich components with dynamic data ──────────────────────────────
+        $components = $components->map(function ($component) use ($category, $slug) {
+            // Always enrich MebelSidebar
             if ($component->type === 'MebelSidebar') {
                 $component = clone $component;
                 $liveCategories = $this->getMebelCategories();
                 if ($liveCategories->isNotEmpty()) {
                     $component->data = array_merge(
                         $component->data ?? [],
-                        ['categories' => $liveCategories->toArray()]
+                        ['categories' => $liveCategories->toArray(), 'activeSlug' => $category?->slug]
                     );
+                }
+            }
+
+            // Enrich category-specific components
+            if ($category) {
+                if ($component->type === 'MebelCategoryHero') {
+                    $component = clone $component;
+                    $component->data = array_merge($component->data ?? [], [
+                        'title' => $category->value,
+                        'description' => $category->description,
+                        'categorySlug' => $category->slug,
+                    ]);
+                }
+
+                if ($component->type === 'MebelProjectsGrid') {
+                    $component = clone $component;
+                    // Fetch projects for this category
+                    $projects = \App\Models\MebelProject::where('category_id', $category->id)
+                        ->where('is_active', true)
+                        ->orderBy('sort_order')
+                        ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                        ->get();
+
+                    $component->data = array_merge($component->data ?? [], [
+                        'projects' => $projects->map(fn($p) => [
+                            'id' => $p->id,
+                            'value' => $p->value,
+                            'slug' => $p->slug,
+                            'short_description' => $p->short_description,
+                            'price' => $p->price,
+                            'is_featured' => $p->is_featured,
+                            'is_new' => $p->is_new,
+                            'images' => $p->images->map(fn($img) => ['url' => $img->url]),
+                        ]),
+                        'categorySlug' => $category->slug,
+                    ]);
                 }
             }
 
