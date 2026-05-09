@@ -103,6 +103,7 @@ type Mutation {
     generateUploadUrl(
         filename: String!
         mimeType: String!
+        folder: String
     ): UploadUrlResponse! @guard @field(resolver: "App\\GraphQL\\Mutations\\GenerateUploadUrl")
 
     "Create or update a page component. Requires authentication."
@@ -129,6 +130,25 @@ type Mutation {
     cancelLicense(
         id: ID!
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CancelLicense")
+
+    "Create or update a Mebel Project. Requires authentication."
+    upsertMebelProject(
+        input: UpsertMebelProjectInput!
+    ): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertMebelProject")
+}
+
+input UpsertMebelProjectInput {
+    id: ID
+    category_id: ID!
+    value: String!
+    description: String
+    short_description: String
+    price: Float
+    old_price: Float
+    is_featured: Boolean
+    is_new: Boolean
+    is_active: Boolean
+    image_urls: [String!]
 }
 
 type License {

@@ -83,6 +83,9 @@ final class RenderPage
                 $category = Category::where('slug', $categorySlug)->first();
                 $project = \App\Models\MebelProject::where('slug', $projectSlug)
                     ->where('is_active', true)
+                    ->where(function($q) use ($license) {
+                        $q->whereNull('license_id')->orWhere('license_id', $license->id);
+                    })
                     ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                     ->first();
                 
@@ -117,7 +120,7 @@ final class RenderPage
         $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
         // ── Enrich components with dynamic data ──────────────────────────────
-        $components = $components->map(function ($component) use ($category, $project, $slug) {
+        $components = $components->map(function ($component) use ($category, $project, $slug, $license) {
             // Always enrich MebelSidebar
             if ($component->type === 'MebelSidebar') {
                 $component = clone $component;
@@ -162,6 +165,9 @@ final class RenderPage
                     $related = \App\Models\MebelProject::where('category_id', $project->category_id)
                         ->where('id', '!=', $project->id)
                         ->where('is_active', true)
+                        ->where(function($q) use ($license) {
+                            $q->whereNull('license_id')->orWhere('license_id', $license->id);
+                        })
                         ->limit(3)
                         ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
@@ -204,6 +210,9 @@ final class RenderPage
                     // Fetch projects for this category
                     $projects = \App\Models\MebelProject::where('category_id', $category->id)
                         ->where('is_active', true)
+                        ->where(function($q) use ($license) {
+                            $q->whereNull('license_id')->orWhere('license_id', $license->id);
+                        })
                         ->orderBy('sort_order')
                         ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();

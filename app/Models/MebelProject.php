@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['key', 'category_id', 'is_active', 'value', 'slug', 'description', 'short_description', 'price', 'old_price', 'seo_title', 'seo_description', 'seo_keywords', 'meta', 'sort_order', 'is_featured', 'is_new', 'created_by', 'updated_by', 'deleted_by'])]
+#[Fillable(['key', 'category_id', 'license_id', 'is_active', 'value', 'slug', 'description', 'short_description', 'price', 'old_price', 'seo_title', 'seo_description', 'seo_keywords', 'meta', 'sort_order', 'is_featured', 'is_new', 'created_by', 'updated_by', 'deleted_by'])]
 class MebelProject extends Model
 {
     use HasUlids, SoftDeletes;

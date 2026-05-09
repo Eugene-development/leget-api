@@ -47,7 +47,9 @@ final class GenerateUploadUrl
 
         $licenseId = $license->id;
         $uuid = (string) Str::uuid();
-        $objectKey = "{$licenseId}/{$uuid}-{$filename}";
+        $folder = $args['folder'] ?? null;
+        $prefix = $folder ? trim($folder, '/') . '/' : '';
+        $objectKey = "{$prefix}{$licenseId}/{$uuid}-{$filename}";
 
         $s3Config = config('filesystems.disks.s3');
         $expiresIn = (int) config('waas.upload_url_ttl', 600);
