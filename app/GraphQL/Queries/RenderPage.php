@@ -70,12 +70,28 @@ final class RenderPage
             ->first();
 
         $category = null;
+        $project = null;
         $templateSlug = $slug;
 
         // If page doesn't exist in DB, check for dynamic patterns
         if (! $page) {
+            // Pattern: mebel/{category_slug}/{project_slug}
+            if (preg_match('#^/?mebel/([^/]+)/([^/]+)$#', $slug, $matches)) {
+                $categorySlug = $matches[1];
+                $projectSlug = $matches[2];
+                
+                $category = Category::where('slug', $categorySlug)->first();
+                $project = \App\Models\MebelProject::where('slug', $projectSlug)
+                    ->where('is_active', true)
+                    ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                    ->first();
+                
+                if ($project) {
+                    $templateSlug = '/mebel/{category}/{project}';
+                }
+            }
             // Pattern: mebel/{category_slug}
-            if (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
+            elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
                 $categorySlug = $matches[1];
                 $category = Category::where('slug', $categorySlug)->first();
                 
@@ -101,7 +117,7 @@ final class RenderPage
         $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
         // ── Enrich components with dynamic data ──────────────────────────────
-        $components = $components->map(function ($component) use ($category, $slug) {
+        $components = $components->map(function ($component) use ($category, $project, $slug) {
             // Always enrich MebelSidebar
             if ($component->type === 'MebelSidebar') {
                 $component = clone $component;
@@ -114,8 +130,66 @@ final class RenderPage
                 }
             }
 
+            // Enrich project-specific components
+            if ($project) {
+                if ($component->type === 'MebelProjectHero') {
+                    $component = clone $component;
+                    $component->data = array_merge($component->data ?? [], [
+                        'project' => [
+                            'id' => $project->id,
+                            'value' => $project->value,
+                            'slug' => $project->slug,
+                            'price' => $project->price,
+                            'old_price' => $project->old_price,
+                            'is_new' => $project->is_new,
+                            'is_featured' => $project->is_featured,
+                            'images' => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url]),
+                        ],
+                        'category' => $category ? ['value' => $category->value, 'slug' => $category->slug] : null,
+                    ]);
+                }
+
+                if ($component->type === 'MebelProjectDescription') {
+                    $component = clone $component;
+                    $component->data = array_merge($component->data ?? [], [
+                        'description' => $project->description,
+                    ]);
+                }
+
+                if ($component->type === 'MebelProjectSimilar') {
+                    $component = clone $component;
+                    // Fetch related projects in the same category
+                    $related = \App\Models\MebelProject::where('category_id', $project->category_id)
+                        ->where('id', '!=', $project->id)
+                        ->where('is_active', true)
+                        ->limit(3)
+                        ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                        ->get();
+
+                    $component->data = array_merge($component->data ?? [], [
+                        'projects' => $related->map(fn($p) => [
+                            'id' => $p->id,
+                            'value' => $p->value,
+                            'slug' => $p->slug,
+                            'price' => $p->price,
+                            'old_price' => $p->old_price,
+                            'is_new' => $p->is_new,
+                            'images' => $p->images->map(fn($img) => ['url' => $img->url]),
+                        ]),
+                        'categorySlug' => $category?->slug,
+                    ]);
+                }
+                
+                if ($component->type === 'MebelCTA') {
+                    $component = clone $component;
+                    $component->data = array_merge($component->data ?? [], [
+                        'projectName' => $project->value,
+                    ]);
+                }
+            }
+
             // Enrich category-specific components
-            if ($category) {
+            if ($category && !$project) {
                 if ($component->type === 'MebelCategoryHero') {
                     $component = clone $component;
                     $component->data = array_merge($component->data ?? [], [

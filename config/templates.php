@@ -200,6 +200,17 @@ return [
                     'buttonText' => 'Заказать проект'
                 ]],
             ],
+            '/mebel/{category}/{project}' => [
+                ['type' => 'MebelSidebar',    'defaults' => []],
+                ['type' => 'MebelProjectHero', 'defaults' => []],
+                ['type' => 'MebelProjectDescription', 'defaults' => []],
+                ['type' => 'MebelProjectSimilar', 'defaults' => []],
+                ['type' => 'MebelCTA',       'defaults' => [
+                    'title' => 'Хотите такую же мебель?',
+                    'description' => 'Оставьте заявку и получите бесплатный расчёт стоимости с учётом ваших размеров',
+                    'buttonText' => 'Создать ваш проект'
+                ]],
+            ],
             '/stoleshnica' => [
                 ['type' => 'StoleshnicaSidebar', 'defaults' => [
                     'categories' => [
