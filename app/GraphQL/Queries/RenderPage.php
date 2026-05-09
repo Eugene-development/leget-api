@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\Models\Category;
 use App\Models\License;
 use App\Models\Page;
 use App\Models\PageComponent;
+use App\Models\Rubric;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
@@ -85,6 +87,26 @@ final class RenderPage
         // Use TemplateService to get merged components (handles virtual components too)
         $components = $this->templateService->getMergedPageComponents($license->id, $page);
 
+        // ── Enrich catalog components with live database data ─────────────────
+        // For the mebel page, inject real categories from the DB into MebelSidebar
+        // so the sidebar always reflects the actual catalog state without extra
+        // client-side GraphQL calls.
+        $components = $components->map(function ($component) {
+            if ($component->type === 'MebelSidebar') {
+                $component = clone $component;
+                $liveCategories = $this->getMebelCategories();
+                if ($liveCategories->isNotEmpty()) {
+                    $component->data = array_merge(
+                        $component->data ?? [],
+                        ['categories' => $liveCategories->toArray()]
+                    );
+                }
+            }
+
+            return $component;
+        });
+        // ── End enrichment ────────────────────────────────────────────────────
+
         $response = [
             'site' => [
                 'name'            => $license->name,
@@ -111,5 +133,35 @@ final class RenderPage
         }
 
         return $response;
+    }
+
+    /**
+     * Fetch active categories for the «mebel» rubric from the database.
+     *
+     * Returns a Collection of arrays with keys: id, value, slug, sort_order.
+     * Falls back to an empty collection if the rubric doesn't exist yet.
+     *
+     * @return \Illuminate\Support\Collection<int, array{id: string, value: string, slug: string, sort_order: int}>
+     */
+    private function getMebelCategories(): \Illuminate\Support\Collection
+    {
+        $rubric = Rubric::where('slug', 'mebel')
+            ->where('is_active', true)
+            ->first();
+
+        if (! $rubric) {
+            return collect();
+        }
+
+        return Category::where('rubric_id', $rubric->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (Category $cat) => [
+                'id'         => $cat->id,
+                'value'      => $cat->value,
+                'slug'       => $cat->slug,
+                'sort_order' => $cat->sort_order,
+            ]);
     }
 }

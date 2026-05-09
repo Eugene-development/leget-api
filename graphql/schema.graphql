@@ -30,6 +30,38 @@ type Query {
     templateComponents(templateId: Int!, slug: String!): [TemplateComponent!]!
         @guard
         @field(resolver: "App\\GraphQL\\Queries\\TemplateComponents")
+
+    "Find a rubric by its URL slug (public)."
+    rubricBySlug(slug: String! @eq): Rubric @find
+
+    "List all rubrics, sorted by sort_order (public)."
+    rubrics(
+        "Filter by active status."
+        is_active: Boolean @eq
+    ): [Rubric!]! @all @orderBy(column: "sort_order", direction: ASC)
+
+    "Find a category by its URL slug (public)."
+    categoryBySlug(slug: String! @eq): Category @find
+
+    "List all categories, optionally filtered by rubric (public)."
+    categories(
+        "Filter by active status."
+        is_active: Boolean @eq
+        "Filter by rubric ID."
+        rubric_id: ID @eq
+    ): [Category!]! @all @orderBy(column: "sort_order", direction: ASC)
+
+    "List mebel projects, optionally filtered by category (public)."
+    mebelProjects(
+        "Filter by active status."
+        is_active: Boolean @eq
+        "Filter by category ID."
+        category_id: ID @eq
+        "Filter by featured flag."
+        is_featured: Boolean @eq
+        "Filter by new flag."
+        is_new: Boolean @eq
+    ): [MebelProject!]! @all @orderBy(column: "sort_order", direction: ASC)
 }
 
 type Mutation {
@@ -171,4 +203,130 @@ type PageComponent {
     sortOrder: Int! @rename(attribute: "sort_order")
     createdAt: DateTime! @rename(attribute: "created_at")
     updatedAt: DateTime! @rename(attribute: "updated_at")
+}
+
+"A rubric (top-level catalog section, e.g. Mebel, Santehnika)."
+type Rubric {
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "Name of the rubric."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Description of the rubric."
+    description: String
+
+    "Whether the rubric is active."
+    is_active: Boolean!
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Categories belonging to this rubric."
+    categories: [Category!]! @hasMany
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+}
+
+"A category within a rubric (e.g. Kitchens, Wardrobes)."
+type Category {
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "ID of the parent rubric."
+    rubric_id: ID
+
+    "Parent rubric."
+    rubric: Rubric @belongsTo
+
+    "Name of the category."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Description of the category."
+    description: String
+
+    "Background color or image."
+    bg: String
+
+    "Whether the category is active."
+    is_active: Boolean!
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Projects belonging to this category."
+    mebelProjects: [MebelProject!]! @hasMany(relation: "mebelProjects")
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+}
+
+"A furniture project (card in the catalog)."
+type MebelProject {
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "ID of the parent category."
+    category_id: ID!
+
+    "Parent category."
+    category: Category @belongsTo
+
+    "Name of the project."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Full description."
+    description: String
+
+    "Short description for cards."
+    short_description: String
+
+    "Price of the project."
+    price: Float
+
+    "Old price (for discounts)."
+    old_price: Float
+
+    "SEO title."
+    seo_title: String
+
+    "SEO description."
+    seo_description: String
+
+    "Arbitrary JSON meta-data."
+    meta: JSON
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Whether the project is featured."
+    is_featured: Boolean!
+
+    "Whether the project is a new item."
+    is_new: Boolean!
+
+    "Whether the project is active."
+    is_active: Boolean!
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
 }

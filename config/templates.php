@@ -130,11 +130,11 @@ return [
             '/mebel' => [
                 ['type' => 'MebelSidebar',    'defaults' => [
                     'categories' => [
-                        ['title' => 'Кухни', 'slug' => 'kitchens'],
-                        ['title' => 'Шкафы', 'slug' => 'wardrobes'],
-                        ['title' => 'Гардеробные', 'slug' => 'dressing-rooms'],
-                        ['title' => 'Прихожие', 'slug' => 'hallways'],
-                        ['title' => 'Детская мебель', 'slug' => 'kids-furniture']
+                        ['value' => 'Кухни',          'slug' => 'kitchens'],
+                        ['value' => 'Шкафы',          'slug' => 'wardrobes'],
+                        ['value' => 'Гардеробные',    'slug' => 'dressing-rooms'],
+                        ['value' => 'Прихожие',       'slug' => 'hallways'],
+                        ['value' => 'Детская мебель', 'slug' => 'kids-furniture']
                     ]
                 ]],
                 ['type' => 'MebelHero',      'defaults' => [
