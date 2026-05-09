@@ -208,7 +208,7 @@ return [
                 ['type' => 'MebelCTA',       'defaults' => [
                     'title' => 'Хотите такую же мебель?',
                     'description' => 'Оставьте заявку и получите бесплатный расчёт стоимости с учётом ваших размеров',
-                    'buttonText' => 'Создать ваш проект'
+                    'buttonText' => 'Создать проект в этом стиле'
                 ]],
             ],
             '/stoleshnica' => [
@@ -273,7 +273,7 @@ return [
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
                         ['title' => 'Siemens',   'slug' => 'siemens'],
-                        ['title' => 'Electrolux','slug' => 'electrolux'],
+                        ['title' => 'Electrolux', 'slug' => 'electrolux'],
                         ['title' => 'Hansa',     'slug' => 'hansa'],
                         ['title' => 'Gorenje',   'slug' => 'gorenje'],
                     ]
@@ -289,7 +289,7 @@ return [
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
                         ['title' => 'Siemens',   'slug' => 'siemens'],
-                        ['title' => 'Electrolux','slug' => 'electrolux'],
+                        ['title' => 'Electrolux', 'slug' => 'electrolux'],
                         ['title' => 'Hansa',     'slug' => 'hansa'],
                         ['title' => 'Gorenje',   'slug' => 'gorenje'],
                         ['title' => 'Whirlpool', 'slug' => 'whirlpool'],
@@ -332,7 +332,7 @@ return [
                     'brands' => [
                         ['title' => 'Blanco',   'slug' => 'blanco'],
                         ['title' => 'Grohe',    'slug' => 'grohe'],
-                        ['title' => 'Hansgrohe','slug' => 'hansgrohe'],
+                        ['title' => 'Hansgrohe', 'slug' => 'hansgrohe'],
                         ['title' => 'Franke',   'slug' => 'franke'],
                         ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
                     ]
@@ -348,7 +348,7 @@ return [
                     'brands' => [
                         ['title' => 'Blanco',   'slug' => 'blanco'],
                         ['title' => 'Grohe',    'slug' => 'grohe'],
-                        ['title' => 'Hansgrohe','slug' => 'hansgrohe'],
+                        ['title' => 'Hansgrohe', 'slug' => 'hansgrohe'],
                         ['title' => 'Franke',   'slug' => 'franke'],
                         ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
                         ['title' => 'Elikor',   'slug' => 'elikor'],
