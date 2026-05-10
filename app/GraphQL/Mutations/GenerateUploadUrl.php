@@ -24,13 +24,14 @@ final class GenerateUploadUrl
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
-        $filename = $args['filename'];
+        $originalFilename = $args['filename'];
         $mimeType = $args['mimeType'];
 
-        // Validate filename is non-empty
-        if (empty(trim($filename))) {
-            throw new GraphQLException('Filename must not be empty.', 'VALIDATION');
-        }
+        // Sanitize filename: convert to slug while preserving extension
+        $pathInfo = pathinfo($originalFilename);
+        $extension = $pathInfo['extension'] ?? 'jpg';
+        $safeName = Str::slug($pathInfo['filename']);
+        $filename = !empty($safeName) ? "{$safeName}.{$extension}" : "file-".Str::random(8).".{$extension}";
 
         // Validate mimeType matches valid MIME type pattern (type/subtype)
         if (! preg_match('/^[\w\-]+\/[\w\-\.\+]+$/', $mimeType)) {
@@ -46,10 +47,10 @@ final class GenerateUploadUrl
         }
 
         $licenseId = $license->id;
-        $uuid = (string) Str::uuid();
         $folder = $args['folder'] ?? null;
         $prefix = $folder ? trim($folder, '/') . '/' : '';
-        $objectKey = "{$prefix}{$licenseId}/{$uuid}-{$filename}";
+        $hash = Str::random(40);
+        $objectKey = "{$prefix}{$licenseId}/{$hash}.{$extension}";
 
         $s3Config = config('filesystems.disks.s3');
         $expiresIn = (int) config('waas.upload_url_ttl', 600);

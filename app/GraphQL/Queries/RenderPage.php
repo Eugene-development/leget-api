@@ -32,8 +32,7 @@ final class RenderPage
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
         $request = $context->request();
-
-        // Resolve domain: X-Forwarded-Host takes priority, fall back to Host header
+        $slug = $args['slug'];
         $domain = $request->header('X-Forwarded-Host') ?? $request->getHost();
 
         // Look up the license by domain
@@ -146,7 +145,7 @@ final class RenderPage
                             'old_price' => $project->old_price,
                             'is_new' => $project->is_new,
                             'is_featured' => $project->is_featured,
-                            'images' => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url]),
+                            'images' => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url, 'hash' => $img->hash]),
                         ],
                         'category' => $category ? ['value' => $category->value, 'slug' => $category->slug] : null,
                     ]);
@@ -180,7 +179,7 @@ final class RenderPage
                             'price' => $p->price,
                             'old_price' => $p->old_price,
                             'is_new' => $p->is_new,
-                            'images' => $p->images->map(fn($img) => ['url' => $img->url]),
+                            'images' => $p->images->map(fn($img) => ['url' => $img->url, 'hash' => $img->hash]),
                         ]),
                         'categorySlug' => $category?->slug,
                     ]);
@@ -226,7 +225,7 @@ final class RenderPage
                             'price' => $p->price,
                             'is_featured' => $p->is_featured,
                             'is_new' => $p->is_new,
-                            'images' => $p->images->map(fn($img) => ['url' => $img->url]),
+                            'images' => $p->images->map(fn($img) => ['url' => $img->url, 'hash' => $img->hash]),
                         ]),
                         'categorySlug' => $category->slug,
                     ]);

@@ -10,6 +10,7 @@ use App\Models\License;
 use App\Models\MebelProject;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpsertMebelProject
@@ -53,6 +54,12 @@ final class UpsertMebelProject
                 $project->slug = "{$baseSlug}-{$count}";
                 $count++;
             }
+            $project->key = $project->slug;
+            
+            // Set default sort order for new projects
+            $project->sort_order = MebelProject::where('category_id', $input['category_id'])
+                ->where('license_id', $license->id)
+                ->max('sort_order') + 1;
         }
 
         $project->category_id = $input['category_id'];
@@ -84,23 +91,47 @@ final class UpsertMebelProject
 
         // Handle image_urls if provided
         if (isset($input['image_urls'])) {
-            // Clear existing images or handle updates. For simplicity, if passed, we can add them.
-            // A more robust implementation would diff them. Let's just create new ones and delete old ones if this is an update.
-            // Assuming image_urls are the full URLs we want to keep.
-            
             // Delete old images
             $project->images()->delete();
             
             // Add new images
             foreach ($input['image_urls'] as $index => $url) {
                 $image = new Image();
-                $image->url = $url;
+                $image->key = (string) Str::ulid();
+                $image->path = $url;
+                
+                $fullFilename = basename(parse_url($url, PHP_URL_PATH) ?? 'image.jpg');
+                $pathInfo = pathinfo($fullFilename);
+                
+                // Fetch content to calculate real sha256 hash (as in Novostroy)
+                try {
+                    $content = file_get_contents($url);
+                    $hash = $content ? hash('sha256', $content) : hash('sha256', $fullFilename);
+                    $size = $content ? strlen($content) : 0;
+                } catch (\Throwable $e) {
+                    $hash = hash('sha256', $fullFilename);
+                    $size = 0;
+                }
+
+                $image->hash = $hash;
+                $image->filename = $fullFilename;
+                $image->original_name = $fullFilename;
+                $image->mime_type = 'image/'.($pathInfo['extension'] ?? 'jpeg');
+                $image->size = $size;
+                
                 $image->sort_order = $index + 1;
                 $image->is_active = true;
                 $image->parentable_id = $project->id;
                 $image->parentable_type = MebelProject::class;
                 $image->save();
             }
+        }
+
+        // Clear cache for this site to reflect changes immediately
+        try {
+            Cache::tags(["license:{$license->id}"])->flush();
+        } catch (\BadMethodCallException $e) {
+            // Tagged cache not supported (e.g. file/database driver)
         }
 
         return $project;

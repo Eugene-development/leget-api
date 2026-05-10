@@ -24,6 +24,47 @@ class Image extends Model
     public $incrementing = false;
 
     /**
+     * Поля, доступные для массового заполнения
+     */
+    protected $fillable = [
+        'key',
+        'is_active',
+        'hash',
+        'filename',
+        'original_name',
+        'mime_type',
+        'size',
+        'path',
+        'parentable_type',
+        'parentable_id',
+        'sort_order',
+    ];
+
+    /**
+     * Аксессор для получения полного URL изображения.
+     */
+    public function getUrlAttribute(): ?string
+    {
+        if (!$this->path) {
+            return null;
+        }
+
+        if (str_starts_with($this->path, 'http')) {
+            return $this->path;
+        }
+
+        $endpoint = config('filesystems.disks.s3.endpoint', 'https://storage.yandexcloud.net');
+        $bucket = config('filesystems.disks.s3.bucket', 'leget-main');
+
+        return rtrim($endpoint, '/') . '/' . $bucket . '/' . ltrim($this->path, '/');
+    }
+
+    /**
+     * Добавляемые поля при преобразовании в массив/JSON.
+     */
+    protected $appends = ['url'];
+
+    /**
      * Приведение типов атрибутов.
      *
      * @return array<string, string>
