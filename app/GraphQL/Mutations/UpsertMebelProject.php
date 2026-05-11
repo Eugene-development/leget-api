@@ -26,28 +26,38 @@ final class UpsertMebelProject
         $input = $args['input'];
 
         $user = $context->user();
-        $license = $user->licenses()->first();
+        $licenses = $user->licenses()->get();
 
-        if (! $license) {
+        if ($licenses->isEmpty()) {
             throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
         }
 
+        $license = $licenses->first(); // для создания новых проектов
+        $licenseIds = $licenses->pluck('id')->toArray();
+
         if (isset($input['id'])) {
+            // Разрешаем редактировать: глобальные проекты (license_id = null)
+            // и проекты любой из лицензий пользователя
             $project = MebelProject::where('id', $input['id'])
-                ->where('license_id', $license->id)
+                ->where(function ($q) use ($licenseIds) {
+                    $q->whereNull('license_id')->orWhereIn('license_id', $licenseIds);
+                })
                 ->first();
 
             if (! $project) {
                 throw new GraphQLException('Mebel project not found or you do not have permission to edit it.', 'VALIDATION');
             }
+
+            // Глобальные проекты (license_id = null) остаются глобальными.
+            // Не меняем license_id — иначе проект потеряется для других доменов.
         } else {
             $project = new MebelProject();
             $project->license_id = $license->id;
-            
+
             // Generate a slug if creating
             $baseSlug = Str::slug($input['value']);
             $project->slug = $baseSlug;
-            
+
             // Ensure slug uniqueness
             $count = 1;
             while (MebelProject::where('slug', $project->slug)->exists()) {
@@ -55,10 +65,10 @@ final class UpsertMebelProject
                 $count++;
             }
             $project->key = $project->slug;
-            
+
             // Set default sort order for new projects
             $project->sort_order = MebelProject::where('category_id', $input['category_id'])
-                ->where('license_id', $license->id)
+                ->whereIn('license_id', $licenseIds)
                 ->max('sort_order') + 1;
         }
 
@@ -131,7 +141,8 @@ final class UpsertMebelProject
         try {
             Cache::tags(["license:{$license->id}"])->flush();
         } catch (\BadMethodCallException $e) {
-            // Tagged cache not supported (e.g. file/database driver)
+            // Tagged cache not supported (file/database driver) — flush all cache
+            Cache::flush();
         }
 
         return $project;

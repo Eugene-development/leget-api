@@ -136,18 +136,24 @@ final class RenderPage
             if ($project) {
                 if ($component->type === 'MebelProjectHero') {
                     $component = clone $component;
+                    $liveCategories = $this->getMebelCategories();
                     $component->data = array_merge($component->data ?? [], [
                         'project' => [
-                            'id' => $project->id,
-                            'value' => $project->value,
-                            'slug' => $project->slug,
-                            'price' => $project->price,
-                            'old_price' => $project->old_price,
-                            'is_new' => $project->is_new,
-                            'is_featured' => $project->is_featured,
-                            'images' => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url, 'hash' => $img->hash]),
+                            'id'                => $project->id,
+                            'category_id'       => $project->category_id,
+                            'value'             => $project->value,
+                            'slug'              => $project->slug,
+                            'short_description' => $project->short_description,
+                            'description'       => $project->description,
+                            'price'             => $project->price,
+                            'old_price'         => $project->old_price,
+                            'is_new'            => $project->is_new,
+                            'is_featured'       => $project->is_featured,
+                            'is_active'         => $project->is_active,
+                            'images'            => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url, 'hash' => $img->hash]),
                         ],
-                        'category' => $category ? ['value' => $category->value, 'slug' => $category->slug] : null,
+                        'category'   => $category ? ['id' => $category->id, 'value' => $category->value, 'slug' => $category->slug] : null,
+                        'categories' => $liveCategories->toArray(),
                     ]);
                 }
 
@@ -212,7 +218,8 @@ final class RenderPage
                         ->where(function($q) use ($license) {
                             $q->whereNull('license_id')->orWhere('license_id', $license->id);
                         })
-                        ->orderBy('sort_order')
+                        ->orderBy('sort_order', 'asc')
+                        ->orderBy('created_at', 'desc')
                         ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
 
