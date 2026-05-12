@@ -26,13 +26,23 @@ final class UpsertMebelProject
         $input = $args['input'];
 
         $user = $context->user();
+        $request = $context->request();
+        $domain = $request->header('X-Forwarded-Host') ?? $request->getHost();
+
         $licenses = $user->licenses()->get();
 
         if ($licenses->isEmpty()) {
             throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
         }
 
-        $license = $licenses->first(); // для создания новых проектов
+        // Try to find the license matching the current request domain
+        $license = $licenses->where('domain', $domain)->first();
+
+        // Fallback to the first license if no exact domain match found
+        if (!$license) {
+            $license = $licenses->first();
+        }
+
         $licenseIds = $licenses->pluck('id')->toArray();
 
         if (isset($input['id'])) {
