@@ -32,7 +32,7 @@ final class RenderPage
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
         $request = $context->request();
-        $slug = $args['slug'];
+        $slug = '/' . ltrim($args['slug'], '/');
         $domain = $request->header('X-Forwarded-Host') ?? $request->getHost();
 
         // Look up the license by domain
@@ -46,8 +46,8 @@ final class RenderPage
             throw new GraphQLException('Site is suspended', 'SITE_SUSPENDED');
         }
 
-        $slug = $args['slug'];
-        $cacheKey = "render:{$license->id}:{$slug}";
+        // Use normalized slug everywhere
+        $cacheKey = "render:{$license->id}:{$slug}:v2";
         $cacheTags = ["license:{$license->id}"];
         $ttl = config('waas.cache_ttl', 3600);
 
@@ -102,17 +102,24 @@ final class RenderPage
                 }
             }
 
-            $definitions = $this->templateService->getPageComponents((int) $license->template_id, $templateSlug);
-            if (empty($definitions)) {
-                throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
-            }
+            // Try to find the "template page" record in the DB for this dynamic route
+            $page = Page::where('license_id', $license->id)
+                ->where('slug', $templateSlug)
+                ->first();
 
-            // Create a virtual page object
-            $page = new Page([
-                'id' => 0,
-                'license_id' => $license->id,
-                'slug' => $slug,
-            ]);
+            if (! $page) {
+                $definitions = $this->templateService->getPageComponents((int) $license->template_id, $templateSlug);
+                if (empty($definitions)) {
+                    throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+                }
+
+                // Create a virtual page object as fallback
+                $page = new Page([
+                    'license_id' => $license->id,
+                    'slug' => $slug,
+                ]);
+                $page->id = 0; // Ensure ID is set even if not fillable
+            }
         }
 
         // Use TemplateService to get merged components (handles virtual components too)
@@ -204,11 +211,11 @@ final class RenderPage
             if ($category && !$project) {
                 if ($component->type === 'MebelCategoryHero') {
                     $component = clone $component;
-                    $component->data = array_merge($component->data ?? [], [
+                    $component->data = array_merge([
                         'title' => $category->value,
                         'description' => $category->description,
                         'categorySlug' => $category->slug,
-                    ]);
+                    ], $component->data ?? []);
                 }
 
                 if ($component->type === 'MebelProjectsGrid') {
@@ -252,9 +259,10 @@ final class RenderPage
                 'footer'          => $license->footer_data ? ['data' => $license->footer_data] : null,
             ],
             'page' => [
-                'id'             => (string) $page->id,
+                'id'             => (string) ($page->id ?: 'slug:' . ($page->slug ?? $slug)),
+                'licenseId'      => (string) $license->id,
                 'license_id'     => (string) $license->id,
-                'slug'           => $page->slug,
+                'slug'           => $page->slug ?? $slug,
                 'componentsData' => $components->filter(fn($c) => $c->is_active)->map(fn($c) => ['type' => $c->type, 'data' => $c->data])->values()->all(),
             ],
         ];

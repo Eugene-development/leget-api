@@ -35,9 +35,22 @@ final class UpsertPageComponent
             throw new GraphQLException('This action is unauthorized.', 'AUTHORIZATION');
         }
 
-        $page = Page::where('id', $args['page_id'])
-            ->where('license_id', $license->id)
-            ->first();
+        $pageId = (string) $args['page_id'];
+        $page = null;
+
+        if (str_starts_with($pageId, 'slug:')) {
+            $slug = substr($pageId, 5);
+            $page = Page::firstOrCreate(
+                [
+                    'license_id' => $license->id,
+                    'slug'       => $slug,
+                ]
+            );
+        } else {
+            $page = Page::where('id', $pageId)
+                ->where('license_id', $license->id)
+                ->first();
+        }
 
         if (! $page) {
             throw new GraphQLException('Page not found.', 'VALIDATION');
@@ -51,6 +64,7 @@ final class UpsertPageComponent
             [
                 'data'       => $args['data'],
                 'license_id' => $license->id,
+                'is_active'  => true,
             ]
         );
 
