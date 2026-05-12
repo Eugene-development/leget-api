@@ -173,6 +173,7 @@ final class RenderPage
                         ->where(function($q) use ($license) {
                             $q->whereNull('license_id')->orWhere('license_id', $license->id);
                         })
+                        ->orderBy('id', 'desc')
                         ->limit(3)
                         ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
@@ -218,8 +219,7 @@ final class RenderPage
                         ->where(function($q) use ($license) {
                             $q->whereNull('license_id')->orWhere('license_id', $license->id);
                         })
-                        ->orderBy('sort_order', 'asc')
-                        ->orderBy('created_at', 'desc')
+                        ->orderBy('id', 'desc')
                         ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
 
