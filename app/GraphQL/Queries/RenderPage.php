@@ -47,7 +47,7 @@ final class RenderPage
         }
 
         // Use normalized slug everywhere
-        $cacheKey = "render:{$license->id}:{$slug}:v2";
+        $cacheKey = "render:{$license->id}:{$slug}";
         $cacheTags = ["license:{$license->id}"];
         $ttl = config('waas.cache_ttl', 3600);
 
