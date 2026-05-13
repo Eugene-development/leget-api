@@ -73,6 +73,7 @@ type Mutation {
     "Update license site settings. Requires authentication."
     updateLicense(
         id: ID!
+        domain: String
         name: String
         metaDescription: String @rename(attribute: "meta_description")
         templateId: Int @rename(attribute: "template_id")

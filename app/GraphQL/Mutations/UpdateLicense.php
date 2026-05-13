@@ -24,7 +24,7 @@ final class UpdateLicense
      * components — so the site is immediately ready to view.
      *
      * @param  mixed  $root
-     * @param  array{id: string, name?: string, meta_description?: string, template_id?: int, header_data?: mixed, footer_data?: mixed}  $args
+     * @param  array{id: string, domain?: string, name?: string, meta_description?: string, template_id?: int, header_data?: mixed, footer_data?: mixed}  $args
      *
      * @throws GraphQLException
      */
@@ -52,7 +52,7 @@ final class UpdateLicense
         // Build update data from provided args
         $updateData = [];
 
-        foreach (['name', 'meta_description', 'template_id', 'header_data', 'footer_data'] as $field) {
+        foreach (['domain', 'name', 'meta_description', 'template_id', 'header_data', 'footer_data'] as $field) {
             if (array_key_exists($field, $args)) {
                 $updateData[$field] = $args[$field];
             }
