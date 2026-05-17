@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['wallet_id', 'amount', 'type', 'description'])]
+#[Fillable(['wallet_id', 'license_id', 'amount', 'type', 'description'])]
 class Transaction extends Model
 {
     /**
@@ -28,4 +28,6 @@ class Transaction extends Model
             'amount' => 'decimal:2',
         ];
     }
+
+
 }

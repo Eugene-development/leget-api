@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Tenant;
+use App\Models\License;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\DB;
@@ -25,9 +25,9 @@ class BillingService
     /**
      * Обработка ежедневных списаний за аренду сайтов.
      *
-     * Метод находит все активные сайты (tenants), считывает их daily_price
-     * и списывает сумму с кошелька владельца. Баланс может уходить
-     * в отрицательное значение — списание производится всегда.
+     * Метод находит все активные лицензии (licenses), у которых наступил срок биллинга,
+     * считывает их daily_price и списывает сумму с кошелька владельца.
+     * Баланс может уходить в отрицательное значение — списание производится всегда.
      *
      * @return array{processed: int, charged: int, negative: int, errors: int}
      */
@@ -41,20 +41,22 @@ class BillingService
             'errors' => 0,
         ];
 
-        // Получаем все активные сайты с предзагрузкой кошелька владельца.
-        // Тенанты со статусом 'cancelled' исключаются — биллинг для них остановлен.
-        $activeTenants = Tenant::where('status', 'active')
+        // Получаем все активные лицензии с предзагрузкой кошелька владельца.
+        // Лицензии со статусом 'cancelled' исключаются — биллинг для них остановлен.
+        // Биллинг начинается только после даты billing_started_at.
+        $activeLicenses = License::where('status', 'active')
             ->where('is_active', true)
+            ->where('billing_started_at', '<=', now())
             ->with('user.wallet')
             ->get();
 
         Log::info('Биллинг: начало обработки', [
-            'total_active_tenants' => $activeTenants->count(),
+            'total_active_licenses' => $activeLicenses->count(),
         ]);
 
-        foreach ($activeTenants as $tenant) {
+        foreach ($activeLicenses as $license) {
             $this->results['processed']++;
-            $this->processTenant($tenant);
+            $this->processLicense($license);
         }
 
         Log::info('Биллинг: обработка завершена', $this->results);
@@ -63,50 +65,47 @@ class BillingService
     }
 
     /**
-     * Обработка списания для конкретного сайта (тенанта).
+     * Обработка списания для конкретной лицензии.
      *
      * Использует Database Transaction и lockForUpdate() для безопасной
      * работы с балансом кошелька, исключая гонку данных (race condition).
      */
-    protected function processTenant(Tenant $tenant): void
+    protected function processLicense(License $license): void
     {
         try {
-            DB::transaction(function () use ($tenant) {
-                $user = $tenant->user;
+            DB::transaction(function () use ($license) {
+                $user = $license->user;
 
                 if (!$user) {
-                    Log::warning('Биллинг: у тенанта отсутствует владелец', [
-                        'tenant_id' => $tenant->id,
+                    Log::warning('Биллинг: у лицензии отсутствует владелец', [
+                        'license_id' => $license->id,
                     ]);
                     $this->results['errors']++;
                     return;
                 }
 
                 // Блокируем кошелёк для обновления (pessimistic locking)
-                // Это предотвращает одновременное изменение баланса из другого процесса
                 $wallet = Wallet::where('user_id', $user->id)
                     ->lockForUpdate()
                     ->first();
 
                 if (!$wallet) {
                     Log::warning('Биллинг: у пользователя отсутствует кошелёк', [
-                        'tenant_id' => $tenant->id,
+                        'license_id' => $license->id,
                         'user_id' => $user->id,
                     ]);
                     $this->results['errors']++;
                     return;
                 }
 
-                $dailyPrice = $tenant->daily_price;
+                $dailyPrice = $license->daily_price;
 
                 // Списываем средства с кошелька (баланс может уйти в минус)
-                $this->chargeWallet($wallet, $dailyPrice, $tenant);
+                $this->chargeWallet($wallet, $dailyPrice, $license);
             });
         } catch (\Throwable $e) {
-            // Ловим любые исключения, чтобы ошибка одного тенанта
-            // не прерывала обработку остальных
-            Log::error('Биллинг: ошибка при обработке тенанта', [
-                'tenant_id' => $tenant->id,
+            Log::error('Биллинг: ошибка при обработке лицензии', [
+                'license_id' => $license->id,
                 'error' => $e->getMessage(),
             ]);
             $this->results['errors']++;
@@ -118,7 +117,7 @@ class BillingService
      *
      * Баланс может уйти в отрицательное значение — списание производится всегда.
      */
-    protected function chargeWallet(Wallet $wallet, string $amount, Tenant $tenant): void
+    protected function chargeWallet(Wallet $wallet, string $amount, License $license): void
     {
         // Уменьшаем баланс кошелька
         $wallet->balance = bcsub($wallet->balance, $amount, 2);
@@ -127,15 +126,16 @@ class BillingService
         // Создаём запись о транзакции списания
         Transaction::create([
             'wallet_id' => $wallet->id,
+            'license_id' => $license->id,
             'amount' => $amount,
             'type' => 'withdraw',
-            'description' => "Ежедневное списание за сайт \"{$tenant->name}\" (ID: {$tenant->id})",
+            'description' => "Списание \"{$license->name}\" ({$license->domain})",
         ]);
 
         // Фиксируем, если баланс ушёл в минус
         if (bccomp($wallet->balance, '0', 2) < 0) {
             Log::warning('Биллинг: баланс ушёл в отрицательное значение', [
-                'tenant_id' => $tenant->id,
+                'license_id' => $license->id,
                 'user_id' => $wallet->user_id,
                 'amount' => $amount,
                 'remaining_balance' => $wallet->balance,
@@ -144,7 +144,7 @@ class BillingService
         }
 
         Log::info('Биллинг: успешное списание', [
-            'tenant_id' => $tenant->id,
+            'license_id' => $license->id,
             'user_id' => $wallet->user_id,
             'amount' => $amount,
             'remaining_balance' => $wallet->balance,

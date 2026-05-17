@@ -39,6 +39,8 @@ final class CreateLicense
 
         $user = $context->user();
 
+        $dailyPrice = config("waas.template_prices.{$templateId}", 0);
+
         // Create license with a temporary domain (user will set real domain later)
         $license = License::create([
             'id'          => (string) Str::ulid(),
@@ -47,6 +49,8 @@ final class CreateLicense
             'template_id' => $templateId,
             'is_active'   => true,
             'status'      => 'active',
+            'daily_price' => $dailyPrice,
+            'billing_started_at' => now()->addHours(72),
         ]);
 
         // Seed all pages and default components from template config

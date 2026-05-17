@@ -8,5 +8,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Ежедневное списание средств за аренду сайтов — запуск в полночь
-Schedule::command('app:daily-billing')->daily();
+// Ежедневное списание средств — команда зарегистрирована в bootstrap/app.php с точным временем (07:00 МСК)
+// Schedule::command('app:daily-billing')->daily(); // дублирование удалено

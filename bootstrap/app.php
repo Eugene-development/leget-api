@@ -15,4 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        $schedule->command('app:daily-billing')
+            ->dailyAt('07:00')
+            ->timezone('Europe/Moscow');
+    })
+    ->create();

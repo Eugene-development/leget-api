@@ -2,6 +2,15 @@
 
 set -e
 
+# Если контейнер запущен в режиме scheduler — запускаем цикл schedule:run
+if [ "$CONTAINER_ROLE" = "scheduler" ]; then
+    echo "⏰ Starting Laravel Scheduler..."
+    while true; do
+        php artisan schedule:run
+        sleep 60
+    done
+fi
+
 echo "🚀 Starting Laravel application..."
 
 # Создаем необходимые директории

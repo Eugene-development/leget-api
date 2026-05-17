@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'domain', 'template_id', 'is_active', 'status', 'name', 'meta_description', 'header_data', 'footer_data'])]
+#[Fillable(['user_id', 'domain', 'favicon_url', 'template_id', 'is_active', 'status', 'name', 'meta_description', 'header_data', 'footer_data', 'daily_price', 'billing_started_at'])]
 class License extends Model
 {
     use HasUlids;
@@ -54,6 +54,8 @@ class License extends Model
             'is_active'   => 'boolean',
             'header_data' => 'array',
             'footer_data' => 'array',
+            'daily_price' => 'decimal:2',
+            'billing_started_at' => 'datetime',
         ];
     }
 }

@@ -52,7 +52,7 @@ final class UpdateLicense
         // Build update data from provided args
         $updateData = [];
 
-        foreach (['domain', 'name', 'meta_description', 'template_id', 'header_data', 'footer_data'] as $field) {
+        foreach (['domain', 'name', 'meta_description', 'template_id', 'header_data', 'footer_data', 'favicon_url'] as $field) {
             if (array_key_exists($field, $args)) {
                 $updateData[$field] = $args[$field];
             }
@@ -63,6 +63,13 @@ final class UpdateLicense
         // If template_id was set or changed — seed all pages and default components
         if (array_key_exists('template_id', $args) && $args['template_id'] !== null) {
             $this->seedTemplatePages($license, $args['template_id']);
+
+            // Set daily price and billing start if not already set
+            $license->daily_price = config("waas.template_prices.{$args['template_id']}", 0);
+            if (! $license->billing_started_at) {
+                $license->billing_started_at = now()->addHours(72);
+            }
+            $license->save();
         }
 
         // Invalidate cache for the license (tagged if supported, plain otherwise)

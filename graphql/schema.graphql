@@ -62,6 +62,9 @@ type Query {
         "Filter by new flag."
         is_new: Boolean @eq
     ): [MebelProject!]! @all @orderBy(column: "sort_order", direction: ASC)
+
+    "Get the authenticated user's wallet and transaction history. Requires authentication."
+    myWallet: Wallet! @guard @field(resolver: "App\\GraphQL\\Queries\\MyWallet")
 }
 
 type Mutation {
@@ -74,6 +77,7 @@ type Mutation {
     updateLicense(
         id: ID!
         domain: String
+        faviconUrl: String @rename(attribute: "favicon_url")
         name: String
         metaDescription: String @rename(attribute: "meta_description")
         templateId: Int @rename(attribute: "template_id")
@@ -136,6 +140,11 @@ type Mutation {
     upsertMebelProject(
         input: UpsertMebelProjectInput!
     ): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertMebelProject")
+
+    "Top up the user's wallet balance. Requires authentication."
+    topUpBalance(
+        amount: String!
+    ): TopUpResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\TopUpBalance")
 }
 
 input UpsertMebelProjectInput {
@@ -152,10 +161,46 @@ input UpsertMebelProjectInput {
     image_urls: [String!]
 }
 
+type Wallet {
+    id: ID!
+    userId: Int! @rename(attribute: "user_id")
+    balance: String!
+    transactions(
+        orderBy: [OrderByClause!] @orderBy
+    ): [Transaction!]! @paginate
+}
+
+type Transaction {
+    id: ID!
+    walletId: ID! @rename(attribute: "wallet_id")
+    licenseId: ID @rename(attribute: "license_id")
+    amount: String!
+    type: String!
+    description: String
+    createdAt: DateTime @rename(attribute: "created_at")
+}
+
+type TopUpResult {
+    success: Boolean!
+    newBalance: String!
+    transaction: Transaction!
+}
+
+input OrderByClause {
+    column: String!
+    order: SortOrder!
+}
+
+enum SortOrder {
+    ASC
+    DESC
+}
+
 type License {
     id: ID!
     userId: Int! @rename(attribute: "user_id")
     domain: String!
+    faviconUrl: String @rename(attribute: "favicon_url")
     name: String
     metaDescription: String @rename(attribute: "meta_description")
     headerData: JSON @rename(attribute: "header_data")
@@ -163,6 +208,8 @@ type License {
     templateId: Int @rename(attribute: "template_id")
     isActive: Boolean! @rename(attribute: "is_active")
     status: String!
+    dailyPrice: Float @rename(attribute: "daily_price")
+    billingStartedAt: DateTime @rename(attribute: "billing_started_at")
     createdAt: DateTime @rename(attribute: "created_at")
     updatedAt: DateTime @rename(attribute: "updated_at")
     pages: [Page!]! @hasMany
