@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\GraphQL\Mutations;
+
+use App\Models\Invoice;
+use App\Models\Wallet;
+use GraphQL\Type\Definition\ResolveInfo;
+use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
+
+final class CreateInvoice
+{
+    /**
+     * Создаёт счёт на оплату через расчётный счёт.
+     *
+     * @param  mixed  $root
+     * @param  array{amount: string, companyName: string, inn: ?string}  $args
+     * @return array{success: bool, invoice: Invoice}
+     */
+    public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
+    {
+        $user   = $context->user();
+        $wallet = Wallet::where('user_id', $user->id)->firstOrFail();
+
+        $invoice = Invoice::create([
+            'user_id'      => $user->id,
+            'wallet_id'    => $wallet->id,
+            'number'       => Invoice::generateNumber(),
+            'amount'       => $args['amount'],
+            'status'       => 'pending',
+            'company_name' => $args['companyName'],
+            'inn'          => $args['inn'] ?? null,
+        ]);
+
+        return [
+            'success' => true,
+            'invoice' => $invoice,
+        ];
+    }
+}

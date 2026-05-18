@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
@@ -11,8 +12,6 @@ Route::get('/health', function () {
     return "Health check";
 });
 
-
-
 Route::get('/test-db', function () {
     try {
         DB::connection()->getPdo();
@@ -20,4 +19,21 @@ Route::get('/test-db', function () {
     } catch (\Exception $e) {
         return 'Unable to connect to the database: ' . $e->getMessage();
     }
+});
+
+/*
+|--------------------------------------------------------------------------
+| Скачивание счёта на оплату
+|--------------------------------------------------------------------------
+| Требует JWT-аутентификации (middleware 'auth:api').
+| Возвращает HTML-счёт, который можно распечатать / сохранить как PDF.
+*/
+Route::middleware('auth:api')->group(function () {
+    Route::get('/invoices/{id}/download', [InvoiceController::class, 'download'])
+        ->where('id', '[0-9]+')
+        ->name('invoices.download');
+
+    Route::get('/invoices/{id}/pdf', [InvoiceController::class, 'pdf'])
+        ->where('id', '[0-9]+')
+        ->name('invoices.pdf');
 });

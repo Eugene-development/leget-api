@@ -65,6 +65,9 @@ type Query {
 
     "Get the authenticated user's wallet and transaction history. Requires authentication."
     myWallet: Wallet! @guard @field(resolver: "App\\GraphQL\\Queries\\MyWallet")
+
+    "Get all invoices for the authenticated user (bank wire top-ups). Requires authentication."
+    myInvoices: [Invoice!]! @guard @field(resolver: "App\\GraphQL\\Queries\\MyInvoices")
 }
 
 type Mutation {
@@ -145,6 +148,13 @@ type Mutation {
     topUpBalance(
         amount: String!
     ): TopUpResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\TopUpBalance")
+
+    "Create a bank wire invoice for topping up the balance. Requires authentication."
+    createInvoice(
+        amount: String!
+        companyName: String!
+        inn: String
+    ): InvoiceResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateInvoice")
 }
 
 input UpsertMebelProjectInput {
@@ -184,6 +194,22 @@ type TopUpResult {
     success: Boolean!
     newBalance: String!
     transaction: Transaction!
+}
+
+"A bank wire invoice created by the user for balance top-up."
+type Invoice {
+    id: ID!
+    number: String!
+    amount: String!
+    status: String!
+    companyName: String! @rename(attribute: "company_name")
+    inn: String
+    createdAt: DateTime @rename(attribute: "created_at")
+}
+
+type InvoiceResult {
+    success: Boolean!
+    invoice: Invoice!
 }
 
 input OrderByClause {
