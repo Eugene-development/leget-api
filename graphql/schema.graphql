@@ -155,6 +155,11 @@ type Mutation {
         companyName: String!
         inn: String
     ): InvoiceResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateInvoice")
+
+    "Create a new service request from a public site."
+    createServiceRequest(
+        input: CreateServiceRequestInput!
+    ): ServiceRequest! @field(resolver: "App\\GraphQL\\Mutations\\CreateServiceRequest")
 }
 
 input UpsertMebelProjectInput {
@@ -423,4 +428,30 @@ type MebelProject {
 
     createdAt: DateTime @rename(attribute: "created_at")
     updatedAt: DateTime @rename(attribute: "updated_at")
+}
+
+"A service request submitted by a client/visitor."
+type ServiceRequest {
+    id: ID!
+    service_type: String!
+    name: String!
+    phone: String!
+    message: String
+    status: String!
+    ip_address: String
+    user_agent: String
+    source_url: String
+    city: String
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+"Input data for creating a service request."
+input CreateServiceRequestInput {
+    service_type: String! @rules(apply: ["required", "string", "max:50"])
+    name: String! @rules(apply: ["required", "string", "max:255"])
+    phone: String! @rules(apply: ["required", "string", "max:50"])
+    message: String @rules(apply: ["nullable", "string", "max:2000"])
+    source_url: String @rules(apply: ["nullable", "string", "max:500"])
+    city: String @rules(apply: ["nullable", "string", "max:100"])
 }
