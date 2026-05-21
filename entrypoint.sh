@@ -2,11 +2,32 @@
 
 set -e
 
-# Если контейнер запущен в режиме scheduler — запускаем цикл schedule:run
+# Если контейнер запущен в режиме scheduler — очищаем кэш и запускаем цикл schedule:run
 if [ "$CONTAINER_ROLE" = "scheduler" ]; then
-    echo "⏰ Starting Laravel Scheduler..."
+    echo "⏰ Initializing Laravel Scheduler..."
+
+    # Создаем необходимые директории
+    mkdir -p /var/www/storage/logs
+    mkdir -p /var/www/storage/framework/sessions
+    mkdir -p /var/www/storage/framework/views
+    mkdir -p /var/www/storage/framework/cache
+    mkdir -p /var/www/bootstrap/cache
+
+    # Устанавливаем права
+    chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
+    chmod -R 775 /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
+
+    # ВАЖНО: очищаем старый кэш конфигурации из volume,
+    # иначе scheduler увидит устаревшую конфигурацию (старое расписание)
+    echo "🧹 Clearing config cache for scheduler..."
+    rm -rf /var/www/bootstrap/cache/*.php
+    php artisan config:clear 2>/dev/null || echo "⚠️  Config clear failed"
+    php artisan cache:clear 2>/dev/null || echo "⚠️  Cache clear failed"
+
+    echo "⏰ Starting scheduler loop (runs every 60s)..."
     while true; do
-        php artisan schedule:run
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running schedule:run..."
+        php artisan schedule:run --verbose 2>&1
         sleep 60
     done
 fi

@@ -10,7 +10,8 @@ FROM php:8.4-fpm-alpine AS production
 # Install system dependencies
 RUN apk add --no-cache \
     su-exec \
-    && docker-php-ext-install pdo pdo_mysql
+    tzdata \
+    && docker-php-ext-install pdo pdo_mysql bcmath
 
 # Копируем скрипт в образ
 COPY entrypoint.sh /entrypoint.sh

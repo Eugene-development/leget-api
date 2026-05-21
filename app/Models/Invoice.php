@@ -36,11 +36,11 @@ class Invoice extends Model
     }
 
     /**
-     * Генерирует уникальный номер счёта формата INV-YYYYMM-XXXXX.
+     * Генерирует уникальный номер счёта формата YYYYMM-XXXXX.
      */
     public static function generateNumber(): string
     {
-        $prefix = 'INV-' . now()->format('Ym') . '-';
+        $prefix = now()->format('Ym') . '-';
         $last   = static::where('number', 'like', $prefix . '%')
             ->orderByDesc('id')
             ->value('number');

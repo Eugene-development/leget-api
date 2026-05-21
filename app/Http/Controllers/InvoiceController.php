@@ -50,6 +50,24 @@ class InvoiceController extends Controller
             ->firstOrFail();
 
         $company = config('billing.company');
+        
+        // Автоматическая инициализация папки со шрифтами DomPDF в storage
+        $fontsPath = storage_path('fonts');
+        if (!file_exists($fontsPath)) {
+            @mkdir($fontsPath, 0775, true);
+        }
+        if (!file_exists($fontsPath . '/installed-fonts.json')) {
+            $vendorFonts = base_path('vendor/dompdf/dompdf/lib/fonts');
+            if (file_exists($vendorFonts)) {
+                foreach (glob($vendorFonts . '/*') as $file) {
+                    @copy($file, $fontsPath . '/' . basename($file));
+                }
+                if (file_exists($fontsPath . '/installed-fonts.dist.json')) {
+                    @copy($fontsPath . '/installed-fonts.dist.json', $fontsPath . '/installed-fonts.json');
+                }
+            }
+        }
+
         $html    = $this->buildHtml($invoice, $company, '', $request->getSchemeAndHttpHost());
 
         $pdf = Pdf::loadHTML($html, 'UTF-8')
