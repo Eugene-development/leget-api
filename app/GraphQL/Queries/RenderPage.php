@@ -79,7 +79,7 @@ final class RenderPage
                 $categorySlug = $matches[1];
                 $projectSlug = $matches[2];
                 
-                $category = Category::where('slug', $categorySlug)->first();
+                $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
                 $project = \App\Models\MebelProject::where('slug', $projectSlug)
                     ->where('is_active', true)
                     ->where(function($q) use ($license) {
@@ -95,7 +95,7 @@ final class RenderPage
             // Pattern: mebel/{category_slug}
             elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
                 $categorySlug = $matches[1];
-                $category = Category::where('slug', $categorySlug)->first();
+                $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
                 
                 if ($category) {
                     $templateSlug = '/mebel/{category}';
@@ -305,6 +305,7 @@ final class RenderPage
                 'id'         => $cat->id,
                 'value'      => $cat->value,
                 'slug'       => $cat->slug,
+                'is_enabled' => $cat->is_enabled,
                 'sort_order' => $cat->sort_order,
             ]);
     }

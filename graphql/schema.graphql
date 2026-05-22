@@ -168,6 +168,12 @@ type Mutation {
     createServiceRequest(
         input: CreateServiceRequestInput!
     ): ServiceRequest! @field(resolver: "App\\GraphQL\\Mutations\\CreateServiceRequest")
+
+    "Toggle the enabled state of a category. Requires authentication."
+    toggleCategory(
+        id: ID!
+        isEnabled: Boolean! @rename(attribute: "is_enabled")
+    ): Category! @guard @field(resolver: "App\\GraphQL\\Mutations\\ToggleCategory")
 }
 
 input UpsertMebelProjectInput {
@@ -382,6 +388,9 @@ type Category {
 
     "Whether the category is active."
     is_active: Boolean!
+
+    "Whether the category is enabled in the catalog."
+    is_enabled: Boolean!
 
     "Sort order for display."
     sort_order: Int!
