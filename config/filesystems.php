@@ -60,7 +60,21 @@ return [
             'report' => false,
         ],
 
+        'yandex' => [
+            'driver' => 's3',
+            'key' => env('YANDEX_CLOUD_KEY'),
+            'secret' => env('YANDEX_CLOUD_SECRET'),
+            'region' => env('YANDEX_CLOUD_REGION', 'ru-central1'),
+            'bucket' => env('YANDEX_CLOUD_BUCKET', 'leget-main'),
+            'url' => env('YANDEX_CLOUD_URL', 'https://storage.yandexcloud.net'),
+            'endpoint' => env('YANDEX_CLOUD_ENDPOINT', 'https://storage.yandexcloud.net'),
+            'use_path_style_endpoint' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
+
 
     /*
     |--------------------------------------------------------------------------

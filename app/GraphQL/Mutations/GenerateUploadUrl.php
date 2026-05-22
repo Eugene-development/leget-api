@@ -47,12 +47,14 @@ final class GenerateUploadUrl
         }
 
         $licenseId = $license->id;
+        $hashedLicenseId = md5($licenseId);
         $folder = $args['folder'] ?? null;
         $prefix = $folder ? trim($folder, '/') . '/' : '';
         $hash = Str::random(40);
-        $objectKey = "{$prefix}{$licenseId}/{$hash}.{$extension}";
+        $objectKey = "{$prefix}{$hashedLicenseId}/{$hash}.{$extension}";
 
-        $s3Config = config('filesystems.disks.s3');
+        $s3Config = config('filesystems.disks.yandex');
+
         $expiresIn = (int) config('waas.upload_url_ttl', 600);
 
         try {
