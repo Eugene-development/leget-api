@@ -263,7 +263,11 @@ final class RenderPage
                 'licenseId'      => (string) $license->id,
                 'license_id'     => (string) $license->id,
                 'slug'           => $page->slug ?? $slug,
-                'componentsData' => $components->filter(fn($c) => $c->is_active)->map(fn($c) => ['type' => $c->type, 'data' => $c->data])->values()->all(),
+                'componentsData' => $components->filter(fn($c) => $c->is_active)->map(fn($c) => [
+                    'id'   => $c->exists ? (string) $c->id : null,
+                    'type' => $c->type,
+                    'data' => array_merge($c->data ?? [], $c->exists ? ['_componentId' => (string) $c->id] : []),
+                ])->values()->all(),
             ],
         ];
 
