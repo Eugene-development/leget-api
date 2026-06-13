@@ -255,6 +255,7 @@ final class RenderPage
                 'name'            => $license->name,
                 'metaDescription' => $license->meta_description,
                 'templateId'      => $license->template_id,
+                'faviconUrl'      => $license->favicon_url,
                 'header'          => $license->header_data ? ['data' => $license->header_data] : null,
                 'footer'          => $license->footer_data ? ['data' => $license->footer_data] : null,
             ],

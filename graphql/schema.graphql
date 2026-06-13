@@ -278,6 +278,7 @@ type SiteSettings {
     name: String
     metaDescription: String
     templateId: Int
+    faviconUrl: String
     header: SiteComponent
     footer: SiteComponent
 }
