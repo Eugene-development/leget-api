@@ -86,6 +86,10 @@ class TemplateService
                 ->keyBy('type')
             : collect();
 
+        if (empty($definitions)) {
+            return $dbComponents->sortBy('sort_order')->values();
+        }
+
         $result = new \Illuminate\Database\Eloquent\Collection();
 
         foreach ($definitions as $index => $definition) {

@@ -58,6 +58,11 @@ final class UpdateLicense
             }
         }
 
+        // Resiliently support camelCase faviconUrl if Lighthouse did not rename it in resolver args
+        if (array_key_exists('faviconUrl', $args)) {
+            $updateData['favicon_url'] = $args['faviconUrl'];
+        }
+
         $license->update($updateData);
 
         // If template_id was set or changed — seed all pages and default components

@@ -38,12 +38,20 @@ final class GenerateUploadUrl
             throw new GraphQLException('Invalid MIME type format.', 'VALIDATION');
         }
 
-        // Get the license_id from the authenticated user's first license
+        // Get the license_id from the authenticated user
         $user = $context->user();
-        $license = $user->licenses()->first();
+        $licenseIdArg = $args['licenseId'] ?? null;
 
-        if (! $license) {
-            throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
+        if ($licenseIdArg) {
+            $license = $user->licenses()->find($licenseIdArg);
+            if (! $license) {
+                throw new GraphQLException("License with ID {$licenseIdArg} not found or access denied.", 'VALIDATION');
+            }
+        } else {
+            $license = $user->licenses()->first();
+            if (! $license) {
+                throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
+            }
         }
 
         $licenseId = $license->id;

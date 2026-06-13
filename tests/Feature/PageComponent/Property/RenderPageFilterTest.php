@@ -38,7 +38,7 @@ class RenderPageFilterTest extends TestCase
     {
         parent::setUp();
 
-        $this->resolver = new RenderPage();
+        $this->resolver = app(RenderPage::class);
 
         if (! Schema::hasTable('licenses')) {
             Schema::create('licenses', function (Blueprint $table) {

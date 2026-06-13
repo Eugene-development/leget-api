@@ -120,6 +120,7 @@ type Mutation {
         filename: String!
         mimeType: String!
         folder: String
+        licenseId: ID
     ): UploadUrlResponse! @guard @field(resolver: "App\\GraphQL\\Mutations\\GenerateUploadUrl")
 
     "Create or update a page component. Requires authentication."

@@ -45,7 +45,7 @@ class CacheInvalidationTest extends TestCase
         // Use the array cache driver — it supports tagging
         config(['cache.default' => 'array']);
 
-        $this->renderPageResolver = new RenderPage();
+        $this->renderPageResolver = app(RenderPage::class);
 
         if (! Schema::hasTable('licenses')) {
             Schema::create('licenses', function (Blueprint $table) {

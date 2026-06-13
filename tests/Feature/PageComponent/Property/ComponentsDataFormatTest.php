@@ -38,7 +38,7 @@ class ComponentsDataFormatTest extends TestCase
     {
         parent::setUp();
 
-        $this->resolver = new RenderPage();
+        $this->resolver = app(RenderPage::class);
 
         if (! Schema::hasTable('licenses')) {
             Schema::create('licenses', function (Blueprint $table) {
@@ -158,9 +158,9 @@ class ComponentsDataFormatTest extends TestCase
                 $keys = array_keys($element);
                 sort($keys);
                 $this->assertSame(
-                    ['data', 'type'],
+                    ['data', 'id', 'type'],
                     $keys,
-                    "Element #{$index} must contain exactly the keys 'type' and 'data', got: " . implode(', ', $keys)
+                    "Element #{$index} must contain exactly the keys 'id', 'type' and 'data', got: " . implode(', ', $keys)
                 );
 
                 // Assert 'type' is a non-empty string

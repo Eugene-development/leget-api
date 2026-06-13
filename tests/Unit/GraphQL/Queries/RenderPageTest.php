@@ -25,7 +25,7 @@ class RenderPageTest extends TestCase
     {
         parent::setUp();
 
-        $this->resolver = new RenderPage();
+        $this->resolver = app(RenderPage::class);
 
         // Create licenses table (migrations live in leget-db, not leget-api)
         if (! Schema::hasTable('licenses')) {
@@ -235,8 +235,9 @@ class RenderPageTest extends TestCase
             'slug' => '/about',
         ]);
 
+        $dbComponents = [];
         foreach ($componentsData as $i => $component) {
-            \App\Models\PageComponent::create([
+            $dbComponents[] = \App\Models\PageComponent::create([
                 'page_id'    => $page->id,
                 'license_id' => $license->id,
                 'type'       => $component['type'],
@@ -256,7 +257,26 @@ class RenderPageTest extends TestCase
         $this->assertSame('My site description', $result['site']['metaDescription']);
 
         $this->assertSame('/about', $result['page']['slug']);
-        $this->assertSame($componentsData, $result['page']['componentsData']);
+
+        $expectedComponents = [
+            [
+                'id' => $dbComponents[0]->id,
+                'type' => 'Hero',
+                'data' => [
+                    'title' => 'Welcome',
+                    '_componentId' => $dbComponents[0]->id,
+                ],
+            ],
+            [
+                'id' => $dbComponents[1]->id,
+                'type' => 'Text',
+                'data' => [
+                    'content' => 'Hello world',
+                    '_componentId' => $dbComponents[1]->id,
+                ],
+            ],
+        ];
+        $this->assertSame($expectedComponents, $result['page']['componentsData']);
     }
 
     public function test_caches_response_in_redis(): void
