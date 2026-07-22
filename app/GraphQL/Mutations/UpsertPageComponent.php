@@ -14,6 +14,10 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpsertPageComponent
 {
+    public function __construct(
+        private \App\Services\TemplateService $templateService
+    ) {}
+
     /**
      * Create or update a page component.
      *
@@ -56,17 +60,30 @@ final class UpsertPageComponent
             throw new GraphQLException('Page not found.', 'VALIDATION');
         }
 
-        $component = PageComponent::updateOrCreate(
-            [
+        $component = PageComponent::where('page_id', $page->id)
+            ->where('type', $args['type'])
+            ->first();
+
+        if (! $component) {
+            $component = new PageComponent([
                 'page_id' => $page->id,
                 'type'    => $args['type'],
-            ],
-            [
-                'data'       => $args['data'],
-                'license_id' => $license->id,
-                'is_active'  => true,
-            ]
-        );
+            ]);
+            // Присваиваем sort_order из порядка компонентов в config/templates.php,
+            // чтобы новосохранённый блок занял своё место в шаблоне, а не всплыл
+            // наверх со значением по умолчанию (0). Для динамических/нестандартных
+            // страниц (тип не найден в определениях) — дописываем в конец.
+            $component->sort_order = $this->resolveSortOrder(
+                (int) $license->template_id,
+                $page,
+                $args['type'],
+            );
+        }
+
+        $component->data = $args['data'];
+        $component->license_id = $license->id;
+        $component->is_active = true;
+        $component->save();
 
         // Invalidate cache for the license (tagged if supported, plain otherwise)
         try {
@@ -77,5 +94,22 @@ final class UpsertPageComponent
         }
 
         return $component;
+    }
+
+    /**
+     * Определить sort_order для нового компонента по его позиции в config/templates.php.
+     * Если тип не описан в шаблоне для этого slug (динамические/кастомные страницы) —
+     * возвращаем max(sort_order)+1, чтобы дописать блок в конец, а не наверх.
+     */
+    private function resolveSortOrder(int $templateId, Page $page, string $type): int
+    {
+        $types = $this->templateService->getAllowedTypes($templateId, (string) $page->slug);
+        $index = array_search($type, $types, true);
+
+        if ($index !== false) {
+            return (int) $index;
+        }
+
+        return (int) (PageComponent::where('page_id', $page->id)->max('sort_order') ?? -1) + 1;
     }
 }
