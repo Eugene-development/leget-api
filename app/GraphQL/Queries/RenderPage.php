@@ -250,6 +250,11 @@ final class RenderPage
         });
         // ── End enrichment ────────────────────────────────────────────────────
 
+        // Глобальные компоненты (футер) — общие для всех страниц сайта; хранятся на
+        // зарезервированной странице '__global__'. Дописываем их после компонентов
+        // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
+        $components = $components->concat($this->templateService->getGlobalComponents($license->id));
+
         $response = [
             'site' => [
                 'name'            => $license->name,

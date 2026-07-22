@@ -62,6 +62,13 @@ return [
             'timezone' => '+03:00',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => base_path(env('MYSQL_ATTR_SSL_CA')),
+                // Fail fast on a stalled connect to a remote DB instead of
+                // blocking the single-threaded `artisan serve` for 30s+.
+                // For the mysql driver PDO::ATTR_TIMEOUT is the connect timeout (seconds).
+                PDO::ATTR_TIMEOUT => (int) env('DB_TIMEOUT', 5),
+                // Reuse the connection across requests under `artisan serve`
+                // to avoid paying the TCP+TLS handshake on every request.
+                PDO::ATTR_PERSISTENT => env('DB_PERSISTENT', true),
             ]) : [],
         ],
 

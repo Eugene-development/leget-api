@@ -64,24 +64,60 @@ class TemplateService
     public function getMergedPageComponents(string $licenseId, Page|string $pageOrId, ?string $templateSlug = null): \Illuminate\Database\Eloquent\Collection
     {
         $license = \App\Models\License::findOrFail($licenseId);
-        
+
         if ($pageOrId instanceof Page) {
             $page = $pageOrId;
-            $pageId = (string) $page->id;
         } else {
-            $pageId = $pageOrId;
-            $page = Page::where('id', $pageId)->where('license_id', $licenseId)->first();
+            $page = Page::where('id', $pageOrId)->where('license_id', $licenseId)->first();
         }
 
         // If page is null (virtual or deleted), we can't merge DB components effectively
         // but we can still return defaults if we know the slug.
-        // For virtual pages passed as objects, we have the slug.
-        $slug = $templateSlug ?? ($page ? $page->slug : ''); 
+        $slug = $templateSlug ?? ($page ? $page->slug : '');
         $definitions = $this->getPageComponents((int) $license->template_id, $slug);
-        
-        $dbComponents = $page && $page->exists
+
+        return $this->mergeDefinitions($license, $page, $definitions);
+    }
+
+    /**
+     * Глобальные компоненты лицензии — общие для всех страниц сайта.
+     * Хранятся на зарезервированной странице со slug '__global__' (контейнер;
+     * не маршрутизируется). На данный момент это футер.
+     *
+     * Логика слияния та же, что у getMergedPageComponents: определения из
+     * config/templates.php['__global__'] + актуальные DB-записи страницы
+     * '__global__'. Если страница ещё не создана — компонент виртуальный
+     * (exists=false). Для шаблонов без '__global__' возвращается пустая коллекция.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     */
+    public function getGlobalComponents(string $licenseId): \Illuminate\Database\Eloquent\Collection
+    {
+        $license = \App\Models\License::findOrFail($licenseId);
+        $definitions = $this->getPageComponents((int) $license->template_id, '__global__');
+
+        if (empty($definitions)) {
+            return new \Illuminate\Database\Eloquent\Collection();
+        }
+
+        $page = Page::where('license_id', $licenseId)->where('slug', '__global__')->first();
+
+        return $this->mergeDefinitions($license, $page, $definitions);
+    }
+
+    /**
+     * Ядро слияния: соединяет определения из config/templates.php с DB-записями страницы.
+     * Если для типа есть DB-запись — берём её; иначе создаём виртуальный компонент
+     * (exists=false, не сохраняется в БД) с дефолтами.
+     *
+     * @param  list<array{type: string, defaults: array<string, mixed>}>  $definitions
+     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     */
+    private function mergeDefinitions(\App\Models\License $license, ?Page $page, array $definitions): \Illuminate\Database\Eloquent\Collection
+    {
+        $dbComponents = ($page && $page->exists)
             ? PageComponent::where('page_id', $page->id)
-                ->where('license_id', $licenseId)
+                ->where('license_id', $license->id)
                 ->get()
                 ->keyBy('type')
             : collect();
@@ -104,7 +140,7 @@ class TemplateService
                 // Create a virtual component (not persisted in DB)
                 $component = new PageComponent([
                     'id'         => (string) Str::ulid(),
-                    'page_id'    => $page->id,
+                    'page_id'    => $page?->id,
                     'license_id' => $license->id,
                     'type'       => $type,
                     'data'       => $definition['defaults'] ?? [],

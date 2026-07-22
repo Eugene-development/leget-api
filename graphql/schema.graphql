@@ -31,6 +31,16 @@ type Query {
         @guard
         @field(resolver: "App\\GraphQL\\Queries\\TemplateComponents")
 
+    "Найти компонент каталога по координатам (template + slug + type) — возвращает артикул."
+    component(templateId: Int! @rename(attribute: "template_id"), slug: String!, type: String!): Component
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\FindComponent")
+
+    "Список компонентов каталога, опционально по шаблону."
+    components(templateId: Int @rename(attribute: "template_id")): [Component!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\Components")
+
     "Find a rubric by its URL slug (public)."
     rubricBySlug(slug: String! @eq): Rubric @find
 
@@ -175,6 +185,16 @@ type Mutation {
         id: ID!
         isEnabled: Boolean! @rename(attribute: "is_enabled")
     ): Category! @guard @field(resolver: "App\\GraphQL\\Mutations\\ToggleCategory")
+
+    "Зарегистрировать компонент в каталоге с авто-присвоением артикула. Requires authentication."
+    createComponent(
+        templateId: Int! @rename(attribute: "template_id")
+        slug: String!
+        type: String!
+        name: String
+        "Список версий компонента (1..N); по умолчанию [1]."
+        variants: [Int!]
+    ): Component! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateComponent")
 }
 
 input UpsertMebelProjectInput {
@@ -330,6 +350,41 @@ type PageComponent {
     sortOrder: Int! @rename(attribute: "sort_order")
     createdAt: DateTime! @rename(attribute: "created_at")
     updatedAt: DateTime! @rename(attribute: "updated_at")
+}
+
+"Страница шаблона в каталоге (даёт странице порядковый номер артикула)."
+type TemplatePage {
+    id: ID!
+    templateId: Int! @rename(attribute: "template_id")
+    slug: String!
+    pageNumber: Int! @rename(attribute: "page_number")
+    name: String
+    components: [Component!]! @hasMany
+}
+
+"Каталожный компонент (дизайн-блок шаблона). Групповой артикул = template.page.component."
+type Component {
+    id: ID!
+    templateId: Int! @rename(attribute: "template_id")
+    type: String!
+    componentNumber: Int! @rename(attribute: "component_number")
+    name: String
+    isActive: Boolean! @rename(attribute: "is_active")
+    "3-сегментный артикул «1.8.12»."
+    article: String!
+    page: TemplatePage @belongsTo
+    variants: [ComponentVariant!]! @hasMany
+}
+
+"Версия компонента (v1…v4). Полный артикул «1.8.12.4»."
+type ComponentVariant {
+    id: ID!
+    componentId: ID! @rename(attribute: "component_id")
+    "Версия компонента: 1=v1 … 4=v4 (4-й сегмент артикула). Это НЕ цветовая схема."
+    version: Int!
+    name: String
+    "4-сегментный артикул «1.8.12.4»."
+    article: String!
 }
 
 "A rubric (top-level catalog section, e.g. Mebel, Santehnika)."
