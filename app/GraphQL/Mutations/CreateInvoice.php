@@ -23,14 +23,14 @@ final class CreateInvoice
         $user   = $context->user();
         $wallet = Wallet::where('user_id', $user->id)->firstOrFail();
 
-        $invoice = Invoice::create([
+        // Номер присваивается внутри с повтором при коллизии UNIQUE-индекса
+        $invoice = Invoice::createWithUniqueNumber([
             'user_id'      => $user->id,
             'wallet_id'    => $wallet->id,
-            'number'       => Invoice::generateNumber(),
             'amount'       => $args['amount'],
             'status'       => 'pending',
-            'company_name' => $args['companyName'],
-            'inn'          => $args['inn'] ?? null,
+            'company_name' => trim($args['companyName']),
+            'inn'          => isset($args['inn']) && $args['inn'] !== '' ? $args['inn'] : null,
         ]);
 
         return [

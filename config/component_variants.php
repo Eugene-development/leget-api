@@ -10,13 +10,15 @@
  * Типы не из списка получают 1 схему (v1).
  */
 return [
-    'HeroMain'   => 4,
-    'ActionsCTA' => 2,
-    'Brands'     => 2,
-    'Direction'  => 2,
-    'Equipment'  => 2,
-    'Incentives' => 2,
-    'Message'    => 2,
-    'PromoOffer' => 2,
-    'Stage'      => 2,
+    'HeroMain'     => 4,
+    'ActionsCTA'   => 2,
+    'Brands'       => 2,
+    'ContactCTA'   => 2,
+    'ContactsHero' => 2,
+    'Direction'    => 2,
+    'Equipment'    => 2,
+    'Incentives'   => 2,
+    'Message'      => 2,
+    'PromoOffer'   => 2,
+    'Stage'        => 2,
 ];

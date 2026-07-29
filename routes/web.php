@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\YooKassaWebhookController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
@@ -37,3 +38,15 @@ Route::middleware('auth:api')->group(function () {
         ->where('id', '[0-9]+')
         ->name('invoices.pdf');
 });
+
+/*
+|--------------------------------------------------------------------------
+| HTTP-уведомления ЮKassa
+|--------------------------------------------------------------------------
+| Без аутентификации и без CSRF (исключение задано в bootstrap/app.php).
+| Подлинность проверяется по IP отправителя и повторным запросом состояния
+| платежа в API ЮKassa. URL для личного кабинета ЮKassa:
+| https://api.leget.ru/webhooks/yookassa
+*/
+Route::post('/webhooks/yookassa', [YooKassaWebhookController::class, 'handle'])
+    ->name('webhooks.yookassa');

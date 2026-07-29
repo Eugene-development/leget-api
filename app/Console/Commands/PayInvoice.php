@@ -17,7 +17,7 @@ class PayInvoice extends Command
      *
      * @var string
      */
-    protected $signature = 'invoice:pay {number : Номер счёта, например INV-202605-00001 или ID счёта}';
+    protected $signature = 'invoice:pay {number : Номер счёта, например 202605-00001, либо ID счёта}';
 
     /**
      * Описание консольной команды.

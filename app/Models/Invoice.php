@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\QueryException;
 
 class Invoice extends Model
 {
@@ -33,6 +34,47 @@ class Invoice extends Model
     public function wallet(): BelongsTo
     {
         return $this->belongsTo(Wallet::class);
+    }
+
+    /**
+     * Создаёт счёт, присвоив ему уникальный номер.
+     *
+     * Номер вычисляется как «последний в этом месяце + 1», поэтому два
+     * одновременных запроса могут получить одно и то же значение и упереться
+     * в UNIQUE-индекс. В этом случае номер пересчитывается и вставка
+     * повторяется — до $attempts раз.
+     *
+     * @param  array<string, mixed>  $attributes  Атрибуты счёта без 'number'.
+     */
+    public static function createWithUniqueNumber(array $attributes, int $attempts = 5): self
+    {
+        $lastException = null;
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                $attributes['number'] = static::generateNumber();
+
+                return static::create($attributes);
+            } catch (QueryException $e) {
+                if (! static::isDuplicateNumberError($e)) {
+                    throw $e;
+                }
+
+                $lastException = $e;
+                // Небольшая случайная пауза, чтобы конкурирующие запросы разошлись
+                usleep(random_int(10_000, 60_000));
+            }
+        }
+
+        throw $lastException;
+    }
+
+    /**
+     * Является ли ошибка нарушением уникальности (MySQL 23000 / PostgreSQL 23505).
+     */
+    private static function isDuplicateNumberError(QueryException $e): bool
+    {
+        return in_array((string) $e->getCode(), ['23000', '23505'], true);
     }
 
     /**
