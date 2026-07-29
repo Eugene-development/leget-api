@@ -17,19 +17,25 @@ class MigrationDownTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * After RefreshDatabase runs all migrations, page_components must exist.
-     * Calling down() on the migration must drop the table.
+     * Таблица создаётся тестовой схемой (Tests\TestCase), а down() миграции
+     * обязан её удалить.
      */
     public function test_down_drops_page_components_table(): void
     {
-        // RefreshDatabase has already run all migrations, so the table must exist.
         $this->assertTrue(
             Schema::hasTable('page_components'),
-            'Expected page_components table to exist after migrations ran.'
+            'Expected page_components table to exist before calling down().'
         );
 
+        // Canonical-миграция живёт в leget-db (единственный источник схемы).
+        $path = base_path('../leget-db/database/migrations/2026_04_19_000001_create_page_components_table.php');
+
+        if (! file_exists($path)) {
+            $this->markTestSkipped('Репозиторий leget-db недоступен рядом с leget-api.');
+        }
+
         // Instantiate the anonymous migration class by requiring the file.
-        $migration = require base_path('database/migrations/2026_04_19_000001_create_page_components_table.php');
+        $migration = require $path;
 
         $migration->down();
 
