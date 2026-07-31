@@ -46,7 +46,7 @@ return [
                 ['type' => 'Brands',     'defaults' => ['badge' => 'Материалы', 'title' => 'Бренды, говорящие о качестве', 'partnersLabel' => 'Наши партнёры-производители']],
             ],
             '/about' => [
-                ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О нас', 'lead' => '', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
+                ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О нас', 'lead' => 'Мы помогаем пройти путь от идеи до готового интерьера: подбираем материалы, считаем проект и ведём его до финальной сборки.', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
                 ['type' => 'Statistics', 'defaults' => []],
                 ['type' => 'Mission',    'defaults' => ['title' => 'Наша миссия', 'text1' => '', 'text2' => '', 'text3' => '', 'imageUrl' => '']],
                 ['type' => 'Values',     'defaults' => ['title' => 'Наши ценности', 'subtitle' => 'Принципы, которыми мы руководствуемся в работе', 'items' => []]],
