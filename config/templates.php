@@ -79,8 +79,9 @@ return [
                 ['type' => 'PartnershipCTA',     'defaults' => ['title' => 'Присоединяйтесь к нам', 'subtitle' => 'Начните работать вместе с нами уже сегодня', 'buttonText' => 'Обсудить сотрудничество', 'phone' => '']],
             ],
             '/testimonials' => [
-                ['type' => 'Hero',             'defaults' => ['eyebrow' => 'Отзывы', 'title' => 'Отзывы о нас', 'subtitle' => 'Мы работаем ради таких отзывов клиентов о нашей работе']],
-                ['type' => 'TestimonialsGrid', 'defaults' => ['featured' => [], 'reviews' => []]],
+                ['type' => 'Hero',                'defaults' => ['eyebrow' => 'Отзывы', 'title' => 'Отзывы о нас', 'subtitle' => 'Мы работаем ради таких отзывов клиентов о нашей работе']],
+                ['type' => 'TestimonialsSummary', 'defaults' => ['title' => 'Нам доверяют', 'subtitle' => 'Каждый отзыв — результат работы дизайнеров, мастеров и сборщиков', 'rating' => '4.9', 'ratingCaption' => 'на основе отзывов покупателей за всё время работы', 'stats' => []]],
+                ['type' => 'TestimonialsGrid',    'defaults' => ['featured' => [], 'reviews' => []]],
             ],
             '/installment' => [
                 ['type' => 'InstallmentHero',         'defaults' => ['title' => 'Рассрочка без переплаты', 'subtitle' => 'Купите мебель и технику сейчас — платите частями до 12 месяцев. Быстрое одобрение, минимум документов.', 'buttonText' => 'Консультация по рассрочке']],
