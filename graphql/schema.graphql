@@ -41,6 +41,16 @@ type Query {
         @guard
         @field(resolver: "App\\GraphQL\\Queries\\Components")
 
+    """
+    Дизайн-системы, опционально относящиеся к шаблону.
+    Для шаблона возвращаются заявленные для него системы плюс Базовая, если в ней
+    ещё остались неприписанные версии компонентов этого шаблона.
+    Это НЕ проверка готовности к выбору — см. isPublished на паре «система × шаблон».
+    """
+    designSystems(templateId: Int @rename(attribute: "template_id")): [DesignSystem!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\DesignSystems")
+
     "Find a rubric by its URL slug (public)."
     rubricBySlug(slug: String! @eq): Rubric @find
 
@@ -432,6 +442,54 @@ type ComponentVariant {
     name: String
     "4-сегментный артикул «1.8.12.4»."
     article: String!
+    """
+    Статус в жизненном цикле: draft | active | legacy.
+    legacy означает «не предлагается в переключателе, но продолжает рендериться там,
+    где уже выбрана» — вывод компонента не ломает существующие сайты.
+    Независим от принадлежности дизайн-системе.
+    """
+    status: String!
+    "Дизайн-системы, которым принадлежит версия (одна или несколько)."
+    designSystems: [DesignSystem!]! @belongsToMany
+}
+
+"""
+Дизайн-система: внешний вид, который шаблон сам по себе не задаёт.
+Шаблон отвечает за структуру (страницы, блоки, форма данных), система — за палитру,
+типографику, ритм и пластику блоков.
+"""
+type DesignSystem {
+    id: ID!
+    "Человекочитаемое имя, видит пользователь: «Ар-деко»."
+    name: String!
+    "Машинное имя: ar-deco."
+    slug: String!
+    description: String
+    """
+    Базовая система — песочница для легаси и версий в разработке. Ровно одна на всю
+    платформу. Показывается пользователю с пометкой legacy, новым сайтам не предлагается,
+    инвариант покрытия к ней не применяется, фолбэком она НЕ служит.
+    """
+    isBase: Boolean @rename(attribute: "is_base")
+    """
+    Заявленная область: для каких шаблонов система предназначена.
+    Это НЕ фактическое покрытие — оно вычисляется по каталогу.
+    У Базовой пусто: заявленной области у неё нет.
+    """
+    templates: [DesignSystemTemplate!]! @method(name: "templateScopes")
+    "Версии компонентов, принадлежащие системе."
+    variants: [ComponentVariant!]! @belongsToMany
+}
+
+"Пара «дизайн-система × шаблон»: заявленная область и готовность к выбору."
+type DesignSystemTemplate {
+    "Ключ config/templates.php: 1=Promo-1, 2=Promo-2, 3=Promo-3."
+    templateId: Int! @rename(attribute: "template_id")
+    """
+    Пара готова к выбору пользователем. Проверка инварианта покрытия при выставлении
+    флага пока НЕ реализована — значение выставляется вручную.
+    """
+    isPublished: Boolean! @rename(attribute: "is_published")
 }
 
 "A rubric (top-level catalog section, e.g. Mebel, Santehnika)."

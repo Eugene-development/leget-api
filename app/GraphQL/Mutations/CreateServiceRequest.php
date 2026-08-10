@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Mutations;
 
+use App\Models\Conversion;
 use App\Models\ServiceRequest;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Support\Facades\DB;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class CreateServiceRequest
@@ -24,16 +26,30 @@ final class CreateServiceRequest
         $ipAddress = request()->ip();
         $userAgent = request()->userAgent();
 
-        return ServiceRequest::create([
-            'service_type' => $input['service_type'],
-            'name'         => $input['name'],
-            'phone'        => $input['phone'],
-            'message'      => $input['message'] ?? null,
-            'source_url'   => $input['source_url'] ?? null,
-            'city'         => $input['city'] ?? null,
-            'ip_address'   => $ipAddress,
-            'user_agent'   => $userAgent,
-            'status'       => ServiceRequest::STATUS_NEW,
-        ]);
+        return DB::transaction(function () use ($input, $ipAddress, $userAgent): ServiceRequest {
+            $serviceRequest = ServiceRequest::create([
+                'service_type' => $input['service_type'],
+                'name' => $input['name'],
+                'phone' => $input['phone'],
+                'message' => $input['message'] ?? null,
+                'source_url' => $input['source_url'] ?? null,
+                'city' => $input['city'] ?? null,
+                'ip_address' => $ipAddress,
+                'user_agent' => $userAgent,
+                'status' => ServiceRequest::STATUS_NEW,
+            ]);
+
+            Conversion::query()->create([
+                'channel' => Conversion::CHANNEL_ONLINE,
+                'type' => $serviceRequest->service_type,
+                'name' => $serviceRequest->name,
+                'contact' => $serviceRequest->phone,
+                'comment' => $serviceRequest->message,
+                'source_url' => $serviceRequest->source_url,
+                'service_request_id' => $serviceRequest->getKey(),
+            ]);
+
+            return $serviceRequest;
+        });
     }
 }

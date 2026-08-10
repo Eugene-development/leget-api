@@ -1,24 +1,27 @@
 <?php
 
+use App\Http\Controllers\AdminConversionController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\YooKassaWebhookController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\EnsureAdminAccess;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
 Route::get('/health', function () {
-    return "Health check";
+    return 'Health check';
 });
 
 Route::get('/test-db', function () {
     try {
         DB::connection()->getPdo();
+
         return 'База данных подключена!!!';
-    } catch (\Exception $e) {
-        return 'Unable to connect to the database: ' . $e->getMessage();
+    } catch (Exception $e) {
+        return 'Unable to connect to the database: '.$e->getMessage();
     }
 });
 
@@ -38,6 +41,25 @@ Route::middleware('auth:api')->group(function () {
         ->where('id', '[0-9]+')
         ->name('invoices.pdf');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Администрирование конверсий
+|--------------------------------------------------------------------------
+|
+| Доступ проверяется дважды: JWT валидируется общим guard, а allowlist
+| LEGET_ADMIN_EMAILS — отдельным middleware. Эти endpoint'ы вызывает только
+| серверная часть leget-main, токен не выдаётся браузеру.
+*/
+Route::prefix('admin')
+    ->middleware(['auth:api', EnsureAdminAccess::class, 'throttle:120,1'])
+    ->group(function (): void {
+        Route::get('/conversions', [AdminConversionController::class, 'index']);
+        Route::post('/conversions', [AdminConversionController::class, 'storeOffline'])
+            ->middleware('throttle:30,1');
+        Route::get('/conversions/offline/export', [AdminConversionController::class, 'exportOffline'])
+            ->middleware('throttle:20,1');
+    });
 
 /*
 |--------------------------------------------------------------------------

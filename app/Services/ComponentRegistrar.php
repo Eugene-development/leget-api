@@ -6,8 +6,10 @@ namespace App\Services;
 
 use App\Models\Component;
 use App\Models\ComponentVariant;
+use App\Models\DesignSystem;
 use App\Models\TemplatePage;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Регистрация компонентов глобального каталога с авто-присвоением артикула.
@@ -95,25 +97,120 @@ class ComponentRegistrar
 
     /**
      * Вернуть или создать версию компонента с авто-присвоенным артикулом.
+     *
+     * Новая версия попадает в Базовую дизайн-систему — песочницу для того, что ещё
+     * не приписано к настоящей системе. Без этого созданный вариант провалился бы
+     * между песочницей и продуктом: не принадлежал бы ни одной системе и не попал бы
+     * ни в один переключатель.
+     *
+     * Статус по умолчанию active, хотя в БД у колонки default draft. Это не
+     * рассогласование: регистратор вызывается для версий, которые уже существуют
+     * в коде и работают (seed каталога, регистрация нового блока). Default в схеме
+     * защищает прямые вставки мимо регистратора. Действительно невыпущенную версию
+     * заводите с явным STATUS_DRAFT.
      */
-    public function ensureVariant(Component $component, int $version, ?string $name = null): ComponentVariant
-    {
-        return DB::transaction(function () use ($component, $version, $name): ComponentVariant {
+    public function ensureVariant(
+        Component $component,
+        int $version,
+        ?string $name = null,
+        string $status = ComponentVariant::STATUS_ACTIVE,
+    ): ComponentVariant {
+        return DB::transaction(function () use ($component, $version, $name, $status): ComponentVariant {
             $variant = ComponentVariant::where('component_id', $component->id)
                 ->where('version', $version)
                 ->first();
 
             if ($variant) {
+                // Самолечение для версий, созданных до появления дизайн-систем:
+                // если версия не принадлежит НИ ОДНОЙ системе, она осиротела — вернём
+                // её в песочницу. Проверка «ни одной» здесь обязательна: версию,
+                // уже приписанную к настоящей системе, класть обратно в Базовую нельзя,
+                // членство в Базовой исключающее.
+                $this->attachToBaseIfOrphaned($variant);
+
                 return $variant;
             }
 
-            return ComponentVariant::create([
+            $variant = ComponentVariant::create([
                 'component_id' => $component->id,
                 'version'      => $version,
                 'name'         => $name,
                 'article'      => $this->buildArticle($component, $version),
+                'status'       => $status,
             ]);
+
+            $variant->designSystems()->attach($this->ensureBaseDesignSystem()->id);
+
+            return $variant;
         });
+    }
+
+    /**
+     * Приписать версию к настоящей дизайн-системе, убрав её из Базовой.
+     *
+     * Ровно та операция, ради которой Базовая и существует: отрефакторенный компонент
+     * уходит из песочницы в продукт. Версия может принадлежать нескольким настоящим
+     * системам сразу, но членство в Базовой исключающее — поэтому её строка снимается.
+     *
+     * Идемпотентно: повторный вызов с той же системой не создаёт дубля.
+     */
+    public function assignToDesignSystem(ComponentVariant $variant, DesignSystem $system): ComponentVariant
+    {
+        if ($system->is_base) {
+            throw new InvalidArgumentException(
+                'Нельзя присвоить Базовую систему этим методом: она вход в жизненный цикл, '
+                . 'а не назначение. Используйте ensureVariant() для новых версий.'
+            );
+        }
+
+        return DB::transaction(function () use ($variant, $system): ComponentVariant {
+            $variant->designSystems()->syncWithoutDetaching([$system->id]);
+
+            $base = DesignSystem::query()->base()->first();
+
+            if ($base) {
+                $variant->designSystems()->detach($base->id);
+            }
+
+            return $variant->load('designSystems');
+        });
+    }
+
+    /**
+     * Вернуть Базовую систему, создав её при отсутствии.
+     *
+     * Обычно её создаёт data-миграция 2026_08_08_000006_seed_base_design_system,
+     * но регистратор не должен падать на свежей схеме (например в тестах, где
+     * прогоняются только нужные таблицы).
+     */
+    public function ensureBaseDesignSystem(): DesignSystem
+    {
+        $base = DesignSystem::query()->base()->first()
+            ?? DesignSystem::where('slug', DesignSystem::BASE_SLUG)->first();
+
+        if ($base) {
+            return $base;
+        }
+
+        return DesignSystem::create([
+            'name'        => 'Базовая',
+            'slug'        => DesignSystem::BASE_SLUG,
+            'description' => 'Песочница: легаси и версии в разработке, ещё не приписанные '
+                . 'к настоящей дизайн-системе.',
+            'is_base'     => true,
+        ]);
+    }
+
+    /**
+     * Вернуть в Базовую версию, не принадлежащую ни одной системе.
+     */
+    private function attachToBaseIfOrphaned(ComponentVariant $variant): void
+    {
+        if ($variant->designSystems()->exists()) {
+            return;
+        }
+
+        $variant->designSystems()->attach($this->ensureBaseDesignSystem()->id);
     }
 
     /**

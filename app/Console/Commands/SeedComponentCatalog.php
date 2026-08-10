@@ -48,7 +48,9 @@ class SeedComponentCatalog extends Command
                     );
                     $components++;
 
-                    $max = (int) ($variantMap[$type] ?? 1);
+                    // Ключ — пара «шаблон + тип»: одноимённые блоки разных шаблонов
+                    // независимы, и версии Promo-1 не должны утекать соседям.
+                    $max = (int) ($variantMap[$templateId][$type] ?? 1);
                     for ($version = 1; $version <= $max; $version++) {
                         $registrar->ensureVariant($component, $version);
                         $variants++;

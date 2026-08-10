@@ -132,7 +132,7 @@ class AuthorizationTest extends TestCase
 
             $context     = $this->makeContext($attacker);
             $resolveInfo = $this->createMock(ResolveInfo::class);
-            $mutation    = new UpsertPageComponent();
+            $mutation    = app(UpsertPageComponent::class);
 
             $exception = null;
 
@@ -182,7 +182,7 @@ class AuthorizationTest extends TestCase
 
             $context     = $this->makeContext($attacker);
             $resolveInfo = $this->createMock(ResolveInfo::class);
-            $mutation    = new TogglePageComponent();
+            $mutation    = app(TogglePageComponent::class);
 
             $exception = null;
 
@@ -237,7 +237,7 @@ class AuthorizationTest extends TestCase
 
             $context     = $this->makeContext($attacker);
             $resolveInfo = $this->createMock(ResolveInfo::class);
-            $mutation    = new DeletePageComponent();
+            $mutation    = app(DeletePageComponent::class);
 
             $exception = null;
 

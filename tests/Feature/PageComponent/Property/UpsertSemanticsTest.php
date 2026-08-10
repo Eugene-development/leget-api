@@ -122,7 +122,7 @@ class UpsertSemanticsTest extends TestCase
 
             $context     = $this->makeContext($user);
             $resolveInfo = $this->createMock(ResolveInfo::class);
-            $mutation    = new UpsertPageComponent();
+            $mutation    = app(UpsertPageComponent::class);
 
             $lastData = null;
 

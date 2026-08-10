@@ -165,7 +165,7 @@ return [
                     'description' => 'Создаём уникальную корпусную мебель по вашим размерам и дизайну. Индивидуальный подход к каждому проекту.',
                     'primaryButton' => 'Ваш проект',
                     'secondaryButton' => 'Бесплатный замер',
-                    'bgImage' => '/furniture_hero.png'
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_hero.png'
                 ]],
                 ['type' => 'MebelBenefits',  'defaults' => [
                     'title' => 'Почему выбирают нас',
@@ -178,8 +178,8 @@ return [
                 ['type' => 'MebelSolutions', 'defaults' => [
                     'title' => 'Популярные решения',
                     'items' => [
-                        ['title' => 'Кухонные гарнитуры', 'desc' => 'От классики до современного минимализма', 'image' => '/custom_kitchens.png'],
-                        ['title' => 'Шкафы', 'desc' => 'Максимум функциональности и стиля', 'image' => '/custom_wardrobes.png']
+                        ['title' => 'Кухонные гарнитуры', 'desc' => 'От классики до современного минимализма', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_kitchens.png'],
+                        ['title' => 'Шкафы', 'desc' => 'Максимум функциональности и стиля', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_wardrobes.png']
                     ]
                 ]],
                 ['type' => 'MebelProcess',   'defaults' => [
@@ -271,8 +271,8 @@ return [
                 ['type' => 'StoleshnicaSolutions', 'defaults' => [
                     'title' => 'Популярные решения',
                     'items' => [
-                        ['title' => 'Кварцевый агломерат', 'desc' => 'Прочность и элегантность натурального камня', 'image' => '/stoleshnica_popular_kvarc.png', 'href' => '/stoleshnica/kvarc'],
-                        ['title' => 'Акриловый камень',    'desc' => 'Бесшовное соединение и любые формы',          'image' => '/stoleshnica_popular_akril.png', 'href' => '/stoleshnica/akril'],
+                        ['title' => 'Кварцевый агломерат', 'desc' => 'Прочность и элегантность натурального камня', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/stoleshnica_popular_kvarc.png', 'href' => '/stoleshnica/kvarc'],
+                        ['title' => 'Акриловый камень',    'desc' => 'Бесшовное соединение и любые формы',          'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/stoleshnica_popular_akril.png', 'href' => '/stoleshnica/akril'],
                     ]
                 ]],
                 ['type' => 'StoleshnicaServices', 'defaults' => [
@@ -305,7 +305,7 @@ return [
                     'title'         => 'Бытовая техника',
                     'description'   => 'Встраиваемая и отдельностоящая техника от ведущих мировых производителей. Подберём оптимальное решение с учётом ваших пожеланий и бюджета.',
                     'primaryButton' => 'Подобрать технику',
-                    'bgImage'       => '/appliances_hero.png',
+                    'bgImage'       => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/appliances_hero.png',
                 ]],
                 ['type' => 'ByttehnikaBrands', 'defaults' => [
                     'title'  => 'Работаем с лучшими брендами',
@@ -329,8 +329,8 @@ return [
                 ['type' => 'ByttehnikaCategories', 'defaults' => [
                     'title' => 'Популярные категории',
                     'items' => [
-                        ['title' => 'Варочные панели', 'desc' => 'Индукционные, газовые, электрические',  'image' => 'https://storage.yandexcloud.net/novostroy/bg/varochna.jpg'],
-                        ['title' => 'Духовые шкафы',   'desc' => 'Встраиваемые с конвекцией и грилем',    'image' => 'https://storage.yandexcloud.net/novostroy/bg/duhshkaf.jpg'],
+                        ['title' => 'Варочные панели', 'desc' => 'Индукционные, газовые, электрические',  'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/varochna.jpg'],
+                        ['title' => 'Духовые шкафы',   'desc' => 'Встраиваемые с конвекцией и грилем',    'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/duhshkaf.jpg'],
                     ]
                 ]],
                 ['type' => 'ByttehnikaComplex', 'defaults' => [
@@ -364,7 +364,7 @@ return [
                     'title'         => 'Сантехника',
                     'description'   => 'Кухонные мойки, смесители, измельчители и аксессуары от ведущих производителей. Подберём идеальное сочетание цвета и формы для вашей кухни.',
                     'primaryButton' => 'Подобрать комплект',
-                    'bgImage'       => '/plumbing_hero.png',
+                    'bgImage'       => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/plumbing_hero.png',
                 ]],
                 ['type' => 'SantehnikaBrands', 'defaults' => [
                     'title'  => 'Бренды сантехники',
@@ -388,8 +388,8 @@ return [
                 ['type' => 'SantehnikaCategories', 'defaults' => [
                     'title' => 'Популярные категории',
                     'items' => [
-                        ['title' => 'Кухонные мойки', 'desc' => 'Врезные, накладные, интегрированные',         'image' => '/kitchen_sink.png'],
-                        ['title' => 'Смесители',       'desc' => 'С выдвижным изливом, сенсорные, классические', 'image' => '/kitchen_faucet.png'],
+                        ['title' => 'Кухонные мойки', 'desc' => 'Врезные, накладные, интегрированные',         'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/kitchen_sink.png'],
+                        ['title' => 'Смесители',       'desc' => 'С выдвижным изливом, сенсорные, классические', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/kitchen_faucet.png'],
                     ]
                 ]],
                 ['type' => 'SantehnikaBenefits', 'defaults' => [
@@ -425,7 +425,7 @@ return [
                     'title'         => 'Фурнитура',
                     'description'   => 'Каталог интернет-магазинов и поставщиков мебельной фурнитуры. Петли, направляющие, подъёмники и системы хранения от проверенных поставщиков.',
                     'primaryButton' => 'Подобрать фурнитуру',
-                    'bgImage'       => '/furniture_fittings_hero.png',
+                    'bgImage'       => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero.png',
                 ]],
                 ['type' => 'FurnituraShops', 'defaults' => [
                     'title' => 'Магазины и поставщики',
@@ -509,10 +509,10 @@ return [
             ],
             '/about' => [
                 ['type' => 'Hero',          'defaults' => ['label' => 'О фабрике', 'title' => 'От нашей фабрики для вашей семьи', 'description' => 'Наша фабрика располагает самой крупной сетью мебельных салонов. Предлагаем отличный сервис и доступные цены на мебель премиального качества.', 'ctaPrimary' => 'Найти ближайший салон', 'ctaPrimaryLink' => '/showrooms']],
-                ['type' => 'LeaderSection', 'defaults' => ['quote' => 'Мы вкладываем весь свой опыт и душу в создание мебели', 'name' => 'Зуховицкий О.В.', 'role' => 'Руководитель фабрики ЗОВ', 'image' => 'https://storage.yandexcloud.net/zovtop/foto/zovdir.png']],
+                ['type' => 'LeaderSection', 'defaults' => ['quote' => 'Мы вкладываем весь свой опыт и душу в создание мебели', 'name' => 'Зуховицкий О.В.', 'role' => 'Руководитель фабрики ЗОВ', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zovdir.png']],
                 ['type' => 'Mission',       'defaults' => ['label' => 'Наша миссия', 'heading' => 'Мы создаём мебель, которая дарит радость']],
                 ['type' => 'Factory',       'defaults' => ['label' => 'Производство', 'heading' => 'Наша фабрика', 'description' => '25 000 м² современного производства, оснащённого передовым европейским оборудованием']],
-                ['type' => 'Video',         'defaults' => ['src' => 'https://storage.yandexcloud.net/zovrus/zov.mp4']],
+                ['type' => 'Video',         'defaults' => ['src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zov.mp4']],
                 ['type' => 'Principles',    'defaults' => ['label' => 'Наши ценности', 'heading' => 'Принципы компании']],
                 ['type' => 'AboutCTA',      'defaults' => ['eyebrow' => 'Бесплатная услуга', 'heading' => 'Закажите дизайн-проект', 'description' => 'Запишитесь на бесплатную консультацию. Наш дизайнер поможет подобрать идеальное решение.', 'ctaText' => 'Заказать дизайн-проект', 'ctaLink' => '/contact']],
             ],

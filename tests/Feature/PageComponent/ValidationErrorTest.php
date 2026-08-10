@@ -82,7 +82,7 @@ class ValidationErrorTest extends TestCase
 
     private function makeMutation(User $user): UpsertPageComponent
     {
-        return new UpsertPageComponent();
+        return app(UpsertPageComponent::class);
     }
 
     private function makeContext(User $user): GraphQLContext

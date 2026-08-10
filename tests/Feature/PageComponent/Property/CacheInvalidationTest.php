@@ -198,7 +198,7 @@ class CacheInvalidationTest extends TestCase
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
             // Step 3: Call upsertPageComponent mutation
-            $mutation    = new UpsertPageComponent();
+            $mutation    = app(UpsertPageComponent::class);
             $ownerCtx    = $this->makeOwnerContext($user);
             $resolveInfo = $this->createResolveInfo();
 
@@ -260,7 +260,7 @@ class CacheInvalidationTest extends TestCase
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
             // Step 3: Call togglePageComponent to deactivate the component
-            $mutation    = new TogglePageComponent();
+            $mutation    = app(TogglePageComponent::class);
             $ownerCtx    = $this->makeOwnerContext($user);
             $resolveInfo = $this->createResolveInfo();
 
@@ -314,7 +314,7 @@ class CacheInvalidationTest extends TestCase
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
             // Step 3: Call deletePageComponent mutation
-            $mutation    = new DeletePageComponent();
+            $mutation    = app(DeletePageComponent::class);
             $ownerCtx    = $this->makeOwnerContext($user);
             $resolveInfo = $this->createResolveInfo();
 

@@ -116,7 +116,7 @@ class CacheInvalidationFallbackTest extends TestCase
 
         $resolveInfo = $this->createMock(ResolveInfo::class);
 
-        $mutation = new UpsertPageComponent();
+        $mutation = app(UpsertPageComponent::class);
 
         $result = $mutation(
             null,
