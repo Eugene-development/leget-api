@@ -53,12 +53,39 @@ return [
                 ['type' => 'PromoOffer', 'defaults' => ['badge' => 'Эксклюзивное предложение', 'title' => 'Специальное предложение', 'textPrimary' => 'Скидка 15% на мебель этой весной', 'textSecondary' => 'Воспользуйтесь уникальной возможностью приобрести качественную мебель по выгодной цене', 'primaryButton' => 'Получить предложение', 'secondaryButton' => 'Узнать больше', 'primaryHref' => '/contact', 'secondaryHref' => '/about']],
                 ['type' => 'Equipment',  'defaults' => ['badge' => 'Дополнительно', 'title' => 'Комплектация проектов']],
                 ['type' => 'Stage',      'defaults' => ['badge' => 'Это важно', 'title' => 'Наша работа', 'description' => 'Мы поддержим вас на всех этапах работы над мебельным проектом: от первой консультации до дня финальной сборки.']],
-                ['type' => 'Incentives', 'defaults' => ['badge' => 'Выгода', 'title' => 'С нами выгодно', 'text' => '<p>Помогаем клиентам сделать правильный выбор фурнитуры, материалов и производителя мебели.</p>']],
+                ['type' => 'Incentives', 'defaults' => [
+                    'badge' => 'Выгода',
+                    'title' => 'С нами выгодно',
+                    'text' => '<p>Помогаем выбрать фурнитуру, материалы, цветовые сочетания и производителя мебели — чтобы вы получили честную цену, соблюдение сроков, высокое качество и внимательный сервис без лишних затрат времени и бюджета.</p>',
+                    'gallery' => [
+                        [
+                            'src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/price.webp',
+                            'alt' => 'Образцы материалов и расчёт стоимости мебели',
+                            'label' => 'Цена',
+                        ],
+                        [
+                            'src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/timelines.webp',
+                            'alt' => 'Монтаж мебели точно в срок',
+                            'label' => 'Сроки',
+                        ],
+                        [
+                            'src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/quality-v2.webp',
+                            'alt' => 'Ровные фасады и точная подгонка деталей мебели',
+                            'label' => 'Качество',
+                        ],
+                        [
+                            'src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/service.webp',
+                            'alt' => 'Консультация дизайнера с клиентом',
+                            'label' => 'Сервис',
+                        ],
+                    ],
+                ]],
                 ['type' => 'Direction',  'defaults' => []],
                 ['type' => 'Brands',     'defaults' => ['badge' => 'Материалы', 'title' => 'Бренды, говорящие о качестве', 'partnersLabel' => 'Наши партнёры-производители']],
             ],
             '/about' => [
                 ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О нас', 'lead' => 'Мы помогаем пройти путь от идеи до готового интерьера: подбираем материалы, считаем проект и ведём его до финальной сборки.', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
+                ['type' => 'Text',       'defaults' => ['content' => '<p>Мы делаем мебель под конкретное помещение и конкретных людей: сначала замер и разговор о том, как вы живёте и что храните, потом дизайн-проект, расчёт и подбор материалов под ваш бюджет.</p><p>Ведём проект до конца — согласуем детали, держим сроки и остаёмся на связи после сборки.</p>']],
                 ['type' => 'Statistics', 'defaults' => []],
                 ['type' => 'Mission',    'defaults' => ['title' => 'Наша миссия', 'text1' => '', 'text2' => '', 'text3' => '', 'imageUrl' => '']],
                 ['type' => 'Values',     'defaults' => ['title' => 'Наши ценности', 'subtitle' => 'Принципы, которыми мы руководствуемся в работе', 'items' => []]],
