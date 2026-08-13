@@ -153,7 +153,10 @@ class TemplateService
             }
         }
 
-        return $result->sortBy('sort_order')->values();
+        // config/templates.php is the canonical source of template structure and order.
+        // Persisted sort_order values may be stale (legacy rows defaulted to zero), so
+        // sorting the merged collection would move edited components ahead of defaults.
+        return $result->values();
     }
 
     /**
