@@ -7,6 +7,7 @@ use App\GraphQL\Queries\RenderPage;
 use App\Models\License;
 use App\Models\Page;
 use App\Models\User;
+use App\Services\TemplateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -277,6 +278,41 @@ class RenderPageTest extends TestCase
             ],
         ];
         $this->assertSame($expectedComponents, $result['page']['componentsData']);
+    }
+
+    public function test_template_definition_order_wins_over_legacy_component_sort_order(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'ordered.example.com',
+            'template_id' => 1,
+        ]);
+
+        $page = Page::create([
+            'license_id' => $license->id,
+            'slug' => '/mebel',
+        ]);
+
+        // Legacy rows could retain the old default sort_order=0 after being edited.
+        \App\Models\PageComponent::create([
+            'page_id' => $page->id,
+            'license_id' => $license->id,
+            'type' => 'MebelProcess',
+            'data' => ['title' => 'Как мы работаем'],
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
+
+        $components = app(TemplateService::class)->getMergedPageComponents($license->id, $page, '/mebel');
+        $types = $components->pluck('type')->all();
+
+        $this->assertSame([
+            'MebelSidebar',
+            'MebelHero',
+            'MebelBenefits',
+            'MebelSolutions',
+            'MebelProcess',
+            'MebelCTA',
+        ], $types);
     }
 
     public function test_caches_response_in_redis(): void
