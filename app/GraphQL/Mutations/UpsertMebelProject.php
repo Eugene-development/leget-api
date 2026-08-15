@@ -8,9 +8,10 @@ use App\Exceptions\GraphQLException;
 use App\Models\Image;
 use App\Models\License;
 use App\Models\MebelProject;
+use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpsertMebelProject
@@ -39,7 +40,7 @@ final class UpsertMebelProject
         $license = $licenses->where('domain', $domain)->first();
 
         // Fallback to the first license if no exact domain match found
-        if (!$license) {
+        if (! $license) {
             $license = $licenses->first();
         }
 
@@ -61,11 +62,11 @@ final class UpsertMebelProject
             // Глобальные проекты (license_id = null) остаются глобальными.
             // Не меняем license_id — иначе проект потеряется для других доменов.
         } else {
-            $project = new MebelProject();
+            $project = new MebelProject;
             $project->license_id = $license->id;
 
             // Generate a slug if creating
-            $baseSlug = Str::slug($input['value']);
+            $baseSlug = RussianSlug::make($input['value']);
             $project->slug = $baseSlug;
 
             // Ensure slug uniqueness
@@ -113,16 +114,16 @@ final class UpsertMebelProject
         if (isset($input['image_urls'])) {
             // Delete old images
             $project->images()->delete();
-            
+
             // Add new images
             foreach ($input['image_urls'] as $index => $url) {
-                $image = new Image();
+                $image = new Image;
                 $image->key = (string) Str::ulid();
                 $image->path = $url;
-                
+
                 $fullFilename = basename(parse_url($url, PHP_URL_PATH) ?? 'image.jpg');
                 $pathInfo = pathinfo($fullFilename);
-                
+
                 // Fetch content to calculate real sha256 hash (as in Novostroy)
                 try {
                     $content = file_get_contents($url);
@@ -138,7 +139,7 @@ final class UpsertMebelProject
                 $image->original_name = $fullFilename;
                 $image->mime_type = 'image/'.($pathInfo['extension'] ?? 'jpeg');
                 $image->size = $size;
-                
+
                 $image->sort_order = $index + 1;
                 $image->is_active = true;
                 $image->parentable_id = $project->id;

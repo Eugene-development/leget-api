@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['license_id', 'slug'])]
+#[Fillable(['license_id', 'slug', 'seo_title', 'seo_description', 'seo_keywords'])]
 class Page extends Model
 {
     /**

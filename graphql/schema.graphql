@@ -129,6 +129,15 @@ type Mutation {
         id: ID!
         licenseId: ID! @rename(attribute: "license_id")
         slug: String
+        seoTitle: String
+            @rename(attribute: "seo_title")
+            @rules(apply: ["nullable", "string", "max:255"])
+        seoDescription: String
+            @rename(attribute: "seo_description")
+            @rules(apply: ["nullable", "string", "max:500"])
+        seoKeywords: String
+            @rename(attribute: "seo_keywords")
+            @rules(apply: ["nullable", "string", "max:500"])
     ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdatePage")
 
     "Delete a page. Requires authentication."
@@ -342,6 +351,9 @@ type Page {
     id: ID!
     licenseId: ID! @rename(attribute: "license_id")
     slug: String!
+    seoTitle: String @rename(attribute: "seo_title")
+    seoDescription: String @rename(attribute: "seo_description")
+    seoKeywords: String @rename(attribute: "seo_keywords")
     createdAt: DateTime @rename(attribute: "created_at")
     updatedAt: DateTime @rename(attribute: "updated_at")
     license: License! @belongsTo
@@ -368,9 +380,30 @@ type SiteComponent {
 
 type PageContent {
     slug: String!
+    requestedSlug: String!
     id: ID
     licenseId: ID @rename(attribute: "license_id")
     componentsData: JSON
+    seo: PageSeo!
+}
+
+"Resolved SEO metadata and the editable source values for a page."
+type PageSeo {
+    title: String
+    description: String
+    keywords: String
+    rawTitle: String
+    rawDescription: String
+    isDynamic: Boolean!
+    pattern: String!
+    variables: [SeoVariable!]!
+}
+
+"A placeholder available in a dynamic page SEO template."
+type SeoVariable {
+    token: String!
+    label: String!
+    value: String!
 }
 
 type UploadUrlResponse {

@@ -7,17 +7,26 @@ namespace App\GraphQL\Queries;
 use App\Exceptions\GraphQLException;
 use App\Models\Category;
 use App\Models\License;
+use App\Models\MebelProject;
 use App\Models\Page;
-use App\Models\PageComponent;
 use App\Models\Rubric;
+use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class RenderPage
 {
+    /**
+     * Bump when the cached public response contract changes. Keeping the
+     * version in the key prevents old arrays from violating new non-null
+     * GraphQL fields after a zero-downtime deploy.
+     */
+    private const CACHE_VERSION = 'v2';
+
     public function __construct(
-        private \App\Services\TemplateService $templateService
+        private TemplateService $templateService
     ) {}
 
     /**
@@ -32,7 +41,7 @@ final class RenderPage
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
         $request = $context->request();
-        $slug = '/' . ltrim($args['slug'], '/');
+        $slug = '/'.ltrim($args['slug'], '/');
         $domain = $request->header('X-Forwarded-Host') ?? $request->getHost();
 
         // Look up the license by domain
@@ -47,7 +56,7 @@ final class RenderPage
         }
 
         // Use normalized slug everywhere
-        $cacheKey = "render:{$license->id}:{$slug}";
+        $cacheKey = 'render:'.self::CACHE_VERSION.":{$license->id}:{$slug}";
         $cacheTags = ["license:{$license->id}"];
         $ttl = config('waas.cache_ttl', 3600);
 
@@ -78,16 +87,16 @@ final class RenderPage
             if (preg_match('#^/?mebel/([^/]+)/([^/]+)$#', $slug, $matches)) {
                 $categorySlug = $matches[1];
                 $projectSlug = $matches[2];
-                
+
                 $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
-                $project = \App\Models\MebelProject::where('slug', $projectSlug)
+                $project = MebelProject::where('slug', $projectSlug)
                     ->where('is_active', true)
-                    ->where(function($q) use ($license) {
+                    ->where(function ($q) use ($license) {
                         $q->whereNull('license_id')->orWhere('license_id', $license->id);
                     })
-                    ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                    ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                     ->first();
-                
+
                 if ($project) {
                     $templateSlug = '/mebel/{category}/{project}';
                 }
@@ -96,7 +105,7 @@ final class RenderPage
             elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
                 $categorySlug = $matches[1];
                 $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
-                
+
                 if ($category) {
                     $templateSlug = '/mebel/{category}';
                 }
@@ -126,7 +135,7 @@ final class RenderPage
         $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
         // ── Enrich components with dynamic data ──────────────────────────────
-        $components = $components->map(function ($component) use ($category, $project, $slug, $license) {
+        $components = $components->map(function ($component) use ($category, $project, $license) {
             // Always enrich MebelSidebar
             if ($component->type === 'MebelSidebar') {
                 $component = clone $component;
@@ -146,20 +155,20 @@ final class RenderPage
                     $liveCategories = $this->getMebelCategories();
                     $component->data = array_merge($component->data ?? [], [
                         'project' => [
-                            'id'                => $project->id,
-                            'category_id'       => $project->category_id,
-                            'value'             => $project->value,
-                            'slug'              => $project->slug,
+                            'id' => $project->id,
+                            'category_id' => $project->category_id,
+                            'value' => $project->value,
+                            'slug' => $project->slug,
                             'short_description' => $project->short_description,
-                            'description'       => $project->description,
-                            'price'             => $project->price,
-                            'old_price'         => $project->old_price,
-                            'is_new'            => $project->is_new,
-                            'is_featured'       => $project->is_featured,
-                            'is_active'         => $project->is_active,
-                            'images'            => $project->images->map(fn($img) => ['id' => $img->id, 'url' => $img->url, 'hash' => $img->hash]),
+                            'description' => $project->description,
+                            'price' => $project->price,
+                            'old_price' => $project->old_price,
+                            'is_new' => $project->is_new,
+                            'is_featured' => $project->is_featured,
+                            'is_active' => $project->is_active,
+                            'images' => $project->images->map(fn ($img) => ['id' => $img->id, 'url' => $img->url, 'hash' => $img->hash]),
                         ],
-                        'category'   => $category ? ['id' => $category->id, 'value' => $category->value, 'slug' => $category->slug] : null,
+                        'category' => $category ? ['id' => $category->id, 'value' => $category->value, 'slug' => $category->slug] : null,
                         'categories' => $liveCategories->toArray(),
                     ]);
                 }
@@ -174,31 +183,31 @@ final class RenderPage
                 if ($component->type === 'MebelProjectSimilar') {
                     $component = clone $component;
                     // Fetch related projects in the same category
-                    $related = \App\Models\MebelProject::where('category_id', $project->category_id)
+                    $related = MebelProject::where('category_id', $project->category_id)
                         ->where('id', '!=', $project->id)
                         ->where('is_active', true)
-                        ->where(function($q) use ($license) {
+                        ->where(function ($q) use ($license) {
                             $q->whereNull('license_id')->orWhere('license_id', $license->id);
                         })
                         ->orderBy('id', 'desc')
                         ->limit(3)
-                        ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                        ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
 
                     $component->data = array_merge($component->data ?? [], [
-                        'projects' => $related->map(fn($p) => [
+                        'projects' => $related->map(fn ($p) => [
                             'id' => $p->id,
                             'value' => $p->value,
                             'slug' => $p->slug,
                             'price' => $p->price,
                             'old_price' => $p->old_price,
                             'is_new' => $p->is_new,
-                            'images' => $p->images->map(fn($img) => ['url' => $img->url, 'hash' => $img->hash]),
+                            'images' => $p->images->map(fn ($img) => ['url' => $img->url, 'hash' => $img->hash]),
                         ]),
                         'categorySlug' => $category?->slug,
                     ]);
                 }
-                
+
                 if ($component->type === 'MebelCTA') {
                     $component = clone $component;
                     $component->data = array_merge($component->data ?? [], [
@@ -208,30 +217,30 @@ final class RenderPage
             }
 
             // Enrich category-specific components
-            if ($category && !$project) {
+            if ($category && ! $project) {
                 if ($component->type === 'MebelCategoryHero') {
                     $component = clone $component;
-                    $component->data = array_merge([
+                    $component->data = array_merge($component->data ?? [], [
                         'title' => $category->value,
                         'description' => $category->description,
                         'categorySlug' => $category->slug,
-                    ], $component->data ?? []);
+                    ]);
                 }
 
                 if ($component->type === 'MebelProjectsGrid') {
                     $component = clone $component;
                     // Fetch projects for this category
-                    $projects = \App\Models\MebelProject::where('category_id', $category->id)
+                    $projects = MebelProject::where('category_id', $category->id)
                         ->where('is_active', true)
-                        ->where(function($q) use ($license) {
+                        ->where(function ($q) use ($license) {
                             $q->whereNull('license_id')->orWhere('license_id', $license->id);
                         })
                         ->orderBy('id', 'desc')
-                        ->with(['images' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                        ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
 
                     $component->data = array_merge($component->data ?? [], [
-                        'projects' => $projects->map(fn($p) => [
+                        'projects' => $projects->map(fn ($p) => [
                             'id' => $p->id,
                             'value' => $p->value,
                             'slug' => $p->slug,
@@ -239,7 +248,7 @@ final class RenderPage
                             'price' => $p->price,
                             'is_featured' => $p->is_featured,
                             'is_new' => $p->is_new,
-                            'images' => $p->images->map(fn($img) => ['url' => $img->url, 'hash' => $img->hash]),
+                            'images' => $p->images->map(fn ($img) => ['url' => $img->url, 'hash' => $img->hash]),
                         ]),
                         'categorySlug' => $category->slug,
                     ]);
@@ -254,26 +263,29 @@ final class RenderPage
         // зарезервированной странице '__global__'. Дописываем их после компонентов
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
         $components = $components->concat($this->templateService->getGlobalComponents($license->id));
+        $seo = $this->resolveSeo($license, $page, $templateSlug, $category, $project);
 
         $response = [
             'site' => [
-                'name'            => $license->name,
+                'name' => $license->name,
                 'metaDescription' => $license->meta_description,
-                'templateId'      => $license->template_id,
-                'faviconUrl'      => $license->favicon_url,
-                'header'          => $license->header_data ? ['data' => $license->header_data] : null,
-                'footer'          => $license->footer_data ? ['data' => $license->footer_data] : null,
+                'templateId' => $license->template_id,
+                'faviconUrl' => $license->favicon_url,
+                'header' => $license->header_data ? ['data' => $license->header_data] : null,
+                'footer' => $license->footer_data ? ['data' => $license->footer_data] : null,
             ],
             'page' => [
-                'id'             => (string) ($page->id ?: 'slug:' . ($page->slug ?? $slug)),
-                'licenseId'      => (string) $license->id,
-                'license_id'     => (string) $license->id,
-                'slug'           => $page->slug ?? $slug,
-                'componentsData' => $components->filter(fn($c) => $c->is_active)->map(fn($c) => [
-                    'id'   => $c->exists ? (string) $c->id : null,
+                'id' => (string) ($page->id ?: 'slug:'.($page->slug ?? $slug)),
+                'licenseId' => (string) $license->id,
+                'license_id' => (string) $license->id,
+                'slug' => $page->slug ?? $slug,
+                'requestedSlug' => $slug,
+                'componentsData' => $components->filter(fn ($c) => $c->is_active)->map(fn ($c) => [
+                    'id' => $c->exists ? (string) $c->id : null,
                     'type' => $c->type,
                     'data' => array_merge($c->data ?? [], $c->exists ? ['_componentId' => (string) $c->id] : []),
                 ])->values()->all(),
+                'seo' => $seo,
             ],
         ];
 
@@ -295,9 +307,9 @@ final class RenderPage
      * Returns a Collection of arrays with keys: id, value, slug, sort_order.
      * Falls back to an empty collection if the rubric doesn't exist yet.
      *
-     * @return \Illuminate\Support\Collection<int, array{id: string, value: string, slug: string, sort_order: int}>
+     * @return Collection<int, array{id: string, value: string, slug: string, sort_order: int}>
      */
-    private function getMebelCategories(): \Illuminate\Support\Collection
+    private function getMebelCategories(): Collection
     {
         $rubric = Rubric::where('slug', 'mebel')
             ->where('is_active', true)
@@ -312,11 +324,126 @@ final class RenderPage
             ->orderBy('sort_order')
             ->get()
             ->map(fn (Category $cat) => [
-                'id'         => $cat->id,
-                'value'      => $cat->value,
-                'slug'       => $cat->slug,
+                'id' => $cat->id,
+                'value' => $cat->value,
+                'slug' => $cat->slug,
                 'is_enabled' => $cat->is_enabled,
                 'sort_order' => $cat->sort_order,
             ]);
+    }
+
+    /**
+     * Resolve the public metadata and preserve the editable source values.
+     *
+     * On a dynamic route (`/mebel/{category}` and `/mebel/{category}/{project}`)
+     * seo_title / seo_description are templates. Static pages use them literally.
+     *
+     * @return array{
+     *   title: ?string,
+     *   description: ?string,
+     *   keywords: ?string,
+     *   rawTitle: ?string,
+     *   rawDescription: ?string,
+     *   isDynamic: bool,
+     *   pattern: string,
+     *   variables: array<int, array{token: string, label: string, value: string}>
+     * }
+     */
+    private function resolveSeo(
+        License $license,
+        Page $page,
+        string $templateSlug,
+        ?Category $category,
+        ?MebelProject $project
+    ): array {
+        $isDynamic = str_contains($templateSlug, '{');
+        $variables = [
+            'site' => [
+                'label' => 'Название сайта',
+                'value' => (string) ($license->name ?? ''),
+            ],
+        ];
+
+        if ($category) {
+            $variables['category'] = [
+                'label' => 'Название категории',
+                'value' => (string) $category->value,
+            ];
+            $variables['category_description'] = [
+                'label' => 'Описание категории',
+                'value' => (string) ($category->description ?? ''),
+            ];
+        }
+
+        if ($project) {
+            $variables['project'] = [
+                'label' => 'Название проекта',
+                'value' => (string) $project->value,
+            ];
+            $variables['project_short_description'] = [
+                'label' => 'Краткое описание проекта',
+                'value' => (string) ($project->short_description ?? ''),
+            ];
+            $variables['project_description'] = [
+                'label' => 'Описание проекта',
+                'value' => (string) ($project->description ?? ''),
+            ];
+        }
+
+        $rawTitle = $page->seo_title;
+        $rawDescription = $page->seo_description;
+        $title = $isDynamic
+            ? $this->renderSeoTemplate($rawTitle, $variables)
+            : $this->normalizeSeoValue($rawTitle);
+        $description = $isDynamic
+            ? $this->renderSeoTemplate($rawDescription, $variables)
+            : $this->normalizeSeoValue($rawDescription);
+
+        return [
+            'title' => $title ?? $this->normalizeSeoValue($license->name),
+            'description' => $description ?? $this->normalizeSeoValue($license->meta_description),
+            'keywords' => $this->normalizeSeoValue($page->seo_keywords),
+            'rawTitle' => $rawTitle,
+            'rawDescription' => $rawDescription,
+            'isDynamic' => $isDynamic,
+            'pattern' => $templateSlug,
+            'variables' => $isDynamic
+                ? collect($variables)->map(fn (array $variable, string $key) => [
+                    'token' => '{'.$key.'}',
+                    'label' => $variable['label'],
+                    'value' => $variable['value'],
+                ])->values()->all()
+                : [],
+        ];
+    }
+
+    /** @param array<string, array{label: string, value: string}> $variables */
+    private function renderSeoTemplate(?string $template, array $variables): ?string
+    {
+        if ($template === null) {
+            return null;
+        }
+
+        $replacements = [];
+        foreach ($variables as $key => $variable) {
+            $replacements['{'.$key.'}'] = $variable['value'];
+        }
+
+        $rendered = strtr($template, $replacements);
+        $rendered = preg_replace('/\{[^{}]+\}/u', '', $rendered) ?? $rendered;
+
+        return $this->normalizeSeoValue($rendered);
+    }
+
+    private function normalizeSeoValue(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        $value = preg_replace('/\s+([,.:;!?])/u', '$1', $value) ?? $value;
+
+        return $value === '' ? null : $value;
     }
 }
