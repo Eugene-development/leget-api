@@ -57,6 +57,13 @@ abstract class TestCase extends BaseTestCase
 
                 $table->string('type');
                 $table->json('data');
+
+                // Имя и назначение блока на этом сайте: то, чем блок СТАЛ у тенанта,
+                // в отличие от конструкции (component_variants.morph), общей для всех.
+                // См. docs/architecture/component-morphotypes.md.
+                $table->string('label')->nullable();
+                $table->string('role_slug', 48)->nullable();
+
                 $table->boolean('is_active')->default(true);
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();

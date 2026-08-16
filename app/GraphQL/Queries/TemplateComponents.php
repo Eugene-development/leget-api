@@ -34,7 +34,11 @@ final class TemplateComponents
             );
         }
 
-        $types = $this->templateService->getAllowedTypes($templateId, $slug);
+        // Именно `getOfferedTypes`, а не `getAllowedTypes`: этот запрос питает
+        // список «какой блок добавить», то есть предложение. Выведенные типы из
+        // него уходят, но остаются рабочими везде, где уже стоят, —
+        // см. config/component_lifecycle.php.
+        $types = $this->templateService->getOfferedTypes($templateId, $slug);
 
         return array_map(
             fn(string $type) => [
@@ -68,7 +72,13 @@ final class TemplateComponents
             'Equipment'     => 'Комплектация проектов',
             'Stage'         => 'Этапы работы',
             'Incentives'    => 'Преимущества (с галереей)',
+            // Назначение «спецпредложения партнёров» ушло в отдельный компонент
+            // PartnerOffers (16.08.2026), поэтому ярлык Direction возвращён к тому,
+            // чем блок на самом деле является. Сам тип не трогаем ни при каких
+            // обстоятельствах: это ключ хранения данных тенанта в
+            // upsertPageComponent и якорь артикула 1.1.7.
             'Direction'     => 'Направления',
+            'PartnerOffers' => 'Спецпредложения партнёров',
             'Brands'        => 'Бренды и партнёры',
             default         => $type,
         };

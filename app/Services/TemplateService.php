@@ -56,6 +56,37 @@ class TemplateService
     }
 
     /**
+     * Types offered when adding a block to the page: allowed minus retired.
+     *
+     * Отдельный метод, а не фильтр внутри `getAllowedTypes()`, и это не вкусовое
+     * разделение. `getAllowedTypes()` отвечает на вопрос «что вообще бывает на
+     * этой странице» и обслуживает две вещи, которым вывод из обращения безразличен:
+     *
+     *   • `UpsertPageComponent` проверяет им допустимость типа при сохранении —
+     *     отфильтруй здесь выведенный тип, и тенант, у которого блок уже стоит,
+     *     не смог бы его отредактировать;
+     *   • `resolveSortOrder()` берёт из него ПОЗИЦИЮ блока на странице —
+     *     отфильтруй, и блок при следующем сохранении уехал бы в конец страницы.
+     *
+     * Ровно в этом и состоит смысл вывода: «не предлагается» ≠ «не работает».
+     *
+     * @return list<string>
+     */
+    public function getOfferedTypes(int $templateId, string $slug): array
+    {
+        // Конфиг берём целиком и индексируем руками: точечная нотация Laravel
+        // режет ключ по `.`, а slug страницы — произвольная строка из
+        // `config/templates.php`, и точка в ней ключ бы развалила.
+        $retiredMap = config('component_lifecycle.retired', []);
+        $retired = $retiredMap[$templateId][$slug] ?? [];
+
+        return array_values(array_filter(
+            $this->getAllowedTypes($templateId, $slug),
+            static fn(string $type): bool => ! in_array($type, $retired, true),
+        ));
+    }
+
+    /**
      * Return a merged list of components for a page.
      * Combines config/templates.php definitions with actual DB records.
      *

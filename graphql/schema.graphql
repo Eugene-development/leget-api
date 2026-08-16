@@ -42,6 +42,15 @@ type Query {
         @field(resolver: "App\\GraphQL\\Queries\\Components")
 
     """
+    Справочник ролей блока: назначения, которые тенант может дать конструкции.
+    Читается из config/component_roles.php — таблицы в БД у справочника нет.
+    Выведенные из обращения роли (retired) в выдачу не попадают.
+    """
+    componentRoles(group: String): [ComponentRole!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\ComponentRoles")
+
+    """
     Дизайн-системы, опционально относящиеся к шаблону.
     Для шаблона возвращаются заявленные для него системы плюс Базовая, если в ней
     ещё остались неприписанные версии компонентов этого шаблона.
@@ -161,6 +170,23 @@ type Mutation {
         type: String!
         data: JSON!
     ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertPageComponent")
+
+    """
+    Задать имя и назначение блока на конкретном сайте.
+    Координаты те же, что у upsertPageComponent: переименовать можно и блок,
+    который тенант ещё ни разу не правил — строка page_components тогда заводится.
+    Пустая строка в label или roleSlug означает «убрать»: блок возвращается
+    к каскаду `label ?? имя роли ?? морфотип`.
+    roleSlug проверяется по config/component_roles.php; неизвестная или выведенная
+    из обращения роль отвергается. Форму `data` мутация не трогает.
+    """
+    renamePageComponent(
+        pageId: ID! @rename(attribute: "page_id")
+        licenseId: ID! @rename(attribute: "license_id")
+        type: String!
+        label: String
+        roleSlug: String @rename(attribute: "role_slug")
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\RenamePageComponent")
 
     "Toggle the active state of a page component. Requires authentication."
     togglePageComponent(
@@ -434,8 +460,21 @@ type PageComponent {
     id: ID!
     pageId: ID! @rename(attribute: "page_id")
     licenseId: ID! @rename(attribute: "license_id")
+    "Технический ключ импорта и путей к файлам. Человеку не показывается — для этого есть label."
     type: String!
     data: JSON!
+    """
+    Имя блока на ЭТОМ сайте: «Почему нас выбирают». Задаёт тенант.
+    NULL — не переименовывал; интерфейс падает на следующую ступень каскада:
+    label ?? имя роли ?? человекочитаемый морфотип.
+    """
+    label: String
+    """
+    Выбранное назначение блока — slug из справочника componentRoles.
+    NULL — тенант не выбирал. Роль НЕ меняет форму data: она влияет на подпись,
+    подбор замены и семантическую разметку, но не на набор ключей.
+    """
+    roleSlug: String @rename(attribute: "role_slug")
     isActive: Boolean! @rename(attribute: "is_active")
     sortOrder: Int! @rename(attribute: "sort_order")
     createdAt: DateTime! @rename(attribute: "created_at")
@@ -482,8 +521,40 @@ type ComponentVariant {
     Независим от принадлежности дизайн-системе.
     """
     status: String!
+    """
+    Конструкция версии: «plain : cards.grid.3-6.icon».
+    Что блок ЕСТЬ по устройству, независимо от того, подо что его использует тенант.
+    Не меняется со временем и не зависит от дизайн-системы.
+    Грамматика: docs/architecture/component-morphotypes.md.
+    NULL означает «конструкция ещё не выписана».
+    """
+    morph: String
+    """
+    Роли, которые способна исполнить конструкция: benefits, services, steps…
+    Это ВОЗМОЖНОСТИ, а не выбор тенанта — что выбрано на конкретном сайте,
+    лежит в PageComponent.roleSlug. Расшифровка slug'ов — запрос componentRoles.
+    """
+    roles: [String!]! @rename(attribute: "role_slugs")
     "Дизайн-системы, которым принадлежит версия (одна или несколько)."
     designSystems: [DesignSystem!]! @belongsToMany
+}
+
+"""
+Роль блока — назначение, которое тенант может дать конструкции.
+Справочник ведётся в config/component_roles.php: состав ролей — решение
+разработчика, оно выкатывается и откатывается вместе с релизом.
+"""
+type ComponentRole {
+    "Машинный ключ: benefits, services, steps…"
+    slug: String!
+    "Имя для списка выбора: «Преимущества»."
+    name: String!
+    "Смысловая группа для группировки списка: sell, tell, catalog, proof, act, chrome."
+    group: String!
+    "Имя группы: «Продажа и убеждение»."
+    groupName: String!
+    "Подсказка, если из имени неочевидно, чем роль отличается от соседней."
+    description: String
 }
 
 """
