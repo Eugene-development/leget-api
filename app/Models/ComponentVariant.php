@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Версия компонента (v1…v4) из каталога.
@@ -20,17 +19,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Статус не говорит, в какой системе версия лежит, и наоборот: в Базовой могут
  * одновременно лежать draft (новое) и active (легаси, работающее на живых сайтах).
  *
- * Третья, тоже независимая, — конструкция: колонка morph и связь roles().
- * Морфотип отвечает «что блок ЕСТЬ по устройству», роли — «что он МОЖЕТ
- * исполнить». Обе величины общие для всех сайтов; чем блок СТАЛ у конкретного
- * тенанта, хранится в page_components (label + role_slug) и здесь не отражается.
- * Именно поэтому версии одного компонента различаются морфотипами: v1 у Stage —
- * `plain : cards.grid.3-6.icon`, v2 — `aside : list.stack.3-6.icon/ord`.
- *
  * См. docs/architecture/component-lifecycle.md
- * и docs/architecture/component-morphotypes.md
  */
-#[Fillable(['component_id', 'version', 'name', 'article', 'status', 'morph'])]
+#[Fillable(['component_id', 'version', 'name', 'article', 'status'])]
 class ComponentVariant extends Model
 {
     use HasUlids;
@@ -84,29 +75,5 @@ class ComponentVariant extends Model
             'component_variant_id',
             'design_system_id',
         )->withTimestamps();
-    }
-
-    /**
-     * Роли, которые способна исполнить конструкция версии.
-     *
-     * HasMany, а не BelongsToMany: справочника ролей в БД нет, целевой модели для
-     * pivot-связи не существует — slug'и живут в config/component_roles.php.
-     * Обоснование в шапке миграции create_component_variant_role_table.
-     *
-     * Связь для чтения. Синхронизацию делает ComponentRegistrar::applyMorphotype().
-     */
-    public function roles(): HasMany
-    {
-        return $this->hasMany(ComponentVariantRole::class, 'component_variant_id');
-    }
-
-    /**
-     * Плоский список slug'ов ролей — то, что нужно фронту и GraphQL.
-     *
-     * @return list<string>
-     */
-    public function getRoleSlugsAttribute(): array
-    {
-        return $this->roles->pluck('role_slug')->values()->all();
     }
 }

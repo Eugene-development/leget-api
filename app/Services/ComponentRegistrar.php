@@ -196,61 +196,6 @@ class ComponentRegistrar
     }
 
     /**
-     * Записать версии её конструкцию и роли, которые эта конструкция способна исполнить.
-     *
-     * Морфотип отвечает на вопрос «что блок ЕСТЬ», роли — «что он МОЖЕТ». Ни то ни
-     * другое не говорит, чем блок стал у конкретного тенанта: выбранное назначение
-     * и подпись живут в `page_components` и сюда не попадают.
-     *
-     * Роли синхронизируются ПОЛНОСТЬЮ (sync, не syncWithoutDetaching): источник
-     * истины — config/component_morphotypes.php, и роль, убранная из конфига, обязана
-     * исчезнуть из таблицы. Иначе однажды приписанная роль осталась бы навсегда,
-     * а библиотека блоков продолжала бы предлагать конструкцию под назначение,
-     * которому она больше не отвечает.
-     *
-     * Морфотип, в отличие от ролей, перезаписывается только непустым значением:
-     * `null` означает «не выписан», и затирать им уже выписанную конструкцию
-     * нельзя — иначе выпадение записи из конфига молча обнуляло бы данные.
-     *
-     * @param  list<string>  $roleSlugs
-     */
-    public function applyMorphotype(ComponentVariant $variant, ?string $morph, array $roleSlugs): ComponentVariant
-    {
-        return DB::transaction(function () use ($variant, $morph, $roleSlugs): ComponentVariant {
-            if ($morph !== null && $variant->morph !== $morph) {
-                $variant->morph = $morph;
-                $variant->save();
-            }
-
-            $wanted = array_values(array_unique($roleSlugs));
-            $current = $variant->roles()->pluck('role_slug')->all();
-
-            $obsolete = array_diff($current, $wanted);
-            if ($obsolete !== []) {
-                $variant->roles()->whereIn('role_slug', $obsolete)->delete();
-            }
-
-            $missing = array_diff($wanted, $current);
-            if ($missing !== []) {
-                // Массовая вставка мимо модели: у таблицы составной первичный ключ
-                // и нет собственного id, поэтому Eloquent-связь пригодна для чтения,
-                // но не для записи по одной строке.
-                DB::table('component_variant_role')->insert(array_map(
-                    static fn (string $slug): array => [
-                        'component_variant_id' => $variant->id,
-                        'role_slug'            => $slug,
-                        'created_at'           => now(),
-                        'updated_at'           => now(),
-                    ],
-                    array_values($missing),
-                ));
-            }
-
-            return $variant->load('roles');
-        });
-    }
-
-    /**
      * Приписать версию к настоящей дизайн-системе, убрав её из Базовой.
      *
      * Ровно та операция, ради которой Базовая и существует: отрефакторенный компонент

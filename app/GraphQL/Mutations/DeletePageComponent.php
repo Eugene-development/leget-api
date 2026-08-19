@@ -37,17 +37,7 @@ final class DeletePageComponent
             throw new GraphQLException('This action is unauthorized.', 'AUTHORIZATION');
         }
 
-        // Сброс контента не должен стирать ИМЯ блока. Имя и назначение — не контент:
-        // тенант подписал блок «Почему нас выбирают», а сбрасывает тексты и картинки,
-        // и терять подпись за компанию он не просил. Поэтому строка с именем не
-        // удаляется, а обнуляется по данным — снаружи это тот же сброс к дефолтам
-        // шаблона (пустой `data` означает «взять всё из шаблона»).
-        if ($component->label !== null || $component->role_slug !== null) {
-            $component->data = [];
-            $component->save();
-        } else {
-            $component->delete();
-        }
+        $component->delete();
 
         // Invalidate cache for the license (tagged if supported, plain otherwise)
         try {

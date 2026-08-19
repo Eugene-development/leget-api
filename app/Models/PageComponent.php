@@ -10,12 +10,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Экземпляр блока на конкретном сайте.
  *
- * `type` — технический ключ каталога, человеку он больше не показывается: имя
- * блока в интерфейсе даёт `label`, а назначение — `role_slug` из справочника
- * config/component_roles.php. Каталог хранит конструкцию, экземпляр хранит смысл;
- * см. docs/architecture/component-morphotypes.md.
+ * `type` — технический ключ каталога: по нему блок находится в шаблоне и в путях
+ * к файлам, и он же служит подписью блока в интерфейсе редактирования.
  */
-#[Fillable(['page_id', 'license_id', 'type', 'data', 'is_active', 'sort_order', 'label', 'role_slug'])]
+#[Fillable(['page_id', 'license_id', 'type', 'data', 'is_active', 'sort_order'])]
 class PageComponent extends Model
 {
     use HasUlids;
