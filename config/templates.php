@@ -145,6 +145,11 @@ return [
                             'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_kitchens.png',
                             'alt' => 'Кухня из массива дуба со встроенной техникой',
                             'link' => '',
+                            'specs' => [
+                                ['label' => 'Длина', 'value' => '4,2 м'],
+                                ['label' => 'Срок', 'value' => '41 день'],
+                                ['label' => 'Фасадов', 'value' => '18'],
+                            ],
                         ],
                         [
                             'title' => 'Гардеробная 9 м²',
@@ -152,6 +157,11 @@ return [
                             'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_wardrobes.png',
                             'alt' => 'Гардеробная комната с подсветкой полок',
                             'link' => '',
+                            'specs' => [
+                                ['label' => 'Площадь', 'value' => '9 м²'],
+                                ['label' => 'Срок', 'value' => '34 дня'],
+                                ['label' => 'Полок', 'value' => '24'],
+                            ],
                         ],
                         [
                             'title' => 'Гостиная со стенкой под ТВ',
@@ -159,6 +169,11 @@ return [
                             'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_hero.png',
                             'alt' => 'Гостиная со встроенной стенкой под телевизор',
                             'link' => '',
+                            'specs' => [
+                                ['label' => 'Длина', 'value' => '3,6 м'],
+                                ['label' => 'Срок', 'value' => '29 дней'],
+                                ['label' => 'Секций', 'value' => '7'],
+                            ],
                         ],
                         [
                             'title' => 'Детская с рабочим местом',
@@ -166,6 +181,11 @@ return [
                             'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/quality-v2.webp',
                             'alt' => 'Детская мебель с рабочим местом у окна',
                             'link' => '',
+                            'specs' => [
+                                ['label' => 'Площадь', 'value' => '14 м²'],
+                                ['label' => 'Срок', 'value' => '23 дня'],
+                                ['label' => 'Ящиков', 'value' => '11'],
+                            ],
                         ],
                     ],
                 ]],
@@ -267,13 +287,13 @@ return [
                 ['type' => 'CTA',         'defaults' => ['title' => 'Готовы обсудить ваш проект?', 'subtitle' => 'Оставьте заявку — мы перезвоним в течение 15 минут и ответим на все вопросы', 'primaryButton' => 'Оставить заявку', 'primaryHref' => '/contact', 'phoneButton' => 'Позвонить нам', 'phoneHref' => 'tel:+70000000000']],
             ],
             '/consultation' => [
-                ['type' => 'ConsultationHero',     'defaults' => ['badge' => 'Премиальный сервис', 'title_part1' => 'Консультация', 'title_part2' => 'дизайнера', 'description' => 'Трансформируйте свои идеи в безупречный интерьер. Получите экспертные рекомендации по стилю, эргономике и материалам от ведущих специалистов отрасли.', 'cta_text' => 'Заказать консультацию']],
+                ['type' => 'ConsultationHero',     'defaults' => ['badge' => 'Услуга', 'title_part1' => 'Консультация', 'title_part2' => 'дизайнера', 'description' => 'Трансформируйте свои идеи в безупречный интерьер. Получите экспертные рекомендации по стилю, эргономике и материалам от ведущих специалистов отрасли.', 'cta_text' => 'Заказать консультацию']],
                 ['type' => 'ConsultationFeatures', 'defaults' => ['badge' => 'Что вы получите', 'title' => 'Комплексный подход к вашему интерьеру']],
                 ['type' => 'ConsultationWhy',      'defaults' => ['title' => 'Почему начать с консультации?']],
                 ['type' => 'ConsultationCTA',      'defaults' => ['title' => 'Готовы преобразить пространство?', 'description' => 'Запишитесь на консультацию сегодня и сделайте первый уверенный шаг к созданию интерьера вашей мечты.', 'cta_text' => 'Заказать консультацию']],
             ],
             '/design-project' => [
-                ['type' => 'DesignProjectHero',     'defaults' => ['badge' => 'Проектирование полного цикла', 'title_part1' => 'Проект', 'title_part2' => 'дизайна', 'description' => 'Создаем не просто красивые картинки, а детально проработанные технические решения для безупречной реализации вашего интерьера.', 'cta_text' => 'Начать проект']],
+                ['type' => 'DesignProjectHero',     'defaults' => ['badge' => 'Проектирование полного цикла', 'title_part1' => 'Дизайн', 'title_part2' => 'вашего интерьера', 'description' => 'Создаем не просто красивые картинки, а детально проработанные технические решения для безупречной реализации вашего интерьера.', 'cta_text' => 'Начать проект']],
                 ['type' => 'DesignProjectFeatures', 'defaults' => ['badge' => 'Состав проекта', 'title' => 'Полный комплект документации']],
                 ['type' => 'DesignProjectWhy',      'defaults' => ['title' => 'Почему нужен дизайн-проект?']],
                 ['type' => 'DesignProjectCTA',      'defaults' => ['title_part1' => 'Готовы создать', 'title_part2' => 'свой идеал?', 'cta_text' => 'Заказать проект']],
@@ -285,13 +305,13 @@ return [
                 ['type' => 'MeasurementCTA',      'defaults' => ['title' => 'Готовы начать с точного замера?', 'description' => 'Закажите профессиональный замер — первый шаг к идеальному интерьеру', 'cta_text' => 'Заказать замер']],
             ],
             '/furniture-project' => [
-                ['type' => 'FurnitureProjectHero',     'defaults' => ['badge' => 'Услуга компании', 'title_part1' => 'Проектирование', 'title_part2' => 'мебели', 'description' => 'Индивидуальная мебель, спроектированная под ваше пространство с учётом ваших пожеланий. От стартового эскиза до рабочих чертежей для производства.', 'cta_text' => 'Заказать проект мебели']],
+                ['type' => 'FurnitureProjectHero',     'defaults' => ['badge' => 'Услуга компании', 'title_part1' => 'Создание проекта', 'title_part2' => 'мебели', 'description' => 'Индивидуальная мебель, спроектированная под ваше пространство с учётом ваших пожеланий. От стартового эскиза до рабочих чертежей для производства.', 'cta_text' => 'Заказать проект мебели']],
                 ['type' => 'FurnitureProjectFeatures', 'defaults' => ['badge' => 'Состав проекта', 'title' => 'Полный комплект для производства']],
                 ['type' => 'FurnitureProjectWhy',      'defaults' => ['title' => 'Почему мебель на заказ?']],
                 ['type' => 'FurnitureProjectCTA',      'defaults' => ['title' => 'Готовы создать уникальную мебель?', 'description' => 'Закажите проект мебели и получите изделие, идеально подходящее под ваш интерьер', 'cta_text' => 'Заказать проект мебели']],
             ],
             '/assembly' => [
-                ['type' => 'AssemblyHero',     'defaults' => ['badge' => 'Услуга компании', 'title_part1' => 'Сборка и', 'title_part2' => 'установка', 'description' => 'Профессиональная сборка и установка мебели любой сложности профессиональным инструментом. Быстро, чисто, аккуратно и с гарантией качества.', 'cta_text' => 'Заказать сборку']],
+                ['type' => 'AssemblyHero',     'defaults' => ['badge' => 'Услуга компании', 'title_part1' => 'Сборка мебели', 'title_part2' => 'с подключением техники', 'description' => 'Профессиональная сборка и установка мебели любой сложности профессиональным инструментом. Быстро, чисто, аккуратно и с гарантией качества.', 'cta_text' => 'Заказать сборку']],
                 ['type' => 'AssemblyFeatures', 'defaults' => ['badge' => 'Наши услуги', 'title' => 'Полный комплекс работ']],
                 ['type' => 'AssemblyWhy',      'defaults' => ['title' => 'Почему выбирают нас?']],
                 ['type' => 'AssemblyCTA',      'defaults' => ['title' => 'Нужна сборка мебели?', 'description' => 'Оставьте заявку и мы соберём вашу мебель быстро и качественно', 'cta_text' => 'Заказать сборку']],
@@ -657,18 +677,18 @@ return [
                 ['type' => 'Hero',          'defaults' => ['label' => 'О фабрике', 'title' => 'От нашей фабрики для вашей семьи', 'description' => 'Наша фабрика располагает самой крупной сетью мебельных салонов. Предлагаем отличный сервис и доступные цены на мебель премиального качества.', 'ctaPrimary' => 'Найти ближайший салон', 'ctaPrimaryLink' => '/showrooms']],
                 ['type' => 'LeaderSection', 'defaults' => ['quote' => 'Мы вкладываем весь свой опыт и душу в создание мебели', 'name' => 'Зуховицкий О.В.', 'role' => 'Руководитель фабрики ЗОВ', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zovdir.png']],
                 ['type' => 'Mission',       'defaults' => ['label' => 'Наша миссия', 'heading' => 'Мы создаём мебель, которая дарит радость']],
-				['type' => 'Factory',       'defaults' => [
-					'label' => 'Производство',
-					'heading' => 'Наша фабрика',
-					'description' => '25 000 м² современного производства, оснащённого передовым европейским оборудованием',
-					'factoryImages' => [
-						'https://storage.yandexcloud.net/zovtop/foto/fabr-1jhbnikjnmim.jpg',
-						'https://storage.yandexcloud.net/zovtop/foto/fabr-2jfnvkjfdvijkmf.jpg',
-						'https://storage.yandexcloud.net/zovtop/foto/fabr-3kjvndfnvjhdgnvjhd.jpg',
-						'https://storage.yandexcloud.net/zovtop/foto/fabr-4dlkfvmdfmvjkfd.jpg',
-						'https://storage.yandexcloud.net/zovtop/foto/fabr-5kjfndvjkdfgknkgj.jpg',
-					],
-				]],
+                ['type' => 'Factory',       'defaults' => [
+                    'label' => 'Производство',
+                    'heading' => 'Наша фабрика',
+                    'description' => '25 000 м² современного производства, оснащённого передовым европейским оборудованием',
+                    'factoryImages' => [
+                        'https://storage.yandexcloud.net/zovtop/foto/fabr-1jhbnikjnmim.jpg',
+                        'https://storage.yandexcloud.net/zovtop/foto/fabr-2jfnvkjfdvijkmf.jpg',
+                        'https://storage.yandexcloud.net/zovtop/foto/fabr-3kjvndfnvjhdgnvjhd.jpg',
+                        'https://storage.yandexcloud.net/zovtop/foto/fabr-4dlkfvmdfmvjkfd.jpg',
+                        'https://storage.yandexcloud.net/zovtop/foto/fabr-5kjfndvjkdfgknkgj.jpg',
+                    ],
+                ]],
                 ['type' => 'Video',         'defaults' => ['src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zov.mp4']],
                 ['type' => 'Principles',    'defaults' => ['label' => 'Наши ценности', 'heading' => 'Принципы компании']],
                 ['type' => 'AboutCTA',      'defaults' => ['eyebrow' => 'Бесплатная услуга', 'heading' => 'Закажите дизайн-проект', 'description' => 'Запишитесь на бесплатную консультацию. Наш дизайнер поможет подобрать идеальное решение.', 'ctaText' => 'Заказать дизайн-проект', 'ctaLink' => '/contact']],
@@ -709,14 +729,14 @@ return [
             '/kitchens' => [
                 ['type' => 'Hero',            'defaults' => ['title' => 'Создание вашей идеальной кухни', 'description' => 'От детального проектирования до бережной сборки — каждый этап контролируется нашими специалистами', 'ctaText' => 'Спроектировать кухню', 'ctaLink' => '/contact']],
                 ['type' => 'KitchensGallery', 'defaults' => ['label' => 'Галерея', 'heading' => 'Наши гарнитуры', 'description' => 'Ознакомьтесь с вариантами решений для вашей кухни.']],
-				['type' => 'ProductionCycle', 'defaults' => [
-					'label' => 'Этапы',
-					'heading' => 'Производственный цикл',
-					'description' => 'Отточенный годами процесс создания премиальной мебели.',
-					'designImage' => 'https://storage.yandexcloud.net/zovtop/foto/technoljergbmeogkmbktgg.jpg',
-					'productionImage' => 'https://storage.yandexcloud.net/zovtop/foto/proizvodlkfegbmrgbm.jpg',
-					'assemblyImage' => '',
-				]],
+                ['type' => 'ProductionCycle', 'defaults' => [
+                    'label' => 'Этапы',
+                    'heading' => 'Производственный цикл',
+                    'description' => 'Отточенный годами процесс создания премиальной мебели.',
+                    'designImage' => 'https://storage.yandexcloud.net/zovtop/foto/technoljergbmeogkmbktgg.jpg',
+                    'productionImage' => 'https://storage.yandexcloud.net/zovtop/foto/proizvodlkfegbmrgbm.jpg',
+                    'assemblyImage' => '',
+                ]],
                 ['type' => 'KitchenStyles',   'defaults' => ['heading' => 'Варианты стилистических решений', 'description' => 'Мы адаптируем индивидуальный проект под любой стиль.']],
                 ['type' => 'KitchensCTA',     'defaults' => ['heading' => 'Хотите заказать кухню?', 'description' => 'Запишитесь в наши салоны для бесплатной консультации с дизайнером.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
             ],
