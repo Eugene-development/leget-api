@@ -369,6 +369,8 @@ type SiteSettings {
     metaDescription: String
     templateId: Int
     faviconUrl: String
+    "Владелец лицензии. Публичное поле: ответ renderPage кэшируется одним куском на всех, поэтому здесь id владельца, а не признак «это ты» — сверка идёт на клиенте."
+    ownerId: ID
     header: SiteComponent
     footer: SiteComponent
 }

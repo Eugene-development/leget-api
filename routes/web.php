@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminClientController;
 use App\Http\Controllers\AdminConversionController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\YooKassaWebhookController;
@@ -44,7 +45,7 @@ Route::middleware('auth:api')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Администрирование конверсий
+| Администрирование: конверсии и клиенты
 |--------------------------------------------------------------------------
 |
 | Доступ проверяется дважды: JWT валидируется общим guard, а allowlist
@@ -59,6 +60,9 @@ Route::prefix('admin')
             ->middleware('throttle:30,1');
         Route::get('/conversions/offline/export', [AdminConversionController::class, 'exportOffline'])
             ->middleware('throttle:20,1');
+
+        // Регистрации клиентов — страница «Мои клиенты» в панели leget-main.
+        Route::get('/clients', [AdminClientController::class, 'index']);
     });
 
 /*

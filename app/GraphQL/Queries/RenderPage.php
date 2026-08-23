@@ -23,7 +23,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v2';
+    private const CACHE_VERSION = 'v3';
 
     public function __construct(
         private TemplateService $templateService
@@ -34,7 +34,7 @@ final class RenderPage
      *
      * @param  mixed  $root
      * @param  array{slug: string}  $args
-     * @return array{site: array{name: ?string, metaDescription: ?string}, page: array{slug: string, componentsData: mixed}}
+     * @return array{site: array{name: ?string, metaDescription: ?string, ownerId: ?string}, page: array{slug: string, componentsData: mixed}}
      *
      * @throws GraphQLException
      */
@@ -271,6 +271,12 @@ final class RenderPage
                 'metaDescription' => $license->meta_description,
                 'templateId' => $license->template_id,
                 'faviconUrl' => $license->favicon_url,
+                // Владелец лицензии. Ответ кэшируется одним куском на всех
+                // посетителей сайта, поэтому здесь не может быть признака
+                // «текущий пользователь — владелец»: отдаём id, сверку делает
+                // клиент. Значение и так публично (виден только сам факт «у
+                // сайта есть владелец №N»), приватных данных не раскрывает.
+                'ownerId' => $license->user_id === null ? null : (string) $license->user_id,
                 'header' => $license->header_data ? ['data' => $license->header_data] : null,
                 'footer' => $license->footer_data ? ['data' => $license->footer_data] : null,
             ],

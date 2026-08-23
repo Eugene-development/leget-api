@@ -36,6 +36,7 @@ abstract class TestCase extends BaseTestCase
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('phone')->nullable();
+                $table->string('region', 120)->nullable();
                 $table->rememberToken();
                 $table->timestamps();
             });

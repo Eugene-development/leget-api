@@ -304,6 +304,7 @@ class RenderPageTest extends TestCase
 
         $this->assertSame('My Site', $result['site']['name']);
         $this->assertSame('My site description', $result['site']['metaDescription']);
+        $this->assertSame((string) $license->user_id, $result['site']['ownerId']);
 
         $this->assertSame('/about', $result['page']['slug']);
 
@@ -326,6 +327,27 @@ class RenderPageTest extends TestCase
             ],
         ];
         $this->assertSame($expectedComponents, $result['page']['componentsData']);
+    }
+
+    /**
+     * The client decides whether to draw the editing UI, because this response is
+     * cached once for every visitor and fetched without a token — the server cannot
+     * answer "is this you", only "the owner is this one". Ownership of the write
+     * path stays server-side (see UpsertPageComponent).
+     */
+    public function test_returns_license_owner_id_for_the_client_side_ownership_check(): void
+    {
+        $license = $this->createLicense(['domain' => 'owner.example.com']);
+        Page::create([
+            'license_id' => $license->id,
+            'slug' => '/about',
+        ]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'owner.example.com']);
+        $result = ($this->resolver)(null, ['slug' => '/about'], $context, $this->createResolveInfo());
+
+        $this->assertSame((string) $license->user_id, $result['site']['ownerId']);
+        $this->assertNotSame('', $result['site']['ownerId']);
     }
 
     public function test_template_definition_order_wins_over_legacy_component_sort_order(): void
@@ -507,7 +529,7 @@ class RenderPageTest extends TestCase
         $result1 = ($this->resolver)(null, ['slug' => '/'], $context, $this->createResolveInfo());
 
         // Verify cache was populated
-        $cached = Cache::tags(["license:{$license->id}"])->get("render:v2:{$license->id}:/");
+        $cached = Cache::tags(["license:{$license->id}"])->get("render:v3:{$license->id}:/");
         $this->assertNotNull($cached);
         $this->assertSame($result1, $cached);
     }
@@ -525,7 +547,7 @@ class RenderPageTest extends TestCase
             'page' => ['slug' => '/', 'componentsData' => [['type' => 'Hero', 'data' => ['title' => 'Cached']]]],
         ];
 
-        Cache::tags(["license:{$license->id}"])->put("render:v2:{$license->id}:/", $cachedResponse, 3600);
+        Cache::tags(["license:{$license->id}"])->put("render:v3:{$license->id}:/", $cachedResponse, 3600);
 
         $context = $this->createContext(['X-Forwarded-Host' => 'hit.example.com']);
         $result = ($this->resolver)(null, ['slug' => '/'], $context, $this->createResolveInfo());

@@ -163,7 +163,7 @@ class CacheInvalidationTest extends TestCase
      */
     private function assertCacheFlushed(License $license, Page $page): void
     {
-        $cacheKey = "render:{$license->id}:{$page->slug}";
+        $cacheKey = "render:v3:{$license->id}:{$page->slug}";
         $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
 
         $this->assertNull(
@@ -193,7 +193,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:{$license->id}:{$page->slug}";
+            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
@@ -255,7 +255,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:{$license->id}:{$page->slug}";
+            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
@@ -309,7 +309,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:{$license->id}:{$page->slug}";
+            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
