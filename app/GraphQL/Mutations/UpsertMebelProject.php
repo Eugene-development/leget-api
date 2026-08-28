@@ -92,6 +92,47 @@ final class UpsertMebelProject
         if (array_key_exists('short_description', $input)) {
             $project->short_description = $input['short_description'];
         }
+        // ── Паспорт сданной работы ───────────────────────────────────────
+        // Единственная точка записи этих полей на всю платформу: страница
+        // `/projects` их показывает и не правит (см. ProjectsFeed), а карточка
+        // проекта в каталоге — правит. Второго редактора у них быть не должно.
+        // Явный null — осознанное «работа ещё не сдана»: он стирает дату и
+        // убирает проект из ленты, оставляя его в рубрике каталога. Отсутствие
+        // ключа означает «поле не трогали», и это ровно та разница, ради которой
+        // здесь `array_key_exists`, а не `isset`. Пустой строкой очистить нельзя:
+        // скаляр `Date` разбирает вход в Carbon и на непарсящемся значении
+        // отвечает ошибкой ещё до резолвера.
+        if (array_key_exists('completed_at', $input)) {
+            $project->completed_at = $input['completed_at'];
+        }
+        if (array_key_exists('object_address', $input)) {
+            $project->object_address = $this->nullIfBlank($input['object_address']);
+        }
+
+        // Изготовитель и бренды живут в `meta`: их только показывают, ни
+        // сортировки, ни выборки по ним нет. Ключи переписываются поштучно,
+        // а не заменой всего `meta`, — там лежат и чужие произвольные атрибуты.
+        $meta = $project->meta ?? [];
+
+        if (array_key_exists('maker', $input)) {
+            $meta['maker'] = $this->nullIfBlank($input['maker']);
+        }
+        if (array_key_exists('hardware_brands', $input)) {
+            $meta['hardware_brands'] = $this->cleanBrands($input['hardware_brands']);
+        }
+        if (array_key_exists('appliance_brands', $input)) {
+            $meta['appliance_brands'] = $this->cleanBrands($input['appliance_brands']);
+        }
+
+        // Пустые ключи выкидываем: `meta` отдаётся наружу целиком, и
+        // `"maker": null` рядом с реальными атрибутами читается как «поле есть,
+        // значение потеряли», тогда как отсутствие ключа означает то, что есть.
+        $meta = array_filter(
+            $meta,
+            static fn ($value) => $value !== null && $value !== [] && $value !== '',
+        );
+        $project->meta = $meta === [] ? null : $meta;
+
         if (array_key_exists('price', $input)) {
             $project->price = $input['price'];
         }
@@ -157,5 +198,40 @@ final class UpsertMebelProject
         }
 
         return $project;
+    }
+
+    /** Пустая и пробельная строка — это отсутствие значения, а не значение. */
+    private function nullIfBlank(?string $value): ?string
+    {
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * Список брендов: обрезка, отсев пустых и дублей, переиндексация.
+     *
+     * Переиндексация обязательна: `array_values` после `array_filter` — разница
+     * между JSON-массивом `["Blum"]` и JSON-объектом `{"1":"Blum"}`, а фронт
+     * ждёт массив и на объекте молча покажет пустой список.
+     *
+     * @param  array<int, string>|null  $value
+     * @return array<int, string>
+     */
+    private function cleanBrands(?array $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $clean = [];
+        foreach ($value as $brand) {
+            $brand = trim((string) $brand);
+            if ($brand !== '' && ! in_array($brand, $clean, true)) {
+                $clean[] = $brand;
+            }
+        }
+
+        return $clean;
     }
 }

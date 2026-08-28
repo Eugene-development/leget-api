@@ -28,6 +28,7 @@ class ServiceRequest extends Model
     public const TYPE_ASSEMBLY = 'assembly';
     public const TYPE_MEASUREMENT = 'measurement';
     public const TYPE_PARTNERSHIP = 'partnership';
+    public const TYPE_PROMO = 'promo';
 
     /**
      * Тип первичного ключа — строка (ULID).

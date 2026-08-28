@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -11,11 +12,10 @@ use Illuminate\Http\Request;
 /**
  * Список регистраций для страницы «Мои клиенты» в панели администратора.
  *
- * Клиент — зарегистрированный пользователь, которого нет в allowlist
- * LEGET_ADMIN_EMAILS: роль выводится из того же списка, что и админская
- * (см. EnsureAdminAccess и UserRole в leget-auth), поэтому админы из списка
- * не попадают. Отдельной колонки роли в схеме нет — второй источник правды
- * рано или поздно разошёлся бы с allowlist.
+ * Список — все зарегистрированные, кроме админов платформы: страница
+ * показывает регистрации, и появление третьей роли не должно молча убирать
+ * людей из неё. Фильтр идёт по колонке `users.role` (см. App\Enums\Role);
+ * allowlist LEGET_ADMIN_EMAILS в обработке запроса больше не участвует.
  */
 final class AdminClientController extends Controller
 {
@@ -69,11 +69,6 @@ final class AdminClientController extends Controller
      */
     private function clients(): Builder
     {
-        $adminEmails = (array) config('admin.emails', []);
-
-        return User::query()
-            ->when($adminEmails !== [], static function (Builder $query) use ($adminEmails): void {
-                $query->whereNotIn('email', $adminEmails);
-            });
+        return User::query()->whereNot('role', Role::Superadmin->value);
     }
 }

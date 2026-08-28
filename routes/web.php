@@ -2,9 +2,9 @@
 
 use App\Http\Controllers\AdminClientController;
 use App\Http\Controllers\AdminConversionController;
+use App\Http\Controllers\AdminPartnerController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\YooKassaWebhookController;
-use App\Http\Middleware\EnsureAdminAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -48,21 +48,35 @@ Route::middleware('auth:api')->group(function () {
 | Администрирование: конверсии и клиенты
 |--------------------------------------------------------------------------
 |
-| Доступ проверяется дважды: JWT валидируется общим guard, а allowlist
-| LEGET_ADMIN_EMAILS — отдельным middleware. Эти endpoint'ы вызывает только
-| серверная часть leget-main, токен не выдаётся браузеру.
+| Доступ проверяется дважды: JWT валидируется общим guard, а право на раздел —
+| штатным `can:` (способности ролей объявлены в App\Enums\Role и регистрируются
+| Gate'ами в AppServiceProvider). Эти endpoint'ы вызывает только серверная часть
+| leget-main, токен не выдаётся браузеру.
+|
+| Способность, а не имя роли: если доступ к разделу получит вторая роль, строка
+| добавится в enum, а маршруты останутся нетронутыми.
 */
 Route::prefix('admin')
-    ->middleware(['auth:api', EnsureAdminAccess::class, 'throttle:120,1'])
+    ->middleware(['auth:api', 'throttle:120,1'])
     ->group(function (): void {
-        Route::get('/conversions', [AdminConversionController::class, 'index']);
+        Route::get('/conversions', [AdminConversionController::class, 'index'])
+            ->middleware('can:conversions.view');
         Route::post('/conversions', [AdminConversionController::class, 'storeOffline'])
-            ->middleware('throttle:30,1');
+            ->middleware(['can:conversions.record', 'throttle:30,1']);
         Route::get('/conversions/offline/export', [AdminConversionController::class, 'exportOffline'])
-            ->middleware('throttle:20,1');
+            ->middleware(['can:conversions.view', 'throttle:20,1']);
 
         // Регистрации клиентов — страница «Мои клиенты» в панели leget-main.
-        Route::get('/clients', [AdminClientController::class, 'index']);
+        Route::get('/clients', [AdminClientController::class, 'index'])
+            ->middleware('can:clients.view');
+
+        // Разбор заявок на партнёрство. Одобрение — единственное штатное место,
+        // где у человека появляется роль `partner`.
+        Route::middleware('can:partners.review')->group(function (): void {
+            Route::get('/partners', [AdminPartnerController::class, 'index']);
+            Route::post('/partners/{id}/approve', [AdminPartnerController::class, 'approve']);
+            Route::post('/partners/{id}/reject', [AdminPartnerController::class, 'reject']);
+        });
     });
 
 /*

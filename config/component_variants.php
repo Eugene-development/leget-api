@@ -30,6 +30,7 @@ return [
         'MebelBenefits' => 2,
         'MebelProcess' => 2,
         'Message'      => 2,
+        'ProjectsFeed' => 2,
         'PromoOffer'   => 2,
         'Stage'        => 2,
     ],

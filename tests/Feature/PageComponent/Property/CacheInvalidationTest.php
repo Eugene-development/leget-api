@@ -38,6 +38,21 @@ class CacheInvalidationTest extends TestCase
 
     private RenderPage $renderPageResolver;
 
+    /**
+     * Ключ кэша ответа RenderPage.
+     *
+     * Версия берётся из самого резолвера, а не пишется литералом: literal `v3`
+     * стоял здесь в шести местах и сломал тесты в тот же час, когда контракт
+     * ответа изменился и версию подняли. Тест обязан следовать за константой,
+     * а не дублировать её.
+     */
+    private function renderCacheKey(string $licenseId, string $slug): string
+    {
+        $version = (new \ReflectionClass(RenderPage::class))->getConstant('CACHE_VERSION');
+
+        return "render:{$version}:{$licenseId}:{$slug}";
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -163,7 +178,7 @@ class CacheInvalidationTest extends TestCase
      */
     private function assertCacheFlushed(License $license, Page $page): void
     {
-        $cacheKey = "render:v3:{$license->id}:{$page->slug}";
+        $cacheKey = $this->renderCacheKey($license->id, $page->slug);
         $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
 
         $this->assertNull(
@@ -193,7 +208,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
+            $cacheKey = $this->renderCacheKey($license->id, $page->slug);
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
@@ -255,7 +270,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
+            $cacheKey = $this->renderCacheKey($license->id, $page->slug);
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 
@@ -309,7 +324,7 @@ class CacheInvalidationTest extends TestCase
             );
 
             // Step 2: Verify the cache has data
-            $cacheKey = "render:v3:{$license->id}:{$page->slug}";
+            $cacheKey = $this->renderCacheKey($license->id, $page->slug);
             $cached   = Cache::tags(["license:{$license->id}"])->get($cacheKey);
             $this->assertNotNull($cached, 'Expected cache to be populated after first renderPage call.');
 

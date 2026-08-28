@@ -1,6 +1,9 @@
 "A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
 scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
 
+"A date string with format `Y-m-d`, e.g. `2026-03-14`."
+scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
+
 "Arbitrary JSON data."
 scalar JSON @scalar(class: "App\\GraphQL\\Scalars\\JSON")
 
@@ -263,6 +266,16 @@ input UpsertMebelProjectInput {
     value: String!
     description: String
     short_description: String
+    "Дата сдачи объекта (YYYY-MM-DD). Пустая строка стирает дату и убирает работу из ленты /projects."
+    completed_at: Date
+    "Полный адрес объекта. Публикуется усечённым — см. ProjectsFeed/data.ts."
+    object_address: String
+    "Кто изготовил мебель. Ложится в meta.maker."
+    maker: String
+    "Бренды фурнитуры. Ложатся в meta.hardware_brands."
+    hardware_brands: [String!]
+    "Бренды техники. Ложатся в meta.appliance_brands."
+    appliance_brands: [String!]
     price: Float
     old_price: Float
     is_featured: Boolean
@@ -373,6 +386,8 @@ type SiteSettings {
     ownerId: ID
     header: SiteComponent
     footer: SiteComponent
+    "Сохранённые карточки акций страницы `/actions` (id, title, badge, enabled) — их читает полоса акций в шапке, которая стоит на каждой странице. null — блок не сохранён, тогда фронт берёт дефолты страницы; [] — акций нет."
+    actionCards: JSON
 }
 
 "A site-wide component (header or footer) with arbitrary JSON data."
@@ -625,6 +640,12 @@ type MebelProject {
 
     "Short description for cards."
     short_description: String
+
+    "Date the object was handed over. NULL means the project is not finished and is excluded from the /projects feed."
+    completed_at: Date
+
+    "Full address of the object, kept for internal records. The public feed truncates it to city and district."
+    object_address: String
 
     "Price of the project."
     price: Float

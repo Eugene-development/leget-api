@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\Role;
 use App\Models\Conversion;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -31,13 +32,11 @@ class AdminConversionTest extends TestCase
             $table->char('service_request_id', 26)->nullable()->unique();
             $table->timestamps();
         });
-
-        config(['admin.emails' => ['admin@example.test']]);
     }
 
-    public function test_admin_can_view_conversions(): void
+    public function test_superadmin_can_view_conversions(): void
     {
-        $admin = $this->user('admin@example.test');
+        $admin = $this->user('admin@example.test', Role::Superadmin);
         Conversion::query()->create([
             'channel' => Conversion::CHANNEL_ONLINE,
             'type' => 'consultation',
@@ -53,16 +52,16 @@ class AdminConversionTest extends TestCase
             ->assertJsonPath('conversions.data.0.name', 'Анна');
     }
 
-    public function test_authenticated_non_admin_cannot_view_conversions(): void
+    public function test_authenticated_non_superadmin_cannot_view_conversions(): void
     {
         $this->actingAs($this->user('member@example.test'), 'api')
             ->getJson('/admin/conversions')
             ->assertForbidden();
     }
 
-    public function test_admin_can_record_normalized_offline_conversion(): void
+    public function test_superadmin_can_record_normalized_offline_conversion(): void
     {
-        $this->actingAs($this->user('admin@example.test'), 'api')
+        $this->actingAs($this->user('admin@example.test', Role::Superadmin), 'api')
             ->postJson('/admin/conversions', [
                 'offline_type' => 'call',
                 'name' => 'ООО Пример',
@@ -76,12 +75,17 @@ class AdminConversionTest extends TestCase
             ->assertJsonPath('conversion.contact', '79991234567');
     }
 
-    private function user(string $email): User
+    private function user(string $email, Role $role = Role::Client): User
     {
-        return User::query()->create([
+        $user = User::query()->create([
             'name' => 'Test User',
             'email' => $email,
             'password' => bcrypt('password'),
         ]);
+
+        // Роль не fillable — назначаем явно, как это делает roles:sync-admins.
+        $user->forceFill(['role' => $role])->save();
+
+        return $user;
     }
 }

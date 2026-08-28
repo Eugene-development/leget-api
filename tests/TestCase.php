@@ -33,6 +33,7 @@ abstract class TestCase extends BaseTestCase
                 $table->id();
                 $table->string('name');
                 $table->string('email')->unique();
+                $table->string('role', 32)->default('client')->index();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('phone')->nullable();
@@ -64,6 +65,24 @@ abstract class TestCase extends BaseTestCase
                 $table->timestamps();
 
                 $table->unique(['page_id', 'type']);
+            });
+        }
+
+        if (! Schema::hasTable('partner_profiles')) {
+            Schema::create('partner_profiles', function (Blueprint $table) {
+                $table->ulid('id')->primary();
+                $table->unsignedBigInteger('user_id')->unique();
+                $table->string('partner_type', 32);
+                $table->string('status', 16)->default('pending');
+                $table->string('company')->nullable();
+                $table->string('inn', 12)->nullable();
+                $table->string('website', 255)->nullable();
+                $table->string('city', 120)->nullable();
+                $table->text('comment')->nullable();
+                $table->unsignedBigInteger('reviewed_by')->nullable();
+                $table->timestamp('reviewed_at')->nullable();
+                $table->text('review_note')->nullable();
+                $table->timestamps();
             });
         }
     }

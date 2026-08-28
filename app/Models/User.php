@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -39,6 +40,17 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Заявка на партнёрство, она же профиль партнёра.
+     *
+     * Существует и у клиента: заявка подаётся до одобрения, и роль в этот
+     * момент ещё `client`. Наличие профиля — не право на Офис, право даёт роль.
+     */
+    public function partnerProfile(): HasOne
+    {
+        return $this->hasOne(PartnerProfile::class);
+    }
+
+    /**
      * Получить кошелёк пользователя.
      */
     public function wallet(): HasOne
@@ -72,6 +84,11 @@ class User extends Authenticatable implements JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            // Каст в enum: неизвестное значение в колонке роняет гидрацию
+            // ValueError'ом, а не тихо превращается в «роль, которой нет».
+            // В #[Fillable] роли нет намеренно — иначе её можно было бы
+            // присвоить телом запроса.
+            'role' => Role::class,
         ];
     }
 }

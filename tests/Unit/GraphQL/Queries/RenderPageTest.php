@@ -6,6 +6,7 @@ use App\Exceptions\GraphQLException;
 use App\GraphQL\Queries\RenderPage;
 use App\Models\Category;
 use App\Models\License;
+use App\Models\MebelProject;
 use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
@@ -99,13 +100,55 @@ class RenderPageTest extends TestCase
         if (! Schema::hasTable('mebel_projects')) {
             Schema::create('mebel_projects', function (Blueprint $table) {
                 $table->ulid('id')->primary();
+                $table->ulid('key')->nullable();
                 $table->ulid('category_id');
                 $table->ulid('license_id')->nullable();
                 $table->boolean('is_active')->default(true);
+                $table->string('value')->nullable();
+                $table->string('slug')->nullable();
+                $table->text('short_description')->nullable();
+                $table->date('completed_at')->nullable();
+                $table->string('object_address')->nullable();
+                $table->json('meta')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
             });
         }
+
+        // Лента `/projects` подгружает кадры работ — без таблицы eager load падает.
+        if (! Schema::hasTable('images')) {
+            Schema::create('images', function (Blueprint $table) {
+                $table->ulid('id')->primary();
+                $table->ulid('key')->nullable();
+                $table->string('path')->nullable();
+                $table->string('hash')->nullable();
+                $table->string('filename')->nullable();
+                $table->string('original_name')->nullable();
+                $table->string('mime_type')->nullable();
+                $table->unsignedBigInteger('size')->nullable();
+                $table->ulid('parentable_id')->nullable();
+                $table->string('parentable_type')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+    }
+
+    /**
+     * Ключ кэша ответа RenderPage.
+     *
+     * Версия берётся из самого резолвера, а не пишется литералом: literal `v3`
+     * стоял здесь в шести местах и сломал тесты в тот же час, когда контракт
+     * ответа изменился и версию подняли. Тест обязан следовать за константой,
+     * а не дублировать её.
+     */
+    private function renderCacheKey(string $licenseId, string $slug): string
+    {
+        $version = (new \ReflectionClass(RenderPage::class))->getConstant('CACHE_VERSION');
+
+        return "render:{$version}:{$licenseId}:{$slug}";
     }
 
     private function createContext(array $headers = []): GraphQLContext
@@ -424,6 +467,344 @@ class RenderPageTest extends TestCase
         $this->assertSame('kitchens', $hero['data']['categorySlug']);
     }
 
+    /**
+     * Страница `/projects` делится надвое: последняя работа уходит в шапку,
+     * все остальные — в ленту. Порядок задаёт дата СОЗДАНИЯ карточки.
+     */
+    public function test_latest_project_goes_to_hero_and_the_rest_to_the_feed(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'feed.example.com',
+            'template_id' => 1,
+        ]);
+
+        $category = $this->createMebelCategory();
+
+        $this->createProject($category, [
+            'value' => 'Заведена раньше всех',
+            'slug' => 'ranshe-vseh',
+            'created_at' => '2026-01-10 10:00:00',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Заведена в середине',
+            'slug' => 'v-seredine',
+            'created_at' => '2026-02-15 10:00:00',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Заведена последней',
+            'slug' => 'poslednyaya',
+            'created_at' => '2026-03-20 10:00:00',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Снята с публикации',
+            'slug' => 'snyata-s-publikacii',
+            'created_at' => '2026-04-01 10:00:00',
+            'is_active' => false,
+        ]);
+
+        $page = $this->renderProjectsPage($license, 'feed.example.com');
+
+        $this->assertSame('Заведена последней', $page['hero']['latest']['value']);
+        $this->assertSame(
+            ['Заведена в середине', 'Заведена раньше всех'],
+            array_column($page['feed']['projects'], 'value'),
+        );
+    }
+
+    /**
+     * Счётчик у обоих блоков один и считает ВСЁ портфолио, включая работу
+     * в шапке. Лента на него опирается, чтобы отличить «работ нет» от
+     * «все показаны шапкой», — поэтому расхождение здесь молча ломало бы
+     * пустое состояние.
+     */
+    public function test_both_blocks_get_the_same_total_counting_the_hero_project(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'total.example.com',
+            'template_id' => 1,
+        ]);
+
+        $category = $this->createMebelCategory();
+        foreach (range(1, 3) as $i) {
+            $this->createProject($category, ['value' => "Работа {$i}", 'slug' => "rabota-{$i}"]);
+        }
+
+        $page = $this->renderProjectsPage($license, 'total.example.com');
+
+        $this->assertSame(3, $page['hero']['total']);
+        $this->assertSame(3, $page['feed']['total']);
+        $this->assertCount(2, $page['feed']['projects']);
+    }
+
+    /**
+     * Единственная работа целиком уходит в шапку, и лента остаётся пустой при
+     * `total = 1`. Различить это от «работ нет вовсе» она обязана: во втором
+     * случае показывается «Проектов пока нет», а в первом — ничего, иначе
+     * плашка соврала бы поверх показанной работы.
+     */
+    public function test_single_project_fills_the_hero_and_leaves_the_feed_empty(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'single.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createProject($this->createMebelCategory(), [
+            'value' => 'Единственная работа',
+            'slug' => 'edinstvennaya',
+        ]);
+
+        $page = $this->renderProjectsPage($license, 'single.example.com');
+
+        $this->assertSame('Единственная работа', $page['hero']['latest']['value']);
+        $this->assertSame([], $page['feed']['projects']);
+        $this->assertSame(1, $page['feed']['total']);
+    }
+
+    /** Портфолио пустое: шапке нечего показать, счётчик нулевой. */
+    public function test_empty_portfolio_leaves_the_hero_without_a_project(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'nothing.example.com',
+            'template_id' => 1,
+        ]);
+        $this->createMebelCategory();
+
+        $page = $this->renderProjectsPage($license, 'nothing.example.com');
+
+        $this->assertNull($page['hero']['latest']);
+        $this->assertSame(0, $page['hero']['total']);
+        $this->assertSame(0, $page['feed']['total']);
+    }
+
+    /**
+     * Проект без даты завершения из выдачи НЕ выпадает.
+     *
+     * Это регрессия, которая уже случилась: дата была условием показа, и у
+     * тенанта с полным каталогом страница оказалась пустой — поле новое, и
+     * заполнено оно ни у кого. Дата завершения — атрибут карточки, а не
+     * пропуск в ленту.
+     */
+    public function test_projects_without_completion_date_are_kept(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'nodate.example.com',
+            'template_id' => 1,
+        ]);
+
+        $category = $this->createMebelCategory();
+
+        $this->createProject($category, [
+            'value' => 'Без даты завершения',
+            'slug' => 'bez-daty',
+            'completed_at' => null,
+            'created_at' => '2026-03-20 10:00:00',
+        ]);
+        $this->createProject($category, [
+            'value' => 'С датой завершения',
+            'slug' => 's-datoy',
+            'completed_at' => '2026-02-02',
+            'created_at' => '2026-01-10 10:00:00',
+        ]);
+
+        $page = $this->renderProjectsPage($license, 'nodate.example.com');
+
+        $this->assertSame('Без даты завершения', $page['hero']['latest']['value']);
+        $this->assertNull($page['hero']['latest']['completedAt']);
+        $this->assertSame('2026-02-02', $page['feed']['projects'][0]['completedAt']);
+    }
+
+    /**
+     * Адрес публикуется усечённым: город и район, не дом и не квартира.
+     *
+     * Усечение делает выдача, а не форма. Тенант вводит полный адрес один раз
+     * и не может случайно опубликовать больше, чем собирался, — а раз так,
+     * поведение обязано быть закреплено тестом, иначе однажды «оптимизируют».
+     * Проверяем и шапку, и ленту: усечение общее, но проходят они разными
+     * ветками обогащения.
+     */
+    public function test_object_address_is_truncated_to_two_segments_everywhere(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'address.example.com',
+            'template_id' => 1,
+        ]);
+
+        $category = $this->createMebelCategory();
+
+        $this->createProject($category, [
+            'value' => 'Полный адрес',
+            'slug' => 'polnyy-adres',
+            'created_at' => '2026-03-03 10:00:00',
+            'object_address' => 'Москва, Хамовники, ул. Примерная, 1, кв. 42',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Только город',
+            'slug' => 'tolko-gorod',
+            'created_at' => '2026-03-02 10:00:00',
+            'object_address' => 'Москва',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Адреса нет',
+            'slug' => 'adresa-net',
+            'created_at' => '2026-03-01 10:00:00',
+            'object_address' => null,
+        ]);
+
+        $page = $this->renderProjectsPage($license, 'address.example.com');
+
+        $this->assertSame('Москва, Хамовники', $page['hero']['latest']['objectAddress']);
+        $this->assertSame('Москва', $page['feed']['projects'][0]['objectAddress']);
+        $this->assertNull($page['feed']['projects'][1]['objectAddress']);
+    }
+
+    /**
+     * Работы отключённой рубрики в выдачу не попадают.
+     *
+     * Карточка ведёт на `/mebel/{category}/{project}`, а отключённую категорию
+     * RenderPage не резолвит — то есть страница вела бы на 404 из собственного
+     * списка.
+     */
+    public function test_disabled_categories_are_skipped(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'disabled.example.com',
+            'template_id' => 1,
+        ]);
+
+        $visible = $this->createMebelCategory();
+        $hidden = $this->createMebelCategory([
+            'value' => 'Гардеробные',
+            'slug' => 'wardrobes',
+            'is_enabled' => false,
+        ]);
+
+        $this->createProject($visible, ['value' => 'Видимый проект', 'slug' => 'vidimyy-proekt']);
+        $this->createProject($hidden, [
+            'value' => 'Проект скрытой рубрики',
+            'slug' => 'proekt-skrytoy-rubriki',
+        ]);
+
+        $page = $this->renderProjectsPage($license, 'disabled.example.com');
+
+        $this->assertSame('Видимый проект', $page['hero']['latest']['value']);
+        $this->assertSame(1, $page['hero']['total']);
+    }
+
+    /** Паспорт из `meta` доезжает до выдачи списками, а не строкой. */
+    public function test_maker_and_brands_come_from_meta(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'meta.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createProject($this->createMebelCategory(), [
+            'value' => 'Кухня с паспортом',
+            'slug' => 'kuhnya-s-pasportom',
+            'completed_at' => '2026-03-14',
+            'meta' => [
+                'maker' => 'Собственное производство',
+                'hardware_brands' => ['Blum', 'Hettich'],
+                'appliance_brands' => ['Bosch'],
+            ],
+        ]);
+
+        $latest = $this->renderProjectsPage($license, 'meta.example.com')['hero']['latest'];
+
+        $this->assertSame('Собственное производство', $latest['maker']);
+        $this->assertSame(['Blum', 'Hettich'], $latest['hardwareBrands']);
+        $this->assertSame(['Bosch'], $latest['applianceBrands']);
+    }
+
+    /** Проект без паспорта отдаётся пустыми списками, а не null. */
+    public function test_missing_meta_becomes_empty_lists(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'nometa.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createProject($this->createMebelCategory(), [
+            'value' => 'Без паспорта',
+            'slug' => 'bez-pasporta',
+        ]);
+
+        $latest = $this->renderProjectsPage($license, 'nometa.example.com')['hero']['latest'];
+
+        $this->assertNull($latest['maker']);
+        $this->assertSame([], $latest['hardwareBrands']);
+        $this->assertSame([], $latest['applianceBrands']);
+    }
+
+    /**
+     * Страница `/projects` целиком: шапка с последней работой и лента с
+     * остальными. Возвращаем оба блока — граница между ними и есть то, что
+     * эти тесты проверяют.
+     *
+     * @return array{hero: array<string, mixed>, feed: array<string, mixed>}
+     */
+    private function renderProjectsPage(License $license, string $domain): array
+    {
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/projects'],
+            $this->createContext(['X-Forwarded-Host' => $domain]),
+            $this->createResolveInfo()
+        );
+
+        $components = collect($result['page']['componentsData']);
+        $hero = $components->firstWhere('type', 'ProjectsHero');
+        $feed = $components->firstWhere('type', 'ProjectsFeed');
+
+        $this->assertNotNull($hero, 'Блок ProjectsHero не отрендерился на /projects');
+        $this->assertNotNull($feed, 'Блок ProjectsFeed не отрендерился на /projects');
+
+        return ['hero' => $hero['data'], 'feed' => $feed['data']];
+    }
+
+    private function createMebelCategory(array $attributes = []): Category
+    {
+        $rubric = Rubric::where('slug', 'mebel')->first() ?? Rubric::create([
+            'key' => (string) Str::ulid(),
+            'value' => 'Мебель',
+            'slug' => 'mebel',
+        ]);
+
+        return Category::create(array_merge([
+            'key' => (string) Str::ulid(),
+            'rubric_id' => $rubric->id,
+            'value' => 'Кухни',
+            'slug' => 'kitchens',
+            'is_active' => true,
+            'is_enabled' => true,
+        ], $attributes));
+    }
+
+    /**
+     * `created_at` задаётся в обход массового присвоения: его нет в `$fillable`,
+     * и через `create()` он молча заменяется текущим временем — все проекты
+     * оказываются созданными в одну секунду, порядок держится только на ULID,
+     * и тест сортировки проверяет не то, что написано.
+     */
+    private function createProject(Category $category, array $attributes = []): MebelProject
+    {
+        $createdAt = $attributes['created_at'] ?? null;
+        unset($attributes['created_at']);
+
+        $project = MebelProject::create(array_merge([
+            'key' => (string) Str::ulid(),
+            'category_id' => $category->id,
+            'is_active' => true,
+        ], $attributes));
+
+        if ($createdAt !== null) {
+            $project->forceFill(['created_at' => $createdAt])->saveQuietly();
+        }
+
+        return $project;
+    }
+
     public function test_static_page_returns_page_seo_metadata(): void
     {
         $license = $this->createLicense([
@@ -529,7 +910,7 @@ class RenderPageTest extends TestCase
         $result1 = ($this->resolver)(null, ['slug' => '/'], $context, $this->createResolveInfo());
 
         // Verify cache was populated
-        $cached = Cache::tags(["license:{$license->id}"])->get("render:v3:{$license->id}:/");
+        $cached = Cache::tags(["license:{$license->id}"])->get($this->renderCacheKey($license->id, '/'));
         $this->assertNotNull($cached);
         $this->assertSame($result1, $cached);
     }
@@ -547,7 +928,7 @@ class RenderPageTest extends TestCase
             'page' => ['slug' => '/', 'componentsData' => [['type' => 'Hero', 'data' => ['title' => 'Cached']]]],
         ];
 
-        Cache::tags(["license:{$license->id}"])->put("render:v3:{$license->id}:/", $cachedResponse, 3600);
+        Cache::tags(["license:{$license->id}"])->put($this->renderCacheKey($license->id, '/'), $cachedResponse, 3600);
 
         $context = $this->createContext(['X-Forwarded-Host' => 'hit.example.com']);
         $result = ($this->resolver)(null, ['slug' => '/'], $context, $this->createResolveInfo());

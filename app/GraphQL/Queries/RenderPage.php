@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\License;
 use App\Models\MebelProject;
 use App\Models\Page;
+use App\Models\PageComponent;
 use App\Models\Rubric;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -23,7 +24,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v3';
+    private const CACHE_VERSION = 'v5';
 
     public function __construct(
         private TemplateService $templateService
@@ -161,6 +162,13 @@ final class RenderPage
                             'slug' => $project->slug,
                             'short_description' => $project->short_description,
                             'description' => $project->description,
+                            // Паспорт сданной работы. Отдаётся СЫРЫМ, в отличие
+                            // от ленты `/projects`: там адрес усечён до города и
+                            // района для публикации, здесь он нужен целиком —
+                            // это поле формы, а не текст страницы.
+                            'completed_at' => $project->completed_at?->format('Y-m-d'),
+                            'object_address' => $project->object_address,
+                            'meta' => $project->meta ?? [],
                             'price' => $project->price,
                             'old_price' => $project->old_price,
                             'is_new' => $project->is_new,
@@ -255,6 +263,30 @@ final class RenderPage
                 }
             }
 
+            // Страница `/projects`. Список проектов делится на ДВА блока, и
+            // делится он здесь, а не на фронте: порядок живёт в запросе, и два
+            // компонента, каждый по-своему берущий «первый» элемент, разошлись
+            // бы при первой же правке сортировки.
+            //
+            //   1.26.1 ProjectsHero — последняя работа, ею открывается страница;
+            //   1.26.2 ProjectsFeed — все остальные, списком с пагинацией.
+            //
+            // `total` получают оба: шапке он нужен как счётчик всего портфолио,
+            // ленте — чтобы отличить «проектов нет вовсе» от «все показаны
+            // шапкой». Во втором случае лента не рисует ни списка, ни плашки
+            // «Проектов пока нет» — та была бы прямой ложью.
+            if ($component->type === 'ProjectsHero' || $component->type === 'ProjectsFeed') {
+                $projects = $this->getFeedProjects($license);
+                $component = clone $component;
+
+                $component->data = array_merge(
+                    $component->data ?? [],
+                    $component->type === 'ProjectsHero'
+                        ? ['latest' => $projects[0] ?? null, 'total' => count($projects)]
+                        : ['projects' => array_slice($projects, 1), 'total' => count($projects)],
+                );
+            }
+
             return $component;
         });
         // ── End enrichment ────────────────────────────────────────────────────
@@ -279,6 +311,10 @@ final class RenderPage
                 'ownerId' => $license->user_id === null ? null : (string) $license->user_id,
                 'header' => $license->header_data ? ['data' => $license->header_data] : null,
                 'footer' => $license->footer_data ? ['data' => $license->footer_data] : null,
+                // Акции — данные ОДНОЙ страницы, но нужны на каждой: полоса акций
+                // стоит в шапке над баннером. Поэтому список едет в `site`, рядом
+                // с шапкой и подвалом, а не в `page`.
+                'actionCards' => $this->getActionCards($license),
             ],
             'page' => [
                 'id' => (string) ($page->id ?: 'slug:'.($page->slug ?? $slug)),
@@ -305,6 +341,64 @@ final class RenderPage
         }
 
         return $response;
+    }
+
+    /**
+     * Карточки акций страницы `/actions` для полосы акций (layout/PromoStrip).
+     *
+     * Отдаём ТОЛЬКО сохранённое тенантом и только те поля, которые полосе нужны:
+     * `icon` — SVG-путь, `description` — абзац текста, и восемь таких карточек
+     * ехали бы в ответ на каждой странице сайта ради двух строк в полосе.
+     *
+     * Три разных ответа, и различать их обязательно (разбор — в actionCards.ts):
+     *   null — блок не сохранён (страница новая, тенант её не правил): фронт
+     *          показывает те же дефолты, что рисует сама страница;
+     *   []   — блок выключен целиком или сохранён пустым: акций нет, полоса пуста;
+     *   спис. — сохранённые карточки, `enabled` у каждой.
+     *
+     * Своего запроса это не стоит на горячем пути: ответ renderPage кэшируется
+     * целиком, а любая правка блока сбрасывает кэш по тегу лицензии.
+     *
+     * @return array<int, array{id: ?string, title: ?string, badge: ?string, enabled: bool}>|null
+     */
+    private function getActionCards(License $license): ?array
+    {
+        $page = Page::where('license_id', $license->id)
+            ->where('slug', '/actions')
+            ->first();
+
+        if (! $page) {
+            return null;
+        }
+
+        $component = PageComponent::where('page_id', $page->id)
+            ->where('type', 'ActionsCards')
+            ->first();
+
+        if (! $component) {
+            return null;
+        }
+
+        if (! $component->is_active) {
+            return [];
+        }
+
+        $cards = $component->data['cards'] ?? null;
+
+        if (! is_array($cards)) {
+            return null;
+        }
+
+        return array_values(array_map(
+            fn (array $card): array => [
+                'id' => isset($card['id']) ? (string) $card['id'] : null,
+                'title' => isset($card['title']) ? (string) $card['title'] : null,
+                'badge' => isset($card['badge']) ? (string) $card['badge'] : null,
+                // Ключа нет — карточка активна: так же читает его страница акций.
+                'enabled' => ($card['enabled'] ?? true) !== false,
+            ],
+            array_filter($cards, 'is_array')
+        ));
     }
 
     /**
@@ -336,6 +430,125 @@ final class RenderPage
                 'is_enabled' => $cat->is_enabled,
                 'sort_order' => $cat->sort_order,
             ]);
+    }
+
+    /**
+     * Проекты страницы `/projects` — все категории рубрики «Мебель» одним
+     * списком, от последних созданных к ранним.
+     *
+     * Один запрос на оба блока страницы: первый элемент уходит в шапку
+     * (`ProjectsHero`), остальные — в ленту. Делить здесь, а не двумя
+     * запросами: иначе «последняя работа» и «всё, кроме последней» считались
+     * бы независимо и однажды разъехались бы на границе.
+     *
+     * Отдаётся ЦЕЛИКОМ, без серверной пагинации: страница листает уже
+     * присланное. Так сделано не из лени, а потому что ответ RenderPage
+     * кэшируется одним куском на страницу (см. $cacheKey) — постраничная
+     * выдача завела бы по ключу кэша на каждую страницу пагинации и на каждый
+     * размер страницы, а число работ у мебельщика измеряется десятками.
+     * Дойдёт до сотен — здесь появится limit и отдельный запрос за страницей.
+     *
+     * Порядок — по дате СОЗДАНИЯ карточки, а не по дате сдачи объекта.
+     * `completed_at` в фильтр не входит намеренно: проект здесь — это карточка
+     * каталога (у неё есть цена, признак новинки, хит), то есть уже готовая
+     * работа, а дата сдачи — необязательный атрибут её паспорта. Сделать её
+     * условием показа значило бы прятать всё, что тенант завёл до появления
+     * поля, — а это весь его каталог. Карточка рисует строку «Сдан» только
+     * когда дата заполнена.
+     *
+     * Адрес отдаётся УСЕЧЁННЫМ: `object_address` хранит его целиком для учёта,
+     * а публикуется город и район. Усечение на выдаче, а не на вводе, — тенант
+     * вводит один раз то, что знает, и не может случайно опубликовать больше,
+     * чем собирался.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getFeedProjects(License $license): array
+    {
+        $rubric = Rubric::where('slug', 'mebel')->where('is_active', true)->first();
+
+        if (! $rubric) {
+            return [];
+        }
+
+        // Рубрики, отключённые владельцем сайта, не дают своих работ в ленту:
+        // иначе `/projects` вела бы на страницу категории, которой в каталоге
+        // нет, — то есть на 404 из собственного списка.
+        $categories = Category::where('rubric_id', $rubric->id)
+            ->where('is_active', true)
+            ->where('is_enabled', true)
+            ->get()
+            ->keyBy('id');
+
+        if ($categories->isEmpty()) {
+            return [];
+        }
+
+        return MebelProject::query()
+            ->whereIn('category_id', $categories->keys())
+            ->where('is_active', true)
+            ->where(function ($q) use ($license) {
+                $q->whereNull('license_id')->orWhere('license_id', $license->id);
+            })
+            // Вторым ключом id, а не sort_order: у карточек, заведённых в одну
+            // секунду, порядок иначе зависел бы от нумерации ВНУТРИ категории,
+            // то есть соседние карточки ленты сравнивались бы по несравнимым
+            // числам. ULID монотонен по времени, поэтому он и разрешает ничью.
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
+            ->get()
+            ->map(function (MebelProject $p) use ($categories) {
+                $category = $categories->get($p->category_id);
+                $meta = $p->meta ?? [];
+
+                return [
+                    'id' => $p->id,
+                    'value' => $p->value,
+                    'slug' => $p->slug,
+                    'categorySlug' => $category?->slug,
+                    'categoryValue' => $category?->value,
+                    'shortDescription' => $p->short_description,
+                    'completedAt' => $p->completed_at?->format('Y-m-d'),
+                    'objectAddress' => $this->publicAddress($p->object_address),
+                    'maker' => $meta['maker'] ?? null,
+                    'hardwareBrands' => array_values((array) ($meta['hardware_brands'] ?? [])),
+                    'applianceBrands' => array_values((array) ($meta['appliance_brands'] ?? [])),
+                    'images' => $p->images->map(fn ($img) => ['url' => $img->url, 'hash' => $img->hash]),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Публичная часть адреса: первые два звена до запятой — обычно город и
+     * район или населённый пункт и улица.
+     *
+     * Это адрес чужого жилья. Портфолио называет его с той точностью, с какой
+     * о нём вправе говорить вслух, и решать это не должен тенант вручную при
+     * каждом заполнении: ошибётся один раз — опубликует номер квартиры.
+     *
+     * Одно звено остаётся одним звеном: «Москва» усечению не подлежит.
+     */
+    private function publicAddress(?string $address): ?string
+    {
+        $address = trim((string) $address);
+
+        if ($address === '') {
+            return null;
+        }
+
+        $parts = array_values(array_filter(
+            array_map('trim', explode(',', $address)),
+            static fn (string $part) => $part !== '',
+        ));
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return implode(', ', array_slice($parts, 0, 2));
     }
 
     /**
