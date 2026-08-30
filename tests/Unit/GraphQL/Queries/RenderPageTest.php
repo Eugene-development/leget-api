@@ -3,14 +3,19 @@
 namespace Tests\Unit\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\GraphQL\Mutations\ToggleCategory;
 use App\GraphQL\Queries\RenderPage;
 use App\Models\Category;
+use App\Models\Component;
+use App\Models\ComponentVariant;
 use App\Models\License;
 use App\Models\MebelProject;
 use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
+use App\Models\TemplatePage;
 use App\Models\User;
+use App\Services\CatalogVisibility;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\Schema\Blueprint;
@@ -34,6 +39,41 @@ class RenderPageTest extends TestCase
 
         $this->resolver = app(RenderPage::class);
 
+        Schema::create('template_pages', function (Blueprint $table) {
+            $table->char('id', 26)->primary();
+            $table->unsignedInteger('template_id');
+            $table->string('slug');
+            $table->integer('page_number');
+            $table->string('name')->nullable();
+            $table->timestamps();
+            $table->unique(['template_id', 'slug']);
+            $table->unique(['template_id', 'page_number']);
+        });
+
+        Schema::create('components', function (Blueprint $table) {
+            $table->char('id', 26)->primary();
+            $table->unsignedInteger('template_id');
+            $table->char('page_id', 26);
+            $table->string('type');
+            $table->integer('component_number');
+            $table->string('name')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+            $table->unique(['template_id', 'page_id', 'type']);
+            $table->unique(['template_id', 'page_id', 'component_number']);
+        });
+
+        Schema::create('component_variants', function (Blueprint $table) {
+            $table->char('id', 26)->primary();
+            $table->char('component_id', 26);
+            $table->integer('version');
+            $table->string('name')->nullable();
+            $table->string('article')->unique();
+            $table->string('status', 16)->default('draft');
+            $table->timestamps();
+            $table->unique(['component_id', 'version']);
+        });
+
         // Create licenses table (migrations live in leget-db, not leget-api)
         if (! Schema::hasTable('licenses')) {
             Schema::create('licenses', function (Blueprint $table) {
@@ -42,6 +82,7 @@ class RenderPageTest extends TestCase
                 $table->string('domain')->unique();
                 $table->string('name')->nullable();
                 $table->text('meta_description')->nullable();
+                $table->json('catalog_settings')->nullable();
                 $table->unsignedInteger('template_id')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->string('status')->default('active');
@@ -355,6 +396,7 @@ class RenderPageTest extends TestCase
             [
                 'id' => $dbComponents[0]->id,
                 'type' => 'Hero',
+                'catalog' => null,
                 'data' => [
                     'title' => 'Welcome',
                     '_componentId' => $dbComponents[0]->id,
@@ -363,6 +405,7 @@ class RenderPageTest extends TestCase
             [
                 'id' => $dbComponents[1]->id,
                 'type' => 'Text',
+                'catalog' => null,
                 'data' => [
                     'content' => 'Hello world',
                     '_componentId' => $dbComponents[1]->id,
@@ -370,6 +413,80 @@ class RenderPageTest extends TestCase
             ],
         ];
         $this->assertSame($expectedComponents, $result['page']['componentsData']);
+    }
+
+    public function test_initial_response_contains_catalog_for_saved_and_virtual_components(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/bytovaya-tehnika']);
+        $saved = PageComponent::create([
+            'page_id' => $page->id,
+            'license_id' => $license->id,
+            'type' => 'ByttehnikaBenefits',
+            'data' => ['title' => 'Saved title'],
+            'is_active' => true,
+        ]);
+        $benefits = $this->createCatalogComponent(1, '/bytovaya-tehnika', 8, 'ByttehnikaBenefits', 2);
+        $cta = $this->createCatalogComponent(1, '/bytovaya-tehnika', 8, 'ByttehnikaCTA', 3);
+        // Одинаковый type на другой странице/в другом шаблоне не должен подменить артикул.
+        $this->createCatalogComponent(1, '/about', 9, 'ByttehnikaBenefits', 1);
+        $this->createCatalogComponent(2, '/bytovaya-tehnika', 5, 'ByttehnikaBenefits', 1);
+
+        $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika'],
+            $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+        $blocks = collect($result['page']['componentsData'])->keyBy('type');
+
+        $this->assertSame($benefits, $blocks['ByttehnikaBenefits']['catalog']);
+        $this->assertSame($cta, $blocks['ByttehnikaCTA']['catalog']);
+        $this->assertSame((string) $saved->id, $blocks['ByttehnikaBenefits']['id']);
+        $this->assertNull($blocks['ByttehnikaCTA']['id']);
+        $this->assertNull($blocks['ByttehnikaSidebar']['catalog']);
+        $this->assertSame('Saved title', $blocks['ByttehnikaBenefits']['data']['title']);
+        $this->assertArrayNotHasKey('catalog', $blocks['ByttehnikaBenefits']['data']);
+        $this->assertSame(['title' => 'Saved title'], $saved->fresh()->data);
+
+        $cached = Cache::tags(["license:{$license->id}"])->get($this->renderCacheKey($license->id, '/bytovaya-tehnika'));
+        $this->assertSame($result, $cached);
+    }
+
+    public function test_dynamic_brand_uses_template_slug_for_catalog_articles(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $this->createBrand(['slug' => 'bosch', 'value' => 'Bosch']);
+        $expected = $this->createCatalogComponent(1, '/bytovaya-tehnika/{brand}', 28, 'ByttehnikaBrandHero', 1);
+
+        $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
+            $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+
+        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrandHero');
+        $this->assertSame($expected, $hero['catalog']);
+    }
+
+    private function createCatalogComponent(int $templateId, string $slug, int $pageNumber, string $type, int $number): array
+    {
+        $page = TemplatePage::firstOrCreate(
+            ['template_id' => $templateId, 'slug' => $slug],
+            ['page_number' => $pageNumber],
+        );
+        $component = Component::create([
+            'template_id' => $templateId,
+            'page_id' => $page->id,
+            'type' => $type,
+            'component_number' => $number,
+        ]);
+        $article = "{$templateId}.{$pageNumber}.{$number}";
+        $variants = [];
+        foreach ([1, 2] as $version) {
+            ComponentVariant::create([
+                'component_id' => $component->id,
+                'version' => $version,
+                'article' => "{$article}.{$version}",
+                'status' => $version === 1 ? 'legacy' : 'active',
+            ]);
+            $variants[] = ['version' => $version, 'article' => "{$article}.{$version}"];
+        }
+
+        return ['article' => $article, 'variants' => $variants];
     }
 
     /**
@@ -465,6 +582,301 @@ class RenderPageTest extends TestCase
         $this->assertSame('Кухни', $hero['data']['title']);
         $this->assertSame('Кухни по индивидуальным размерам', $hero['data']['description']);
         $this->assertSame('kitchens', $hero['data']['categorySlug']);
+    }
+
+    /**
+     * Бренды сайдбара бытовой техники — тот же справочник, что категории
+     * мебели: строки `categories` рубрики «bytovaya-tehnika». Справочник
+     * побеждает статику блока, а выключенный бренд едет в выдачу со своим
+     * флагом — прячет его фронт, иначе владелец сайта не смог бы вернуть
+     * пункт обратно.
+     */
+    public function test_byttehnika_sidebar_brands_come_from_the_rubric_directory(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brands.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand(['value' => 'Miele', 'slug' => 'miele', 'sort_order' => 10]);
+        $this->createBrand([
+            'value' => 'Whirlpool',
+            'slug' => 'whirlpool',
+            'sort_order' => 20,
+            'is_enabled' => false,
+        ]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'brands.example.com']);
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika'],
+            $context,
+            $this->createResolveInfo()
+        );
+
+        $sidebar = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaSidebar');
+
+        $this->assertNotNull($sidebar);
+        $this->assertSame(['Miele', 'Whirlpool'], array_column($sidebar['data']['brands'], 'value'));
+        $this->assertTrue($sidebar['data']['brands'][0]['is_enabled']);
+        $this->assertFalse($sidebar['data']['brands'][1]['is_enabled']);
+        $this->assertNotEmpty($sidebar['data']['brands'][0]['id']);
+    }
+
+    /** Пустой справочник не возвращает ссылки из старых defaults. */
+    public function test_byttehnika_sidebar_is_empty_without_directory(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'no-brands.example.com',
+            'template_id' => 1,
+        ]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'no-brands.example.com']);
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika'],
+            $context,
+            $this->createResolveInfo()
+        );
+
+        $sidebar = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaSidebar');
+
+        $this->assertNotNull($sidebar);
+        $this->assertSame([], $sidebar['data']['brands']);
+    }
+
+    public function test_all_six_catalog_sidebars_have_site_scoped_visibility(): void
+    {
+        $first = $this->createLicense(['domain' => 'first.example.com', 'template_id' => 1]);
+        $second = $this->createLicense(['domain' => 'second.example.com', 'template_id' => 1]);
+        // Separate sites of the SAME owner must also remain independent.
+        $second->user_id = $first->user_id;
+        $second->save();
+
+        foreach (CatalogVisibility::SIDEBARS as $type => [$rubricSlug, $itemsKey]) {
+            $rubric = Rubric::create([
+                'key' => (string) Str::ulid(), 'slug' => $rubricSlug, 'value' => $rubricSlug,
+            ]);
+            $entry = Category::create([
+                'key' => (string) Str::ulid(), 'rubric_id' => $rubric->id,
+                'value' => 'Entry', 'slug' => $rubricSlug.'-entry', 'is_enabled' => true,
+            ]);
+            $ownerContext = $this->createContext();
+            $ownerContext->method('user')->willReturn($first->user);
+
+            // Prime both caches, then mutate only the first site.
+            foreach ([$first, $second] as $site) {
+                ($this->resolver)(null, ['slug' => '/'.$rubricSlug],
+                    $this->createContext(['Host' => $site->domain]), $this->createResolveInfo());
+            }
+            app(ToggleCategory::class)(null, [
+                'id' => $entry->id, 'license_id' => $first->id, 'is_enabled' => false,
+            ], $ownerContext, $this->createResolveInfo());
+
+            foreach ([$first, $second] as $site) {
+                $result = ($this->resolver)(null, ['slug' => '/'.$rubricSlug],
+                    $this->createContext(['Host' => $site->domain]), $this->createResolveInfo());
+                $sidebar = collect($result['page']['componentsData'])->firstWhere('type', $type);
+                $this->assertSame($entry->id, $sidebar['data'][$itemsKey][0]['id']);
+                $this->assertSame($site->id === $second->id, $sidebar['data'][$itemsKey][0]['is_enabled']);
+            }
+            $this->assertTrue($entry->fresh()->is_enabled);
+        }
+        $this->assertCount(6, $first->fresh()->catalog_settings['categories']);
+    }
+
+    public function test_cached_brand_url_is_blocked_only_on_the_site_that_disabled_it(): void
+    {
+        $first = $this->createLicense(['domain' => 'off.example.com', 'template_id' => 1]);
+        $second = $this->createLicense(['domain' => 'on.example.com', 'template_id' => 1]);
+        $brand = $this->createBrand();
+        $render = fn (License $site) => ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
+            $this->createContext(['Host' => $site->domain]), $this->createResolveInfo());
+        $render($first);
+        $render($second);
+        $context = $this->createContext();
+        $context->method('user')->willReturn($first->user);
+        app(ToggleCategory::class)(null, [
+            'id' => $brand->id, 'license_id' => $first->id, 'is_enabled' => false,
+        ], $context, $this->createResolveInfo());
+        $this->assertSame('/bytovaya-tehnika/bosch', $render($second)['page']['requestedSlug']);
+        $this->expectException(GraphQLException::class);
+        $render($first);
+    }
+
+    public function test_saved_concrete_brand_page_does_not_bypass_visibility(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $brand = $this->createBrand();
+        $license->catalog_settings = ['categories' => [$brand->id => false]];
+        $license->save();
+        Page::create(['license_id' => $license->id, 'slug' => '/bytovaya-tehnika/bosch']);
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
+            $this->createContext(['Host' => $license->domain]), $this->createResolveInfo());
+    }
+
+    public function test_site_can_enable_a_legacy_disabled_brand(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $brand = $this->createBrand(['is_enabled' => false]);
+        $license->catalog_settings = ['categories' => [$brand->id => true]];
+        $license->save();
+        $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
+            $this->createContext(['Host' => $license->domain]), $this->createResolveInfo());
+        $this->assertSame('/bytovaya-tehnika/bosch', $result['page']['requestedSlug']);
+    }
+
+    public function test_inactive_brand_cannot_be_published_by_a_site_override(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $brand = $this->createBrand(['is_active' => false]);
+        $license->catalog_settings = ['categories' => [$brand->id => true]];
+        $license->save();
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
+            $this->createContext(['Host' => $license->domain]), $this->createResolveInfo());
+    }
+
+    public function test_disabled_furniture_is_excluded_from_only_its_sites_projects_feed(): void
+    {
+        $first = $this->createLicense(['domain' => 'feed-off.example.com', 'template_id' => 1]);
+        $second = $this->createLicense(['domain' => 'feed-on.example.com', 'template_id' => 1]);
+        $category = $this->createMebelCategory();
+        $this->createProject($category, ['value' => 'Project', 'slug' => 'project']);
+        $first->catalog_settings = ['categories' => [$category->id => false]];
+        $first->save();
+        $this->assertSame(0, $this->renderProjectsPage($first, $first->domain)['hero']['total']);
+        $this->assertSame(1, $this->renderProjectsPage($second, $second->domain)['hero']['total']);
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/mebel/kitchens/project'],
+            $this->createContext(['Host' => $first->domain]), $this->createResolveInfo());
+    }
+
+    public function test_project_cannot_be_opened_under_another_furniture_category(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $first = $this->createMebelCategory();
+        $this->createMebelCategory(['slug' => 'other']);
+        $this->createProject($first, ['value' => 'Project', 'slug' => 'project']);
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/mebel/other/project'],
+            $this->createContext(['Host' => $license->domain]), $this->createResolveInfo());
+    }
+
+    /**
+     * Страница бренда собирается по шаблону `/bytovaya-tehnika/{brand}`:
+     * состав блоков берётся из конфига, а заголовок и описание шапки —
+     * из строки справочника.
+     */
+    public function test_brand_slug_resolves_to_the_brand_page_template(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brand-page.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand([
+            'value' => 'Miele',
+            'slug' => 'miele',
+            'description' => 'Техника Miele: встраиваемые духовые шкафы и посудомоечные машины.',
+        ]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'brand-page.example.com']);
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika/miele'],
+            $context,
+            $this->createResolveInfo()
+        );
+
+        // Глобальные блоки (футер) дописываются после блоков страницы — сверяем
+        // только состав самой страницы.
+        $types = collect($result['page']['componentsData'])->pluck('type')->take(4)->all();
+        $this->assertSame(
+            ['ByttehnikaSidebar', 'ByttehnikaBrandHero', 'ByttehnikaBenefits', 'ByttehnikaCTA'],
+            $types
+        );
+
+        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrandHero');
+        $this->assertSame('Miele', $hero['data']['title']);
+        $this->assertSame(
+            'Техника Miele: встраиваемые духовые шкафы и посудомоечные машины.',
+            $hero['data']['description']
+        );
+        $this->assertSame('miele', $hero['data']['brandSlug']);
+
+        // Сайдбар подсвечивает открытый бренд.
+        $sidebar = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaSidebar');
+        $this->assertSame('miele', $sidebar['data']['activeSlug']);
+    }
+
+    /** Пустое описание в справочнике не затирает текст из defaults шаблона. */
+    public function test_brand_without_description_keeps_the_template_text(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brand-empty.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand(['value' => 'Miele', 'slug' => 'miele', 'description' => null]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'brand-empty.example.com']);
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika/miele'],
+            $context,
+            $this->createResolveInfo()
+        );
+
+        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrandHero');
+
+        $this->assertSame('Miele', $hero['data']['title']);
+        $this->assertNotEmpty($hero['data']['description']);
+    }
+
+    /**
+     * Slug категорий уникален на все рубрики сразу, поэтому маршрут бренда
+     * обязан проверять рубрику: иначе категория мебели открылась бы страницей
+     * бренда бытовой техники.
+     */
+    public function test_brand_route_ignores_categories_of_other_rubrics(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brand-foreign.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createMebelCategory(['value' => 'Кухни', 'slug' => 'kuhni']);
+
+        $this->expectException(GraphQLException::class);
+
+        ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika/kuhni'],
+            $this->createContext(['X-Forwarded-Host' => 'brand-foreign.example.com']),
+            $this->createResolveInfo()
+        );
+    }
+
+    /** Выключенный бренд страницы не имеет — ссылка на него ведёт в 404. */
+    public function test_disabled_brand_has_no_page(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brand-off.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand(['value' => 'Miele', 'slug' => 'miele', 'is_enabled' => false]);
+
+        $this->expectException(GraphQLException::class);
+
+        ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika/miele'],
+            $this->createContext(['X-Forwarded-Host' => 'brand-off.example.com']),
+            $this->createResolveInfo()
+        );
     }
 
     /**
@@ -761,6 +1173,25 @@ class RenderPageTest extends TestCase
         $this->assertNotNull($feed, 'Блок ProjectsFeed не отрендерился на /projects');
 
         return ['hero' => $hero['data'], 'feed' => $feed['data']];
+    }
+
+    /** Бренд бытовой техники — категория рубрики «bytovaya-tehnika». */
+    private function createBrand(array $attributes = []): Category
+    {
+        $rubric = Rubric::where('slug', 'bytovaya-tehnika')->first() ?? Rubric::create([
+            'key' => (string) Str::ulid(),
+            'value' => 'Бытовая техника',
+            'slug' => 'bytovaya-tehnika',
+        ]);
+
+        return Category::create(array_merge([
+            'key' => (string) Str::ulid(),
+            'rubric_id' => $rubric->id,
+            'value' => 'Bosch',
+            'slug' => 'bosch',
+            'is_active' => true,
+            'is_enabled' => true,
+        ], $attributes));
     }
 
     private function createMebelCategory(array $attributes = []): Category

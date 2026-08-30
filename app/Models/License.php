@@ -51,9 +51,10 @@ class License extends Model
     protected function casts(): array
     {
         return [
-            'is_active'   => 'boolean',
+            'is_active' => 'boolean',
             'header_data' => 'array',
             'footer_data' => 'array',
+            'catalog_settings' => 'array',
             'daily_price' => 'decimal:2',
             'billing_started_at' => 'datetime',
         ];

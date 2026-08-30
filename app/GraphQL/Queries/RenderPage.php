@@ -6,11 +6,13 @@ namespace App\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
 use App\Models\Category;
+use App\Models\Component;
 use App\Models\License;
 use App\Models\MebelProject;
 use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
+use App\Services\CatalogVisibility;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Collection;
@@ -24,10 +26,11 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v5';
+    private const CACHE_VERSION = 'v7';
 
     public function __construct(
-        private TemplateService $templateService
+        private TemplateService $templateService,
+        private CatalogVisibility $catalogVisibility
     ) {}
 
     /**
@@ -57,7 +60,8 @@ final class RenderPage
         }
 
         // Use normalized slug everywhere
-        $cacheKey = 'render:'.self::CACHE_VERSION.":{$license->id}:{$slug}";
+        $cacheKey = 'render:'.self::CACHE_VERSION.":{$license->id}:{$slug}"
+            .$this->catalogVisibility->cacheSuffix($license);
         $cacheTags = ["license:{$license->id}"];
         $ttl = config('waas.cache_ttl', 3600);
 
@@ -80,17 +84,36 @@ final class RenderPage
 
         $category = null;
         $project = null;
+        $brand = null;
         $templateSlug = $slug;
+
+        // Check directory visibility even for an explicitly saved concrete URL.
+        // Otherwise creating a Page would bypass the dynamic route's gate.
+        $segments = explode('/', trim($slug, '/'));
+        $rubricSlug = $segments[0] ?? '';
+        if (count($segments) >= 2 && in_array($rubricSlug, array_column(CatalogVisibility::SIDEBARS, 0), true)) {
+            $entry = Category::where('slug', $segments[1])
+                ->where('is_active', true)
+                ->whereHas('rubric', fn ($q) => $q->where('slug', $rubricSlug)->where('is_active', true))
+                ->first();
+            if (! $entry || ! $this->catalogVisibility->enabled($entry, $license)) {
+                throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+            }
+            if ($rubricSlug === 'mebel') {
+                $category = $entry;
+            } elseif ($rubricSlug === 'bytovaya-tehnika') {
+                $brand = $entry;
+            }
+        }
 
         // If page doesn't exist in DB, check for dynamic patterns
         if (! $page) {
             // Pattern: mebel/{category_slug}/{project_slug}
             if (preg_match('#^/?mebel/([^/]+)/([^/]+)$#', $slug, $matches)) {
-                $categorySlug = $matches[1];
                 $projectSlug = $matches[2];
 
-                $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
                 $project = MebelProject::where('slug', $projectSlug)
+                    ->where('category_id', $category->id)
                     ->where('is_active', true)
                     ->where(function ($q) use ($license) {
                         $q->whereNull('license_id')->orWhere('license_id', $license->id);
@@ -104,11 +127,19 @@ final class RenderPage
             }
             // Pattern: mebel/{category_slug}
             elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
-                $categorySlug = $matches[1];
-                $category = Category::where('slug', $categorySlug)->where('is_enabled', true)->first();
-
                 if ($category) {
                     $templateSlug = '/mebel/{category}';
+                }
+            }
+            // Pattern: bytovaya-tehnika/{brand_slug}
+            //
+            // Бренд — строка того же справочника, что категории мебели, поэтому
+            // рубрику проверяем явно: без этого /bytovaya-tehnika/kuhni отдал бы
+            // страницу бренда по категории мебели — slug в таблице уникален
+            // на все рубрики сразу.
+            elseif (preg_match('#^/?bytovaya-tehnika/([^/]+)$#', $slug, $matches)) {
+                if ($brand) {
+                    $templateSlug = '/bytovaya-tehnika/{brand}';
                 }
             }
 
@@ -136,24 +167,36 @@ final class RenderPage
         $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
         // ── Enrich components with dynamic data ──────────────────────────────
-        $components = $components->map(function ($component) use ($category, $project, $license) {
-            // Always enrich MebelSidebar
-            if ($component->type === 'MebelSidebar') {
+        $components = $components->map(function ($component) use ($category, $project, $brand, $license) {
+            // All six catalog rubrics use the same directory + site overrides.
+            if (isset(CatalogVisibility::SIDEBARS[$component->type])) {
+                [$rubricSlug, $itemsKey] = CatalogVisibility::SIDEBARS[$component->type];
                 $component = clone $component;
-                $liveCategories = $this->getMebelCategories();
-                if ($liveCategories->isNotEmpty()) {
-                    $component->data = array_merge(
-                        $component->data ?? [],
-                        ['categories' => $liveCategories->toArray(), 'activeSlug' => $category?->slug]
-                    );
-                }
+                $component->data = array_merge($component->data ?? [], [
+                    $itemsKey => $this->getRubricCategories($rubricSlug, $license)->toArray(),
+                    'activeSlug' => $category?->slug ?? $brand?->slug,
+                ]);
+            }
+
+            // Шапка страницы бренда: название и описание берём из справочника,
+            // как MebelCategoryHero берёт их из своей категории. Пустое описание
+            // в справочнике не затирает текст из defaults — иначе страница
+            // осталась бы с одним заголовком.
+            if ($brand && $component->type === 'ByttehnikaBrandHero') {
+                $component = clone $component;
+                $component->data = array_merge($component->data ?? [], array_filter([
+                    'title' => $brand->value,
+                    'description' => $brand->description,
+                ], fn ($value) => $value !== null && $value !== ''), [
+                    'brandSlug' => $brand->slug,
+                ]);
             }
 
             // Enrich project-specific components
             if ($project) {
                 if ($component->type === 'MebelProjectHero') {
                     $component = clone $component;
-                    $liveCategories = $this->getMebelCategories();
+                    $liveCategories = $this->getRubricCategories('mebel', $license);
                     $component->data = array_merge($component->data ?? [], [
                         'project' => [
                             'id' => $project->id,
@@ -295,7 +338,26 @@ final class RenderPage
         // зарезервированной странице '__global__'. Дописываем их после компонентов
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
         $components = $components->concat($this->templateService->getGlobalComponents($license->id));
-        $seo = $this->resolveSeo($license, $page, $templateSlug, $category, $project);
+        $seo = $this->resolveSeo($license, $page, $templateSlug, $category, $project, $brand);
+
+        // Каталожные метаданные едут с первым ответом, отдельно от контента тенанта.
+        // Eager load исключает запрос на каждый блок. Для динамических страниц
+        // координатой каталога служит шаблонный slug, а не URL бренда/проекта.
+        $catalog = collect();
+        if ($license->template_id !== null && $components->isNotEmpty()) {
+            $catalog = Component::with(['page', 'variants'])
+                ->where('template_id', $license->template_id)
+                ->whereHas('page', fn ($q) => $q->where('slug', $templateSlug))
+                ->whereIn('type', $components->pluck('type'))
+                ->get()
+                ->mapWithKeys(fn (Component $component) => [$component->type => [
+                    'article' => $component->article,
+                    'variants' => $component->variants->map(fn ($variant) => [
+                        'version' => (int) $variant->version,
+                        'article' => $variant->article,
+                    ])->values()->all(),
+                ]]);
+        }
 
         $response = [
             'site' => [
@@ -325,6 +387,7 @@ final class RenderPage
                 'componentsData' => $components->filter(fn ($c) => $c->is_active)->map(fn ($c) => [
                     'id' => $c->exists ? (string) $c->id : null,
                     'type' => $c->type,
+                    'catalog' => $catalog->get($c->type),
                     'data' => array_merge($c->data ?? [], $c->exists ? ['_componentId' => (string) $c->id] : []),
                 ])->values()->all(),
                 'seo' => $seo,
@@ -402,16 +465,22 @@ final class RenderPage
     }
 
     /**
-     * Fetch active categories for the «mebel» rubric from the database.
+     * Активные категории рубрики — справочник, из которого живут списки
+     * сайдбаров каталога: у мебели это категории («Кухни», «Шкафы»),
+     * у бытовой техники — бренды («Bosch», «Siemens»). Разница между ними
+     * только в рубрике, поэтому и запрос один.
      *
-     * Returns a Collection of arrays with keys: id, value, slug, sort_order.
-     * Falls back to an empty collection if the rubric doesn't exist yet.
+     * `is_enabled` едет вместе со списком, а не фильтрует его: владелец сайта
+     * в режиме правки должен видеть выключенный пункт, чтобы вернуть его
+     * тумблером. Прячет выключенное фронт (CatalogSidebar).
      *
-     * @return Collection<int, array{id: string, value: string, slug: string, sort_order: int}>
+     * Пустая коллекция означает пустой каталог, а не возврат к статике.
+     *
+     * @return Collection<int, array{id: string, value: string, slug: string, is_enabled: bool, sort_order: int}>
      */
-    private function getMebelCategories(): Collection
+    private function getRubricCategories(string $rubricSlug, License $license): Collection
     {
-        $rubric = Rubric::where('slug', 'mebel')
+        $rubric = Rubric::where('slug', $rubricSlug)
             ->where('is_active', true)
             ->first();
 
@@ -427,7 +496,7 @@ final class RenderPage
                 'id' => $cat->id,
                 'value' => $cat->value,
                 'slug' => $cat->slug,
-                'is_enabled' => $cat->is_enabled,
+                'is_enabled' => $this->catalogVisibility->enabled($cat, $license),
                 'sort_order' => $cat->sort_order,
             ]);
     }
@@ -476,8 +545,8 @@ final class RenderPage
         // нет, — то есть на 404 из собственного списка.
         $categories = Category::where('rubric_id', $rubric->id)
             ->where('is_active', true)
-            ->where('is_enabled', true)
             ->get()
+            ->filter(fn (Category $category) => $this->catalogVisibility->enabled($category, $license))
             ->keyBy('id');
 
         if ($categories->isEmpty()) {
@@ -573,7 +642,8 @@ final class RenderPage
         Page $page,
         string $templateSlug,
         ?Category $category,
-        ?MebelProject $project
+        ?MebelProject $project,
+        ?Category $brand = null
     ): array {
         $isDynamic = str_contains($templateSlug, '{');
         $variables = [
@@ -591,6 +661,17 @@ final class RenderPage
             $variables['category_description'] = [
                 'label' => 'Описание категории',
                 'value' => (string) ($category->description ?? ''),
+            ];
+        }
+
+        if ($brand) {
+            $variables['brand'] = [
+                'label' => 'Название бренда',
+                'value' => (string) $brand->value,
+            ];
+            $variables['brand_description'] = [
+                'label' => 'Описание бренда',
+                'value' => (string) ($brand->description ?? ''),
             ];
         }
 

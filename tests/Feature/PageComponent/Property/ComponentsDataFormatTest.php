@@ -21,8 +21,8 @@ use Tests\TestCase;
  * Feature: page-components-refactor, Property 7: ComponentsData Format
  *
  * For any set of active PageComponents, each element of the `componentsData`
- * array in the `renderPage` response must contain exactly two keys: `type`
- * (non-empty string) and `data` (array/object), ensuring compatibility with
+ * array in the `renderPage` response contains `id`, `type` (non-empty string),
+ * `data` (array/object) and `catalog` (article metadata or null), compatible with
  * `ComponentResolver.svelte`.
  *
  * Validates: Requirements 5.2, 8.3
@@ -118,8 +118,8 @@ class ComponentsDataFormatTest extends TestCase
 
     /**
      * Property 7: For any set of 1–10 active PageComponents, each element of
-     * componentsData must contain exactly the keys `type` (non-empty string)
-     * and `data` (array), ensuring compatibility with ComponentResolver.svelte.
+     * componentsData must contain `id`, `type`, `data` and `catalog`,
+     * ensuring compatibility with ComponentResolver.svelte.
      */
     public function test_components_data_elements_have_type_and_data_keys(): void
     {
@@ -154,14 +154,16 @@ class ComponentsDataFormatTest extends TestCase
             );
 
             foreach ($componentsData as $index => $element) {
-                // Assert exactly two keys: 'type' and 'data'
+                // Catalog metadata stays separate from editable data.
                 $keys = array_keys($element);
                 sort($keys);
                 $this->assertSame(
-                    ['data', 'id', 'type'],
+                    ['catalog', 'data', 'id', 'type'],
                     $keys,
-                    "Element #{$index} must contain exactly the keys 'id', 'type' and 'data', got: " . implode(', ', $keys)
+                    "Element #{$index} must contain exactly the keys 'catalog', 'data', 'id' and 'type', got: " . implode(', ', $keys)
                 );
+                // These licenses have no template, so no catalog entry exists.
+                $this->assertNull($element['catalog']);
 
                 // Assert 'type' is a non-empty string
                 $this->assertIsString(
