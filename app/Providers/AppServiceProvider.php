@@ -3,7 +3,16 @@
 namespace App\Providers;
 
 use App\Enums\Role;
+use App\Events\PromoDealClosed;
+use App\Events\PromoDealConfirmed;
+use App\Events\PromoDealDisputed;
+use App\Events\PromoDealRefunded;
+use App\Events\PromoDealReported;
+use App\Listeners\AccrueCuratorCommission;
+use App\Listeners\RecordOfflineConversion;
+use App\Listeners\SendPromoNotifications;
 use App\Models\User;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +32,32 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerRoleGates();
+        $this->registerPromoListeners();
+    }
+
+    /**
+     * Слушатели доменных событий промокодов.
+     *
+     * Регистрация явная, а не автообнаружением: у одного слушателя несколько
+     * методов под разные события, и связь «что на что подписано» должна читаться
+     * в одном месте, а не выводиться из сигнатур.
+     *
+     * Порядок важен ровно в одном месте: начисление вознаграждения должно
+     * пройти до записи офлайн-конверсии — конверсия ничего не решает, а сбой
+     * в ней не должен оставить сделку без начисления.
+     */
+    private function registerPromoListeners(): void
+    {
+        Event::listen(PromoDealReported::class, [SendPromoNotifications::class, 'reported']);
+        Event::listen(PromoDealDisputed::class, [SendPromoNotifications::class, 'disputed']);
+        Event::listen(PromoDealConfirmed::class, [SendPromoNotifications::class, 'confirmed']);
+
+        Event::listen(PromoDealClosed::class, [AccrueCuratorCommission::class, 'closed']);
+        Event::listen(PromoDealClosed::class, [SendPromoNotifications::class, 'closed']);
+        Event::listen(PromoDealClosed::class, RecordOfflineConversion::class);
+
+        Event::listen(PromoDealRefunded::class, [AccrueCuratorCommission::class, 'refunded']);
+        Event::listen(PromoDealRefunded::class, [SendPromoNotifications::class, 'refunded']);
     }
 
     /**

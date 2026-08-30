@@ -12,6 +12,16 @@ final class YandexConversionExport
 {
     public const PERIODS = ['day', 'week', 'month', 'quarter', 'year'];
 
+    /**
+     * Типы офлайн-конверсий, попадающие в выгрузку.
+     *
+     * `offline_promo_deal` — закрытая сделка по промокоду. Реестр конверсий
+     * и есть точка передачи офлайн-конверсий в Яндекс: строку создаёт слушатель
+     * доменного события, а наружу её выносит эта же выгрузка через человека.
+     * Автоматической отправки нет — нет ни credentials, ни согласованного API.
+     */
+    public const EXPORTABLE_TYPES = ['offline_call', 'offline_email', Conversion::TYPE_PROMO_DEAL];
+
     private const MAX_AGE_DAYS = 113;
 
     /**
@@ -63,12 +73,20 @@ final class YandexConversionExport
     public function row(Conversion $conversion): ?array
     {
         if ($conversion->channel !== Conversion::CHANNEL_OFFLINE
-            || ! in_array($conversion->type, ['offline_call', 'offline_email'], true)) {
+            || ! in_array($conversion->type, self::EXPORTABLE_TYPES, true)) {
             return null;
         }
 
-        $email = $conversion->type === 'offline_email' ? $this->normalizeEmail($conversion->contact) : null;
-        $phone = $conversion->type === 'offline_call' ? $this->normalizePhone($conversion->contact) : null;
+        // Для ручного ввода канал известен из типа. Закрытая сделка по промокоду
+        // приносит контакт клиента, который может быть и телефоном, и почтой, —
+        // здесь тип не подсказывает, поэтому пробуем оба разбора.
+        if ($conversion->type === Conversion::TYPE_PROMO_DEAL) {
+            $email = $this->normalizeEmail($conversion->contact);
+            $phone = $email === null ? $this->normalizePhone($conversion->contact) : null;
+        } else {
+            $email = $conversion->type === 'offline_email' ? $this->normalizeEmail($conversion->contact) : null;
+            $phone = $conversion->type === 'offline_call' ? $this->normalizePhone($conversion->contact) : null;
+        }
 
         if ($email === null && $phone === null) {
             return null;
@@ -84,7 +102,10 @@ final class YandexConversionExport
             $createdAt->format('Y-m-d H:i:s'),
             $email ?? '',
             $phone ?? '',
-            'IN_PROGRESS',
+            // Сделка по промокоду доходит сюда только закрытой — то есть
+            // подтверждённой стороной и принятой платформой. Ручной ввод
+            // такого подтверждения не несёт и остаётся «в работе».
+            $conversion->type === Conversion::TYPE_PROMO_DEAL ? 'PAID' : 'IN_PROGRESS',
         ];
     }
 

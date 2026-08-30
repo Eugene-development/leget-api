@@ -85,7 +85,7 @@ final class AdminConversionController extends Controller
         [$start, $end] = $export->periodRange($validated['period'], $validated['date']);
         $query = Conversion::query()
             ->where('channel', Conversion::CHANNEL_OFFLINE)
-            ->whereIn('type', ['offline_call', 'offline_email'])
+            ->whereIn('type', YandexConversionExport::EXPORTABLE_TYPES)
             ->orderBy('created_at')
             ->orderBy('id');
 

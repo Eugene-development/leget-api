@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\PromoCodeException;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,8 +19,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
         $middleware->prepend(HandleCors::class);
-        // Уведомления платёжного провайдера приходят без CSRF-токена
-        $middleware->validateCsrfTokens(except: ['webhooks/*', 'admin/*']);
+        // Уведомления платёжного провайдера приходят без CSRF-токена.
+        // `promo/*` и `notifications/*` вызывает серверная часть leget-main
+        // с JWT в заголовке — сессии и, стало быть, CSRF-токена там нет.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/*',
+            'admin/*',
+            'promo/*',
+            'notifications/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Отказ от `can:` — в общем для проекта виде {success, message}.
@@ -40,10 +48,32 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Недостаточно прав.',
             ], Response::HTTP_FORBIDDEN);
         });
+
+        // Доменные ошибки промокодов приходят из сервиса, который про HTTP
+        // не знает. Разбирать их текст в контроллере было бы худшим из
+        // вариантов: код ошибки — часть контракта, по нему интерфейс решает,
+        // показать сообщение или предложить действие.
+        $exceptions->render(function (PromoCodeException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'code' => $e->errorCode(),
+            ], $e->status());
+        });
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('app:daily-billing')
             ->dailyAt('06:30')
+            ->timezone('Europe/Moscow');
+
+        // Срок промокода истекает сам, состояние в БД — нет. Раз в сутки
+        // догоняем те коды, к которым никто не обратился.
+        $schedule->command('promo:expire')
+            ->dailyAt('03:15')
             ->timezone('Europe/Moscow');
     })
     ->create();

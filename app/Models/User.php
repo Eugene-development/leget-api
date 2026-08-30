@@ -51,6 +51,47 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Рекламная атрибуция клиента — откуда он пришёл.
+     *
+     * Одна на пользователя. Пишется только `AttributionRecorder` по токену
+     * самого клиента: ни куратор, ни партнёр в неё не пишут, иначе источник,
+     * за который куратору платят, мог бы переписать он сам.
+     */
+    public function attribution(): HasOne
+    {
+        return $this->hasOne(AdAttribution::class);
+    }
+
+    /** Промокоды, выданные этому пользователю как клиенту. */
+    public function promoCodes(): HasMany
+    {
+        return $this->hasMany(PromoCode::class, 'client_id');
+    }
+
+    /** Промокоды, которые он ведёт как куратор. */
+    public function curatedPromoCodes(): HasMany
+    {
+        return $this->hasMany(PromoCode::class, 'curator_id');
+    }
+
+    /** Промокоды, назначенные ему как партнёру. */
+    public function assignedPromoCodes(): HasMany
+    {
+        return $this->hasMany(PromoCode::class, 'partner_id');
+    }
+
+    /**
+     * Уведомления кабинета.
+     *
+     * Имя не `notifications()`: так называется morphMany из трейта Notifiable
+     * (штатные уведомления Laravel), и перекрытие сломало бы `$user->notify()`.
+     */
+    public function appNotifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class);
+    }
+
+    /**
      * Получить кошелёк пользователя.
      */
     public function wallet(): HasOne

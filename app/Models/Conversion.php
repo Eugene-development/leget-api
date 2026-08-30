@@ -15,6 +15,9 @@ class Conversion extends Model
 
     public const CHANNEL_OFFLINE = 'offline';
 
+    /** Тип офлайн-конверсии, порождённой закрытой сделкой по промокоду. */
+    public const TYPE_PROMO_DEAL = 'offline_promo_deal';
+
     protected $keyType = 'string';
 
     public $incrementing = false;
@@ -28,5 +31,10 @@ class Conversion extends Model
         'comment',
         'source_url',
         'service_request_id',
+        // Закрытая сделка по промокоду становится офлайн-конверсией — реестр
+        // конверсий и есть точка передачи в Яндекс. Уникальный индекс на этой
+        // колонке делает создание идемпотентным: повторное закрытие или
+        // переигранное событие второй строки не создаст.
+        'promo_code_deal_id',
     ];
 }
