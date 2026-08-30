@@ -51,6 +51,11 @@ class Category extends Model
         return $this->belongsTo(Rubric::class, 'rubric_id');
     }
 
+    public function brands(): HasMany
+    {
+        return $this->hasMany(CatalogBrand::class)->orderBy('sort_order')->orderBy('slug');
+    }
+
     /**
      * Получить все проекты категории (One to Many).
      */

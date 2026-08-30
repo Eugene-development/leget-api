@@ -541,21 +541,14 @@ return [
             ],
 
             '/stoleshnica' => [
-                ['type' => 'StoleshnicaSidebar', 'defaults' => [
-                    'categories' => [
-                        ['title' => 'Кварц', 'slug' => 'kvarc'],
-                        ['title' => 'Акриловый камень', 'slug' => 'akril'],
-                        ['title' => 'ДСП / Постформинг', 'slug' => 'dsp'],
-                        ['title' => 'Массив дерева', 'slug' => 'massiv'],
-                        ['title' => 'Керамика', 'slug' => 'keramika']
-                    ]
-                ]],
+                ['type' => 'StoleshnicaSidebar', 'defaults' => ['title' => 'Материалы столешниц', 'categories' => []]],
                 ['type' => 'StoleshnicaHero', 'defaults' => [
                     'title'           => 'Столешницы',
                     'description'     => 'Изготавливаем столешницы из искусственного камня, кварца, массива и других материалов. Точный раскрой под вашу кухню с вырезами под мойку и варочную панель.',
                     'primaryButton'   => 'Рассчитать стоимость',
                     'secondaryButton' => 'Вызвать замерщика',
                 ]],
+                ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды столешниц', 'brands' => []]],
                 ['type' => 'StoleshnicaMaterials', 'defaults' => [
                     'title' => 'Сравнение материалов',
                     'rows'  => [
@@ -594,6 +587,42 @@ return [
                     'title'       => 'Рассчитайте стоимость столешницы',
                     'description' => 'Оставьте заявку и получите расчёт стоимости с учётом всех вырезов и монтажа',
                     'buttonText'  => 'Получить расчёт',
+                ]],
+            ],
+
+            '/stoleshnica/{material}' => [
+                ['type' => 'StoleshnicaSidebar', 'defaults' => ['title' => 'Материалы столешниц', 'categories' => []]],
+                ['type' => 'StoleshnicaBrandHero', 'defaults' => [
+                    'title' => 'Столешницы',
+                    'description' => 'Подберём столешницу под ваш проект кухни и рассчитаем стоимость.',
+                    'buttonText' => 'Подобрать столешницу',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/countertops_hero.png',
+                ]],
+                ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды материала', 'brands' => []]],
+                ['type' => 'StoleshnicaServices', 'defaults' => [
+                    'title' => 'Что входит в стоимость',
+                    'services' => [
+                        ['title' => 'Изготовление', 'desc' => 'Производство по вашим размерам'],
+                        ['title' => 'Доставка и монтаж', 'desc' => 'Установка и герметизация стыков'],
+                    ],
+                ]],
+            ],
+
+            '/stoleshnica/{material}/{brand}' => [
+                ['type' => 'StoleshnicaSidebar', 'defaults' => ['title' => 'Материалы столешниц', 'categories' => []]],
+                ['type' => 'StoleshnicaBrandHero', 'defaults' => [
+                    'title' => 'Столешницы',
+                    'description' => 'Подберём столешницу под ваш проект кухни и рассчитаем стоимость.',
+                    'buttonText' => 'Подобрать столешницу',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/countertops_hero.png',
+                ]],
+                ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды материала', 'brands' => []]],
+                ['type' => 'StoleshnicaServices', 'defaults' => [
+                    'title' => 'Что входит в стоимость',
+                    'services' => [
+                        ['title' => 'Изготовление', 'desc' => 'Производство по вашим размерам'],
+                        ['title' => 'Доставка и монтаж', 'desc' => 'Установка и герметизация стыков'],
+                    ],
                 ]],
             ],
 

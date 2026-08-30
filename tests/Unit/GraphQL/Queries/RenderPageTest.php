@@ -138,6 +138,19 @@ class RenderPageTest extends TestCase
             });
         }
 
+        Schema::create('catalog_brands', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+            $table->foreignUlid('category_id')->constrained('categories');
+            $table->string('slug');
+            $table->string('value');
+            $table->text('description')->nullable();
+            $table->string('logo')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->integer('sort_order')->default(0);
+            $table->timestamps();
+            $table->unique(['category_id', 'slug']);
+        });
+
         if (! Schema::hasTable('mebel_projects')) {
             Schema::create('mebel_projects', function (Blueprint $table) {
                 $table->ulid('id')->primary();
@@ -621,6 +634,9 @@ class RenderPageTest extends TestCase
         $this->assertTrue($sidebar['data']['brands'][0]['is_enabled']);
         $this->assertFalse($sidebar['data']['brands'][1]['is_enabled']);
         $this->assertNotEmpty($sidebar['data']['brands'][0]['id']);
+        $cards = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrands');
+        $this->assertNotNull($cards);
+        $this->assertSame($sidebar['data']['brands'], $cards['data']['brands']);
     }
 
     /** Пустой справочник не возвращает ссылки из старых defaults. */
@@ -643,6 +659,43 @@ class RenderPageTest extends TestCase
 
         $this->assertNotNull($sidebar);
         $this->assertSame([], $sidebar['data']['brands']);
+        $cards = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrands');
+        $this->assertNotNull($cards);
+        $this->assertSame([], $cards['data']['brands']);
+    }
+
+    public function test_brand_cards_replace_saved_list_and_follow_site_visibility(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/bytovaya-tehnika']);
+        PageComponent::create([
+            'license_id' => $license->id,
+            'page_id' => $page->id,
+            'type' => 'ByttehnikaBrands',
+            'is_active' => true,
+            'sort_order' => 2,
+            'data' => ['title' => 'Наши бренды', 'brands' => [['title' => 'Старый бренд', 'slug' => 'old-brand']]],
+        ]);
+        for ($i = 14; $i >= 1; $i--) {
+            $this->createBrand(['value' => "Brand {$i}", 'slug' => "brand-{$i}", 'sort_order' => $i]);
+        }
+        $hidden = Category::where('slug', 'brand-1')->firstOrFail();
+        $license->catalog_settings = ['categories' => [$hidden->id => false]];
+        $license->save();
+
+        $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika'], $this->createContext([
+            'X-Forwarded-Host' => $license->domain,
+        ]), $this->createResolveInfo());
+        $components = collect($result['page']['componentsData']);
+        $sidebar = $components->firstWhere('type', 'ByttehnikaSidebar')['data']['brands'];
+        $cards = $components->firstWhere('type', 'ByttehnikaBrands')['data'];
+
+        $this->assertSame('Наши бренды', $cards['title']);
+        $this->assertSame($sidebar, $cards['brands']);
+        $this->assertCount(14, $cards['brands']);
+        $this->assertSame(array_map(fn ($i) => "brand-{$i}", range(1, 14)), array_column($cards['brands'], 'slug'));
+        $this->assertFalse($cards['brands'][0]['is_enabled']);
+        $this->assertCount(13, array_filter($cards['brands'], fn ($brand) => $brand['is_enabled']));
     }
 
     public function test_all_six_catalog_sidebars_have_site_scoped_visibility(): void
@@ -679,6 +732,10 @@ class RenderPageTest extends TestCase
                 $sidebar = collect($result['page']['componentsData'])->firstWhere('type', $type);
                 $this->assertSame($entry->id, $sidebar['data'][$itemsKey][0]['id']);
                 $this->assertSame($site->id === $second->id, $sidebar['data'][$itemsKey][0]['is_enabled']);
+                if ($type === 'ByttehnikaSidebar') {
+                    $cards = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrands');
+                    $this->assertSame($sidebar['data']['brands'], $cards['data']['brands']);
+                }
             }
             $this->assertTrue($entry->fresh()->is_enabled);
         }
@@ -1173,6 +1230,69 @@ class RenderPageTest extends TestCase
         $this->assertNotNull($feed, 'Блок ProjectsFeed не отрендерился на /projects');
 
         return ['hero' => $hero['data'], 'feed' => $feed['data']];
+    }
+
+    public function test_countertop_directory_and_dynamic_brand_follow_material_visibility(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Столешницы', 'slug' => 'stoleshnica']);
+        $material = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Кварцевый агломерат', 'slug' => 'kvarc', 'is_enabled' => true]);
+        $brand = \App\Models\CatalogBrand::create(['category_id' => $material->id, 'value' => 'Тестовый бренд', 'slug' => 'test-brand', 'description' => 'Описание бренда']);
+        \App\Models\CatalogBrand::create(['category_id' => $material->id, 'value' => 'Неактивный', 'slug' => 'inactive', 'is_active' => false]);
+        $context = $this->createContext(['X-Forwarded-Host' => $license->domain]);
+        $render = fn ($slug) => ($this->resolver)(null, ['slug' => $slug], $context, $this->createResolveInfo());
+        $components = collect($render('/stoleshnica')['page']['componentsData']);
+        $materials = $components->firstWhere('type', 'StoleshnicaSidebar')['data']['categories'];
+        $cards = $components->firstWhere('type', 'StoleshnicaBrands')['data']['brands'];
+        $this->assertSame($materials[0]['brands'], $cards);
+        $this->assertCount(1, $cards);
+        $this->assertSame('/stoleshnica/kvarc/test-brand', $cards[0]['href']);
+        $dynamic = $render($cards[0]['href']);
+        $this->assertSame('/stoleshnica/{material}/{brand}', $dynamic['page']['seo']['pattern']);
+        $hero = collect($dynamic['page']['componentsData'])->firstWhere('type', 'StoleshnicaBrandHero')['data'];
+        $this->assertSame($brand->value, $hero['title']);
+        $this->assertSame($brand->description, $hero['description']);
+        $sidebar = collect($dynamic['page']['componentsData'])->firstWhere('type', 'StoleshnicaSidebar')['data'];
+        $this->assertSame('kvarc', $sidebar['activeSlug']);
+        $this->assertSame('test-brand', $sidebar['activeBrandSlug']);
+        $this->assertSame('/stoleshnica/{material}', $render('/stoleshnica/kvarc')['page']['seo']['pattern']);
+
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/stoleshnica/kvarc/test-brand']);
+        PageComponent::create([
+            'license_id' => $license->id, 'page_id' => $page->id, 'type' => 'StoleshnicaBrandHero',
+            'data' => ['title' => 'Свой заголовок', 'description' => ''], 'is_active' => true,
+        ]);
+        Cache::flush();
+        $savedHero = collect($render('/stoleshnica/kvarc/test-brand')['page']['componentsData'])->firstWhere('type', 'StoleshnicaBrandHero')['data'];
+        $this->assertSame('Свой заголовок', $savedHero['title']);
+        $this->assertSame('', $savedHero['description']);
+
+        $license->catalog_settings = ['categories' => [$material->id => false]];
+        $license->save();
+        $cards = collect($render('/stoleshnica')['page']['componentsData'])->firstWhere('type', 'StoleshnicaBrands')['data']['brands'];
+        $this->assertFalse($cards[0]['is_enabled']);
+        $this->expectException(GraphQLException::class);
+        $render('/stoleshnica/kvarc/test-brand');
+    }
+
+    public function test_countertop_brand_cannot_open_under_wrong_material_or_when_inactive(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Столешницы', 'slug' => 'stoleshnica']);
+        $quartz = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Кварц', 'slug' => 'kvarc', 'is_enabled' => true]);
+        Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Акрил', 'slug' => 'akril', 'is_enabled' => true]);
+        \App\Models\CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Brand', 'slug' => 'brand']);
+        \App\Models\CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Inactive', 'slug' => 'inactive', 'is_active' => false]);
+        foreach (['/stoleshnica/akril/brand', '/stoleshnica/kvarc/missing', '/stoleshnica/kvarc/inactive', '/stoleshnica/kvarc/brand/extra'] as $slug) {
+            // Even a saved concrete page must not bypass catalog validation.
+            Page::create(['license_id' => $license->id, 'slug' => $slug]);
+            try {
+                ($this->resolver)(null, ['slug' => $slug], $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+                $this->fail('Invalid brand URL must fail: '.$slug);
+            } catch (GraphQLException $exception) {
+                $this->assertSame('Page not found', $exception->getMessage());
+            }
+        }
     }
 
     /** Бренд бытовой техники — категория рубрики «bytovaya-tehnika». */

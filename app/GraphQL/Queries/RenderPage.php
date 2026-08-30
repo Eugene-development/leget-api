@@ -6,6 +6,7 @@ namespace App\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
 use App\Models\Category;
+use App\Models\CatalogBrand;
 use App\Models\Component;
 use App\Models\License;
 use App\Models\MebelProject;
@@ -26,7 +27,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v7';
+    private const CACHE_VERSION = 'v9';
 
     public function __construct(
         private TemplateService $templateService,
@@ -85,6 +86,7 @@ final class RenderPage
         $category = null;
         $project = null;
         $brand = null;
+        $material = null;
         $templateSlug = $slug;
 
         // Check directory visibility even for an explicitly saved concrete URL.
@@ -103,6 +105,18 @@ final class RenderPage
                 $category = $entry;
             } elseif ($rubricSlug === 'bytovaya-tehnika') {
                 $brand = $entry;
+            } elseif ($rubricSlug === 'stoleshnica') {
+                $material = $entry;
+                if (count($segments) === 3) {
+                    $brand = CatalogBrand::where('category_id', $material->id)
+                        ->where('slug', $segments[2])->where('is_active', true)->first();
+                    if (! $brand) {
+                        throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+                    }
+                } elseif (count($segments) !== 2) {
+                    throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+                }
+                $templateSlug = $brand ? '/stoleshnica/{material}/{brand}' : '/stoleshnica/{material}';
             }
         }
 
@@ -167,14 +181,44 @@ final class RenderPage
         $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
 
         // ── Enrich components with dynamic data ──────────────────────────────
-        $components = $components->map(function ($component) use ($category, $project, $brand, $license) {
-            // All six catalog rubrics use the same directory + site overrides.
-            if (isset(CatalogVisibility::SIDEBARS[$component->type])) {
-                [$rubricSlug, $itemsKey] = CatalogVisibility::SIDEBARS[$component->type];
+        $catalogItems = [];
+        $components = $components->map(function ($component) use ($category, $project, $brand, $material, $license, &$catalogItems) {
+            // Brand cards and the sidebar share one ordered directory + site overrides.
+            $catalogType = match ($component->type) {
+                'ByttehnikaBrands' => 'ByttehnikaSidebar',
+                'StoleshnicaBrands' => 'StoleshnicaSidebar',
+                default => $component->type,
+            };
+            if (isset(CatalogVisibility::SIDEBARS[$catalogType])) {
+                [$rubricSlug, $itemsKey] = CatalogVisibility::SIDEBARS[$catalogType];
+                $catalogItems[$rubricSlug] ??= $this->getRubricCategories($rubricSlug, $license)->toArray();
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], [
-                    $itemsKey => $this->getRubricCategories($rubricSlug, $license)->toArray(),
-                    'activeSlug' => $category?->slug ?? $brand?->slug,
+                    $itemsKey => $catalogItems[$rubricSlug],
+                    'activeSlug' => $material?->slug ?? $category?->slug ?? $brand?->slug,
+                    'activeBrandSlug' => $material ? $brand?->slug : null,
+                ]);
+                if ($component->type === 'StoleshnicaBrands') {
+                    $component->data = array_merge($component->data, [
+                        'brands' => collect($catalogItems[$rubricSlug])
+                            ->filter(fn ($item) => ! $material || $item['id'] === $material->id)
+                            ->flatMap(fn ($item) => $item['brands'])->values()->all(),
+                    ]);
+                }
+            }
+
+            if ($material && $component->type === 'StoleshnicaBrandHero') {
+                $component = clone $component;
+                // Only virtual/default fields come from the directory. Preserve
+                // the owner's inline edits, including an intentionally empty description.
+                $saved = $component->exists ? ($component->data ?? []) : [];
+                $component->data = array_merge($component->data ?? [], array_filter([
+                    'title' => $brand?->value ?? $material->value,
+                    'description' => $brand?->description ?? $material->description,
+                ], fn ($value, $key) => ! array_key_exists($key, $saved) && $value !== null && $value !== '', ARRAY_FILTER_USE_BOTH), [
+                    'materialTitle' => $material->value,
+                    'materialSlug' => $material->slug,
+                    'brandSlug' => $brand?->slug,
                 ]);
             }
 
@@ -338,7 +382,7 @@ final class RenderPage
         // зарезервированной странице '__global__'. Дописываем их после компонентов
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
         $components = $components->concat($this->templateService->getGlobalComponents($license->id));
-        $seo = $this->resolveSeo($license, $page, $templateSlug, $category, $project, $brand);
+        $seo = $this->resolveSeo($license, $page, $templateSlug, $category ?? $material, $project, $brand);
 
         // Каталожные метаданные едут с первым ответом, отдельно от контента тенанта.
         // Eager load исключает запрос на каждый блок. Для динамических страниц
@@ -490,6 +534,9 @@ final class RenderPage
 
         return Category::where('rubric_id', $rubric->id)
             ->where('is_active', true)
+            ->when($rubricSlug === 'stoleshnica', fn ($query) => $query->with([
+                'brands' => fn ($brands) => $brands->where('is_active', true),
+            ]))
             ->orderBy('sort_order')
             ->get()
             ->map(fn (Category $cat) => [
@@ -498,6 +545,16 @@ final class RenderPage
                 'slug' => $cat->slug,
                 'is_enabled' => $this->catalogVisibility->enabled($cat, $license),
                 'sort_order' => $cat->sort_order,
+                ...($rubricSlug === 'stoleshnica' ? ['brands' => $cat->brands->map(fn (CatalogBrand $brand) => [
+                    'id' => $brand->id,
+                    'value' => $brand->value,
+                    'slug' => $brand->slug,
+                    'logo' => $brand->logo,
+                    'materialTitle' => $cat->value,
+                    'materialSlug' => $cat->slug,
+                    'href' => '/stoleshnica/'.$cat->slug.'/'.$brand->slug,
+                    'is_enabled' => $this->catalogVisibility->enabled($cat, $license),
+                ])->all()] : []),
             ]);
     }
 
@@ -643,7 +700,7 @@ final class RenderPage
         string $templateSlug,
         ?Category $category,
         ?MebelProject $project,
-        ?Category $brand = null
+        Category|CatalogBrand|null $brand = null
     ): array {
         $isDynamic = str_contains($templateSlug, '{');
         $variables = [
