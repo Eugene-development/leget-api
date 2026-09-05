@@ -191,7 +191,7 @@ return [
                 ]],
                 ['type' => 'PromoOffer', 'defaults' => ['badge' => 'Эксклюзивное предложение', 'title' => 'Специальное предложение', 'textPrimary' => 'Скидка 15% на мебель этой весной', 'textSecondary' => 'Воспользуйтесь уникальной возможностью приобрести качественную мебель по выгодной цене', 'primaryButton' => 'Получить предложение', 'secondaryButton' => 'Узнать больше', 'primaryHref' => '/contact', 'secondaryHref' => '/about']],
                 ['type' => 'Equipment',  'defaults' => ['badge' => 'Дополнительно', 'title' => 'Комплектация проектов']],
-                ['type' => 'Stage',      'defaults' => ['badge' => 'Это важно', 'title' => 'Наша работа', 'description' => 'Мы поддержим вас на всех этапах работы над мебельным проектом: от первой консультации до дня финальной сборки.']],
+                ['type' => 'Stage',      'defaults' => ['badge' => 'Это важно', 'title' => 'Порядок работы', 'description' => 'Мы поддержим вас на всех этапах работы над мебельным проектом: от первой консультации до дня финальной сборки.']],
                 ['type' => 'Incentives', 'defaults' => [
                     'badge' => 'Выгода',
                     'title' => 'С нами выгодно',
@@ -722,11 +722,15 @@ return [
             '/santehnika' => [
                 ['type' => 'SantehnikaSidebar', 'defaults' => [
                     'brands' => [
-                        ['title' => 'Blanco',   'slug' => 'blanco'],
-                        ['title' => 'Grohe',    'slug' => 'grohe'],
-                        ['title' => 'Hansgrohe', 'slug' => 'hansgrohe'],
-                        ['title' => 'Franke',   'slug' => 'franke'],
-                        ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
+                        ['title' => 'Blanco',     'slug' => 'blanco'],
+                        ['title' => 'Grohe',      'slug' => 'grohe'],
+                        ['title' => 'Hansgrohe',  'slug' => 'hansgrohe'],
+                        ['title' => 'Franke',     'slug' => 'franke'],
+                        ['title' => 'Omoikiri',   'slug' => 'omoikiri'],
+                        ['title' => 'EMAR',       'slug' => 'emar'],
+                        ['title' => 'Florentina', 'slug' => 'florentina'],
+                        ['title' => 'Paulmark',   'slug' => 'paulmark'],
+                        ['title' => 'Pereal',     'slug' => 'pereal'],
                     ]
                 ]],
                 ['type' => 'SantehnikaHero', 'defaults' => [
@@ -735,15 +739,22 @@ return [
                     'primaryButton' => 'Подобрать комплект',
                     'bgImage'       => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/plumbing_hero.png',
                 ]],
+                // Карточки брендов ведут на /santehnika/{brand}, поэтому список
+                // здесь — тот же справочник, что у сайдбара: RenderPage
+                // подменяет его живыми записями рубрики. Придуманного бренда
+                // тут быть не должно — карточка вела бы в 404.
                 ['type' => 'SantehnikaBrands', 'defaults' => [
                     'title'  => 'Бренды сантехники',
                     'brands' => [
-                        ['title' => 'Blanco',   'slug' => 'blanco'],
-                        ['title' => 'Grohe',    'slug' => 'grohe'],
-                        ['title' => 'Hansgrohe', 'slug' => 'hansgrohe'],
-                        ['title' => 'Franke',   'slug' => 'franke'],
-                        ['title' => 'Omoikiri', 'slug' => 'omoikiri'],
-                        ['title' => 'Elikor',   'slug' => 'elikor'],
+                        ['title' => 'Blanco',     'slug' => 'blanco'],
+                        ['title' => 'Grohe',      'slug' => 'grohe'],
+                        ['title' => 'Hansgrohe',  'slug' => 'hansgrohe'],
+                        ['title' => 'Franke',     'slug' => 'franke'],
+                        ['title' => 'Omoikiri',   'slug' => 'omoikiri'],
+                        ['title' => 'EMAR',       'slug' => 'emar'],
+                        ['title' => 'Florentina', 'slug' => 'florentina'],
+                        ['title' => 'Paulmark',   'slug' => 'paulmark'],
+                        ['title' => 'Pereal',     'slug' => 'pereal'],
                     ]
                 ]],
                 ['type' => 'SantehnikaSinkTypes', 'defaults' => [
@@ -782,6 +793,41 @@ return [
                 ['type' => 'SantehnikaCTA', 'defaults' => [
                     'title'       => 'Нужна помощь с выбором?',
                     'description' => 'Наши специалисты помогут подобрать сантехнику под вашу кухню и бюджет',
+                    'buttonText'  => 'Получить консультацию',
+                ]],
+            ],
+
+            /*
+             * Страница бренда: /santehnika/{brand}. Устроена как страница
+             * бренда бытовой техники: слаг резолвится RenderPage по справочнику
+             * (категории рубрики «santehnika»), оттуда же приезжают заголовок
+             * и описание шапки.
+             *
+             * Товарной сетки нет по той же причине, что и у техники: каталога
+             * позиций у сантехники не существует — у мебели его наполняет
+             * таблица `mebel_projects`, у брендов такой таблицы нет.
+             */
+            '/santehnika/{brand}' => [
+                ['type' => 'SantehnikaSidebar', 'defaults' => [
+                    'brands' => [] // Will be enriched
+                ]],
+                ['type' => 'SantehnikaBrandHero', 'defaults' => [
+                    'title'       => 'Бренд',
+                    'description' => 'Сантехника бренда: подберём мойку и смеситель под ваш проект кухни и рассчитаем комплект.',
+                    'buttonText'  => 'Подобрать комплект',
+                    'bgImage'     => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/plumbing_hero.png',
+                ]],
+                ['type' => 'SantehnikaBenefits', 'defaults' => [
+                    'title' => 'Почему покупают у нас',
+                    'items' => [
+                        ['title' => 'Оригинальная продукция',  'desc' => 'Только сертифицированная сантехника от официальных дистрибьюторов', 'icon' => 'shield', 'color' => 'emerald'],
+                        ['title' => 'Профессиональный монтаж', 'desc' => 'Установка с подключением и проверкой на герметичность',             'icon' => 'tools',  'color' => 'sky'],
+                        ['title' => 'Выгодные комплекты',      'desc' => 'Скидки при покупке мойки со смесителем и аксессуарами',             'icon' => 'coin',   'color' => 'amber'],
+                    ]
+                ]],
+                ['type' => 'SantehnikaCTA', 'defaults' => [
+                    'title'       => 'Не нашли нужную модель?',
+                    'description' => 'Наши специалисты подберут сантехнику этого бренда под вашу кухню и бюджет',
                     'buttonText'  => 'Получить консультацию',
                 ]],
             ],

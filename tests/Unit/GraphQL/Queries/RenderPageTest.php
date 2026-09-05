@@ -1296,6 +1296,143 @@ class RenderPageTest extends TestCase
     }
 
     /** Бренд бытовой техники — категория рубрики «bytovaya-tehnika». */
+    /**
+     * Страница бренда сантехники собирается так же, как страница бренда
+     * бытовой техники: состав блоков — из конфига, заголовок и описание
+     * шапки — из строки справочника рубрики «santehnika».
+     */
+    public function test_santehnika_brand_slug_resolves_to_the_brand_page_template(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'santehnika-brand.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createSantehnikaBrand([
+            'value' => 'Omoikiri',
+            'slug' => 'omoikiri',
+            'description' => 'Кухонные мойки и смесители Omoikiri: гранитные и стальные модели.',
+        ]);
+
+        $context = $this->createContext(['X-Forwarded-Host' => 'santehnika-brand.example.com']);
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/santehnika/omoikiri'],
+            $context,
+            $this->createResolveInfo()
+        );
+
+        // Глобальные блоки (футер) дописываются после блоков страницы — сверяем
+        // только состав самой страницы.
+        $types = collect($result['page']['componentsData'])->pluck('type')->take(4)->all();
+        $this->assertSame(
+            ['SantehnikaSidebar', 'SantehnikaBrandHero', 'SantehnikaBenefits', 'SantehnikaCTA'],
+            $types
+        );
+
+        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'SantehnikaBrandHero');
+        $this->assertSame('Omoikiri', $hero['data']['title']);
+        $this->assertSame(
+            'Кухонные мойки и смесители Omoikiri: гранитные и стальные модели.',
+            $hero['data']['description']
+        );
+        $this->assertSame('omoikiri', $hero['data']['brandSlug']);
+
+        // Сайдбар подсвечивает открытый бренд.
+        $sidebar = collect($result['page']['componentsData'])->firstWhere('type', 'SantehnikaSidebar');
+        $this->assertSame('omoikiri', $sidebar['data']['activeSlug']);
+    }
+
+    /**
+     * Отключённый бренд не должен открываться по прямому адресу: тумблер
+     * сайдбара обязан закрывать и саму страницу.
+     */
+    public function test_disabled_santehnika_brand_page_is_not_found(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'santehnika-off.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createSantehnikaBrand(['value' => 'EMAR', 'slug' => 'emar', 'is_enabled' => false]);
+
+        $this->expectException(GraphQLException::class);
+
+        ($this->resolver)(
+            null,
+            ['slug' => '/santehnika/emar'],
+            $this->createContext(['X-Forwarded-Host' => 'santehnika-off.example.com']),
+            $this->createResolveInfo()
+        );
+    }
+
+    /**
+     * Slug уникален на все рубрики сразу, поэтому маршрут бренда сантехники
+     * обязан проверять рубрику — иначе бренд техники открылся бы по адресу
+     * сантехники.
+     */
+    public function test_santehnika_brand_route_ignores_categories_of_other_rubrics(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'santehnika-foreign.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand(['value' => 'Bosch', 'slug' => 'bosch']);
+
+        $this->expectException(GraphQLException::class);
+
+        ($this->resolver)(
+            null,
+            ['slug' => '/santehnika/bosch'],
+            $this->createContext(['X-Forwarded-Host' => 'santehnika-foreign.example.com']),
+            $this->createResolveInfo()
+        );
+    }
+
+    /** Карточки брендов на /santehnika берут список из справочника, как сайдбар. */
+    public function test_santehnika_brand_cards_come_from_the_directory(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'santehnika-cards.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createSantehnikaBrand(['value' => 'Omoikiri', 'slug' => 'omoikiri', 'sort_order' => 10]);
+        $this->createSantehnikaBrand(['value' => 'Pereal', 'slug' => 'pereal', 'sort_order' => 20]);
+
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/santehnika'],
+            $this->createContext(['X-Forwarded-Host' => 'santehnika-cards.example.com']),
+            $this->createResolveInfo()
+        );
+
+        $cards = collect($result['page']['componentsData'])->firstWhere('type', 'SantehnikaBrands');
+        $this->assertSame(
+            ['Omoikiri', 'Pereal'],
+            collect($cards['data']['brands'])->pluck('value')->all()
+        );
+    }
+
+    private function createSantehnikaBrand(array $attributes = []): Category
+    {
+        $rubric = Rubric::where('slug', 'santehnika')->first() ?? Rubric::create([
+            'key' => (string) Str::ulid(),
+            'value' => 'Сантехника',
+            'slug' => 'santehnika',
+        ]);
+
+        return Category::create(array_merge([
+            'key' => (string) Str::ulid(),
+            'rubric_id' => $rubric->id,
+            'value' => 'Omoikiri',
+            'slug' => 'omoikiri',
+            'is_active' => true,
+            'is_enabled' => true,
+        ], $attributes));
+    }
+
     private function createBrand(array $attributes = []): Category
     {
         $rubric = Rubric::where('slug', 'bytovaya-tehnika')->first() ?? Rubric::create([

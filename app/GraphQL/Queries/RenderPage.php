@@ -103,7 +103,7 @@ final class RenderPage
             }
             if ($rubricSlug === 'mebel') {
                 $category = $entry;
-            } elseif ($rubricSlug === 'bytovaya-tehnika') {
+            } elseif ($rubricSlug === 'bytovaya-tehnika' || $rubricSlug === 'santehnika') {
                 $brand = $entry;
             } elseif ($rubricSlug === 'stoleshnica') {
                 $material = $entry;
@@ -156,6 +156,13 @@ final class RenderPage
                     $templateSlug = '/bytovaya-tehnika/{brand}';
                 }
             }
+            // Pattern: santehnika/{brand_slug} — устроен так же, как бренд
+            // бытовой техники: та же таблица, различает рубрика.
+            elseif (preg_match('#^/?santehnika/([^/]+)$#', $slug, $matches)) {
+                if ($brand) {
+                    $templateSlug = '/santehnika/{brand}';
+                }
+            }
 
             // Try to find the "template page" record in the DB for this dynamic route
             $page = Page::where('license_id', $license->id)
@@ -186,6 +193,7 @@ final class RenderPage
             // Brand cards and the sidebar share one ordered directory + site overrides.
             $catalogType = match ($component->type) {
                 'ByttehnikaBrands' => 'ByttehnikaSidebar',
+                'SantehnikaBrands' => 'SantehnikaSidebar',
                 'StoleshnicaBrands' => 'StoleshnicaSidebar',
                 default => $component->type,
             };
@@ -226,7 +234,11 @@ final class RenderPage
             // как MebelCategoryHero берёт их из своей категории. Пустое описание
             // в справочнике не затирает текст из defaults — иначе страница
             // осталась бы с одним заголовком.
-            if ($brand && $component->type === 'ByttehnikaBrandHero') {
+            //
+            // Ветка одна на обе рубрики: у техники и сантехники бренд — строка
+            // одной и той же таблицы, различает их только рубрика, поэтому
+            // и обогащение шапки у них общее.
+            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], array_filter([
                     'title' => $brand->value,
