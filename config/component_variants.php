@@ -22,7 +22,7 @@ return [
         'HeroMain'     => 4,
         'ActionsCTA'   => 2,
         'Brands'       => 2,
-        'ContactCTA'   => 2,
+        'ContactCTA'   => 3,
         'ContactsHero' => 2,
         'Direction'    => 2,
         'Equipment'    => 2,
