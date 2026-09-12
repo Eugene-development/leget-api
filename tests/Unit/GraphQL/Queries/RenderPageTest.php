@@ -475,6 +475,29 @@ class RenderPageTest extends TestCase
         $this->assertSame($expected, $hero['catalog']);
     }
 
+    public function test_saved_order_is_rendered_for_guests_and_preserves_dynamic_data(): void
+    {
+        Schema::table('pages', fn (Blueprint $table) => $table->json('component_order')->nullable());
+        $license = $this->createLicense(['template_id' => 1]);
+        $this->createBrand(['slug' => 'bosch', 'value' => 'Bosch']);
+        $expected = $this->createCatalogComponent(1, '/bytovaya-tehnika/{brand}', 28, 'ByttehnikaBrandHero', 1);
+        $context = $this->createContext(['X-Forwarded-Host' => $license->domain]);
+        $before = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'], $context, $this->createResolveInfo());
+        $types = array_values(array_filter(array_column($before['page']['componentsData'], 'type'), fn ($type) => $type !== 'Footer'));
+        $ownerContext = $this->createMock(GraphQLContext::class);
+        $ownerContext->method('user')->willReturn(User::findOrFail($license->user_id));
+        $order = app(\App\GraphQL\Mutations\MovePageComponent::class)(null, [
+            'license_id' => $license->id, 'page_id' => 'slug:/bytovaya-tehnika/bosch',
+            'type' => $types[1], 'direction' => 'up',
+        ], $ownerContext, $this->createResolveInfo());
+        $after = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'], $context, $this->createResolveInfo());
+        $this->assertSame($order, array_values(array_filter(array_column($after['page']['componentsData'], 'type'), fn ($type) => $type !== 'Footer')));
+        $hero = collect($after['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrandHero');
+        $this->assertSame('Bosch', $hero['data']['title']);
+        $this->assertSame($expected, $hero['catalog']);
+        $this->assertDatabaseCount('page_components', 0);
+    }
+
     private function createCatalogComponent(int $templateId, string $slug, int $pageNumber, string $type, int $number): array
     {
         $page = TemplatePage::firstOrCreate(

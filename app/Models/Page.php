@@ -10,6 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['license_id', 'slug', 'seo_title', 'seo_description', 'seo_keywords'])]
 class Page extends Model
 {
+    protected function casts(): array
+    {
+        return ['component_order' => 'array'];
+    }
+
     /**
      * Получить лицензию, к которой принадлежит страница.
      */

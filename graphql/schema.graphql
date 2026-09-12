@@ -165,6 +165,14 @@ type Mutation {
         data: JSON!
     ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertPageComponent")
 
+    "Move a page block up or down. Only the site owner may change the order."
+    movePageComponent(
+        pageId: ID! @rename(attribute: "page_id")
+        licenseId: ID! @rename(attribute: "license_id")
+        type: String! @rules(apply: ["max:255"])
+        direction: String! @rules(apply: ["in:up,down"])
+    ): [String!]! @guard @field(resolver: "App\\GraphQL\\Mutations\\MovePageComponent")
+
     "Toggle the active state of a page component. Requires authentication."
     togglePageComponent(
         id: ID!

@@ -55,6 +55,23 @@ class TemplateService
         return array_column($this->getPageComponents($templateId, $slug), 'type');
     }
 
+    /** Resolve a concrete URL to its template definition without creating a page. */
+    public function resolveTemplateSlug(int $templateId, string $slug): string
+    {
+        $pages = $this->getTemplate($templateId)['pages'] ?? [];
+        if (array_key_exists($slug, $pages)) {
+            return $slug;
+        }
+        foreach (array_keys($pages) as $pattern) {
+            $expression = preg_replace('/\\\\\{[^}]+\\\\\}/', '[^/]+', preg_quote($pattern, '#'));
+            if (preg_match('#^'.$expression.'$#D', $slug)) {
+                return $pattern;
+            }
+        }
+
+        return $slug;
+    }
+
     /**
      * Types offered when adding a block to the page: allowed minus retired.
      *
@@ -154,7 +171,7 @@ class TemplateService
             : collect();
 
         if (empty($definitions)) {
-            return $dbComponents->sortBy('sort_order')->values();
+            return $this->applyComponentOrder(new \Illuminate\Database\Eloquent\Collection($dbComponents->sortBy('sort_order')->values()->all()), $page);
         }
 
         $result = new \Illuminate\Database\Eloquent\Collection();
@@ -187,7 +204,19 @@ class TemplateService
         // config/templates.php is the canonical source of template structure and order.
         // Persisted sort_order values may be stale (legacy rows defaulted to zero), so
         // sorting the merged collection would move edited components ahead of defaults.
-        return $result->values();
+        return $this->applyComponentOrder($result, $page);
+    }
+
+    /** Keep defaults lazy; ignore removed types and append newly introduced blocks. */
+    private function applyComponentOrder(\Illuminate\Database\Eloquent\Collection $components, ?Page $page): \Illuminate\Database\Eloquent\Collection
+    {
+        $order = $page?->component_order ?? [];
+        if (empty($order)) {
+            return $components->values();
+        }
+        $positions = array_flip($order);
+
+        return $components->sortBy(fn (PageComponent $component) => $positions[$component->type] ?? count($order))->values();
     }
 
     /**

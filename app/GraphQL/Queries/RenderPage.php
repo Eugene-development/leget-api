@@ -27,7 +27,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v9';
+    private const CACHE_VERSION = 'v10';
 
     public function __construct(
         private TemplateService $templateService,
@@ -120,50 +120,50 @@ final class RenderPage
             }
         }
 
-        // If page doesn't exist in DB, check for dynamic patterns
+        // Resolve dynamic data even after saving order/SEO for a concrete URL.
+        // Pattern: mebel/{category_slug}/{project_slug}
+        if (preg_match('#^/?mebel/([^/]+)/([^/]+)$#', $slug, $matches)) {
+            $projectSlug = $matches[2];
+
+            $project = MebelProject::where('slug', $projectSlug)
+                ->where('category_id', $category->id)
+                ->where('is_active', true)
+                ->where(function ($q) use ($license) {
+                    $q->whereNull('license_id')->orWhere('license_id', $license->id);
+                })
+                ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                ->first();
+
+            if ($project) {
+                $templateSlug = '/mebel/{category}/{project}';
+            }
+        }
+        // Pattern: mebel/{category_slug}
+        elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
+            if ($category) {
+                $templateSlug = '/mebel/{category}';
+            }
+        }
+        // Pattern: bytovaya-tehnika/{brand_slug}
+        //
+        // Бренд — строка того же справочника, что категории мебели, поэтому
+        // рубрику проверяем явно: без этого /bytovaya-tehnika/kuhni отдал бы
+        // страницу бренда по категории мебели — slug в таблице уникален
+        // на все рубрики сразу.
+        elseif (preg_match('#^/?bytovaya-tehnika/([^/]+)$#', $slug, $matches)) {
+            if ($brand) {
+                $templateSlug = '/bytovaya-tehnika/{brand}';
+            }
+        }
+        // Pattern: santehnika/{brand_slug} — устроен так же, как бренд
+        // бытовой техники: та же таблица, различает рубрика.
+        elseif (preg_match('#^/?santehnika/([^/]+)$#', $slug, $matches)) {
+            if ($brand) {
+                $templateSlug = '/santehnika/{brand}';
+            }
+        }
+
         if (! $page) {
-            // Pattern: mebel/{category_slug}/{project_slug}
-            if (preg_match('#^/?mebel/([^/]+)/([^/]+)$#', $slug, $matches)) {
-                $projectSlug = $matches[2];
-
-                $project = MebelProject::where('slug', $projectSlug)
-                    ->where('category_id', $category->id)
-                    ->where('is_active', true)
-                    ->where(function ($q) use ($license) {
-                        $q->whereNull('license_id')->orWhere('license_id', $license->id);
-                    })
-                    ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
-                    ->first();
-
-                if ($project) {
-                    $templateSlug = '/mebel/{category}/{project}';
-                }
-            }
-            // Pattern: mebel/{category_slug}
-            elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
-                if ($category) {
-                    $templateSlug = '/mebel/{category}';
-                }
-            }
-            // Pattern: bytovaya-tehnika/{brand_slug}
-            //
-            // Бренд — строка того же справочника, что категории мебели, поэтому
-            // рубрику проверяем явно: без этого /bytovaya-tehnika/kuhni отдал бы
-            // страницу бренда по категории мебели — slug в таблице уникален
-            // на все рубрики сразу.
-            elseif (preg_match('#^/?bytovaya-tehnika/([^/]+)$#', $slug, $matches)) {
-                if ($brand) {
-                    $templateSlug = '/bytovaya-tehnika/{brand}';
-                }
-            }
-            // Pattern: santehnika/{brand_slug} — устроен так же, как бренд
-            // бытовой техники: та же таблица, различает рубрика.
-            elseif (preg_match('#^/?santehnika/([^/]+)$#', $slug, $matches)) {
-                if ($brand) {
-                    $templateSlug = '/santehnika/{brand}';
-                }
-            }
-
             // Try to find the "template page" record in the DB for this dynamic route
             $page = Page::where('license_id', $license->id)
                 ->where('slug', $templateSlug)
