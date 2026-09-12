@@ -33,6 +33,7 @@ return [
         'ProjectsFeed' => 2,
         'PromoOffer'   => 2,
         'Stage'        => 2,
+        'Text'         => 3,
     ],
 
     // Promo-2 и Promo-3 односхемны целиком: ни одной папки v1…vN.
