@@ -29,6 +29,7 @@ return [
         'Incentives'   => 3,
         'MebelBenefits' => 2,
         'MebelProcess' => 2,
+        'Mission'      => 2,
         'Message'      => 2,
         'ProjectsFeed' => 2,
         'PromoOffer'   => 2,
