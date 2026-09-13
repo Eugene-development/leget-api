@@ -32,6 +32,13 @@ class UpsertSemanticsTest extends TestCase
     use RefreshDatabase;
     use TestTrait;
 
+    // Eris uses $seed for its random seed; RefreshDatabase otherwise treats it as
+    // a request to run DatabaseSeeder before our shared sqlite schema exists.
+    protected function shouldSeed(): bool
+    {
+        return false;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -102,6 +109,27 @@ class UpsertSemanticsTest extends TestCase
         $context->method('user')->willReturn($user);
 
         return $context;
+    }
+
+    public function test_formatted_text_round_trips_without_changing_other_component_data(): void
+    {
+        $user = $this->createUser();
+        $license = $this->createLicense($user);
+        $page = $this->createPage($license);
+        $mutation = app(UpsertPageComponent::class);
+        $context = $this->makeContext($user);
+        $info = $this->createMock(ResolveInfo::class);
+        $formatted = '<!--leget-rich-text:v1--><p><strong>Мебель</strong> <em>на заказ</em></p><ol><li><p>Замер</p></li><li><p>Проект</p></li></ol>';
+        $data = ['title' => 'Заголовок', 'cards' => [['description' => $formatted, 'image' => 'https://example.com/photo.webp']], '_version' => 2];
+        $args = ['page_id' => $page->id, 'license_id' => $license->id, 'type' => 'Text', 'data' => $data];
+        $component = $mutation(null, $args, $context, $info);
+        $this->assertSame($data, $component->fresh()->data);
+
+        $data['cards'][0]['description'] = '';
+        $args['data'] = $data;
+        $mutation(null, $args, $context, $info);
+        $this->assertSame($data, $component->fresh()->data);
+        $this->assertSame(1, PageComponent::where('page_id', $page->id)->where('type', 'Text')->count());
     }
 
     /**
