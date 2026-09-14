@@ -1,0 +1,50 @@
+extend type Query {
+    "List all licenses for the authenticated user."
+    myLicenses: [License!]! @guard @field(resolver: "App\\GraphQL\\Queries\\MyLicenses")
+
+    "Get a license by ID (site settings). Requires authentication."
+    license(id: ID! @eq): License! @guard @find
+}
+
+extend type Mutation {
+    "Create a new license for the authenticated user with the given template. Requires authentication."
+    createLicense(
+        templateId: Int! @rename(attribute: "template_id")
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateLicense")
+
+    "Update license site settings. Requires authentication."
+    updateLicense(
+        id: ID!
+        domain: String
+        faviconUrl: String @rename(attribute: "favicon_url")
+        name: String
+        metaDescription: String @rename(attribute: "meta_description")
+        templateId: Int @rename(attribute: "template_id")
+        headerData: JSON @rename(attribute: "header_data")
+        footerData: JSON @rename(attribute: "footer_data")
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdateLicense")
+
+    "Cancel a license. Stops daily billing and deactivates the site. Requires authentication."
+    cancelLicense(
+        id: ID!
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CancelLicense")
+}
+
+type License {
+    id: ID!
+    userId: Int! @rename(attribute: "user_id")
+    domain: String!
+    faviconUrl: String @rename(attribute: "favicon_url")
+    name: String
+    metaDescription: String @rename(attribute: "meta_description")
+    headerData: JSON @rename(attribute: "header_data")
+    footerData: JSON @rename(attribute: "footer_data")
+    templateId: Int @rename(attribute: "template_id")
+    isActive: Boolean! @rename(attribute: "is_active")
+    status: String!
+    dailyPrice: Float @rename(attribute: "daily_price")
+    billingStartedAt: DateTime @rename(attribute: "billing_started_at")
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+    pages: [Page!]! @hasMany
+}

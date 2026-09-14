@@ -1,0 +1,56 @@
+extend type Query {
+    "Render a page for the resolved tenant site. Requires X-Forwarded-Host or Host header."
+    renderPage(slug: String!): RenderPageResponse!
+        @field(resolver: "App\\GraphQL\\Queries\\RenderPage")
+}
+
+type RenderPageResponse {
+    site: SiteSettings!
+    page: PageContent!
+}
+
+type SiteSettings {
+    name: String
+    metaDescription: String
+    templateId: Int
+    faviconUrl: String
+    "Владелец лицензии. Публичное поле: ответ renderPage кэшируется одним куском на всех, поэтому здесь id владельца, а не признак «это ты» — сверка идёт на клиенте."
+    ownerId: ID
+    header: SiteComponent
+    footer: SiteComponent
+    "Сохранённые карточки акций страницы `/actions` (id, title, badge, enabled) — их читает полоса акций в шапке, которая стоит на каждой странице. null — блок не сохранён, тогда фронт берёт дефолты страницы; [] — акций нет."
+    actionCards: JSON
+}
+
+"A site-wide component (header or footer) with arbitrary JSON data."
+type SiteComponent {
+    data: JSON!
+}
+
+type PageContent {
+    slug: String!
+    requestedSlug: String!
+    id: ID
+    licenseId: ID @rename(attribute: "license_id")
+    componentsData: JSON
+    seo: PageSeo!
+}
+
+"Resolved SEO metadata and the editable source values for a page."
+type PageSeo {
+    title: String
+    description: String
+    keywords: String
+    rawTitle: String
+    rawDescription: String
+    isDynamic: Boolean!
+    pattern: String!
+    variables: [SeoVariable!]!
+}
+
+"A placeholder available in a dynamic page SEO template."
+type SeoVariable {
+    token: String!
+    label: String!
+    value: String!
+}

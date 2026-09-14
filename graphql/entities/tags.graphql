@@ -1,0 +1,26 @@
+extend type Query {
+    tagGroups: [TagGroup!]! @all @orderBy(column: "sort_order", direction: ASC)
+}
+
+extend type Mutation {
+    createTag(input: CreateTagInput!): Tag! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateTag")
+}
+
+type TagGroup {
+    id: ID!
+    slug: String!
+    name: String!
+    tags: [Tag!]! @hasMany
+}
+
+type Tag {
+    id: ID!
+    name: String!
+    tag_group_id: ID!
+    group: TagGroup! @belongsTo
+}
+
+input CreateTagInput {
+    tag_group_id: ID!
+    name: String!
+}

@@ -1,0 +1,115 @@
+extend type Query {
+    "List mebel projects, optionally filtered by category (public)."
+    mebelProjects(
+        "Filter by active status."
+        is_active: Boolean @eq
+        "Filter by category ID."
+        category_id: ID @eq
+        "Filter by featured flag."
+        is_featured: Boolean @eq
+        "Filter by new flag."
+        is_new: Boolean @eq
+    ): [MebelProject!]! @all @orderBy(column: "sort_order", direction: ASC)
+}
+
+extend type Mutation {
+    "Мягко удалить проект своей лицензии. Повторный запрос безопасен."
+    deleteMebelProject(id: ID!): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteMebelProject")
+
+    "Create or update a Mebel Project. Requires authentication."
+    upsertMebelProject(
+        input: UpsertMebelProjectInput!
+    ): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertMebelProject")
+}
+
+input UpsertMebelProjectInput {
+    "Выбранные теги: [] очищает связи, отсутствие поля сохраняет их."
+    tag_ids: [ID!]
+
+    id: ID
+    category_id: ID!
+    value: String!
+    description: String
+    short_description: String
+    "Дата сдачи объекта (YYYY-MM-DD). Пустая строка стирает дату и убирает работу из ленты /projects."
+    completed_at: Date
+    "Полный адрес объекта. Публикуется усечённым — см. ProjectsFeed/data.ts."
+    object_address: String
+    "Кто изготовил мебель. Ложится в meta.maker."
+    maker: String
+    "Бренды фурнитуры. Ложатся в meta.hardware_brands."
+    hardware_brands: [String!]
+    "Бренды техники. Ложатся в meta.appliance_brands."
+    appliance_brands: [String!]
+    price: Float
+    old_price: Float
+    is_featured: Boolean
+    is_new: Boolean
+    is_active: Boolean
+    image_urls: [String!]
+}
+
+"A furniture project (card in the catalog)."
+type MebelProject {
+    tags: [Tag!]! @morphToMany
+
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "ID of the parent category."
+    category_id: ID!
+
+    "Parent category."
+    category: Category @belongsTo
+
+    "Name of the project."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Full description."
+    description: String
+
+    "Short description for cards."
+    short_description: String
+
+    "Date the object was handed over. NULL means the project is not finished and is excluded from the /projects feed."
+    completed_at: Date
+
+    "Full address of the object, kept for internal records. The public feed truncates it to city and district."
+    object_address: String
+
+    "Price of the project."
+    price: Float
+
+    "Old price (for discounts)."
+    old_price: Float
+
+    "SEO title."
+    seo_title: String
+
+    "SEO description."
+    seo_description: String
+
+    "Arbitrary JSON meta-data."
+    meta: JSON
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Whether the project is featured."
+    is_featured: Boolean!
+
+    "Whether the project is a new item."
+    is_new: Boolean!
+
+    "Whether the project is active."
+    is_active: Boolean!
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+}

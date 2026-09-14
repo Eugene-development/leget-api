@@ -1671,4 +1671,74 @@ class RenderPageTest extends TestCase
         $this->assertSame('/mebel', $result['page']['requestedSlug']);
         $this->assertArrayHasKey('seo', $result['page']);
     }
+    public function test_site_search_uses_merged_content_and_isolates_tenants(): void
+    {
+        config(['templates' => [1 => ['pages' => [
+            '/' => [['type' => 'HeroMain', 'defaults' => ['title' => 'Кухня мечты']]],
+            '/about' => [['type' => 'AboutHero', 'defaults' => ['description' => 'Уникальный дефолт']]],
+            '/404' => [['type' => 'NotFound', 'defaults' => ['title' => 'Кухня ошибка']]],
+        ]]]]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['template_id' => 1, 'domain' => 'other.example.com']);
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/about']);
+        PageComponent::create(['license_id' => $license->id, 'page_id' => $page->id,
+            'type' => 'AboutHero', 'data' => ['title' => 'Кухня на заказ', 'description' => '<p>Редкий фасад</p>'], 'is_active' => true]);
+        $context = $this->createContext(['X-Forwarded-Host' => 'example.com']);
+        $search = app(\App\GraphQL\Queries\SearchSite::class);
+        $result = $search(null, ['query' => 'КУХ'], $context, $this->createResolveInfo());
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(['/', '/about'], array_column($result['items'], 'url'));
+        $this->assertSame(0, $search(null, ['query' => 'дефолт'], $context, $this->createResolveInfo())['total']);
+        $this->assertSame(1, $search(null, ['query' => 'Редкий'], $context, $this->createResolveInfo())['total']);
+        $otherContext = $this->createContext(['X-Forwarded-Host' => $other->domain]);
+        $this->assertSame(0, $search(null, ['query' => 'Редкий'], $otherContext, $this->createResolveInfo())['total']);
+        $this->assertSame(0, $search(null, ['query' => 'ку'], $context, $this->createResolveInfo())['total']);
+    }
+
+    public function test_site_search_paths_exclude_hidden_categories_and_foreign_projects(): void
+    {
+        config(['templates' => [1 => ['pages' => ['/mebel/{category}' => [], '/mebel/{category}/{project}' => []]]]]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Мебель', 'slug' => 'mebel', 'is_active' => true]);
+        $category = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id,
+            'value' => 'Кухни', 'slug' => 'kuhni', 'is_active' => true, 'is_enabled' => true]);
+        foreach (['shared' => null, 'own' => $license->id, 'foreign' => 'another-license'] as $slug => $owner) {
+            MebelProject::create(['category_id' => $category->id, 'license_id' => $owner,
+                'slug' => $slug, 'value' => $slug, 'is_active' => true]);
+        }
+        $paths = app(\App\Services\SiteSearch::class)->paths($license);
+        $this->assertContains('/mebel/kuhni/shared', $paths);
+        $this->assertContains('/mebel/kuhni/own', $paths);
+        $this->assertNotContains('/mebel/kuhni/foreign', $paths);
+        $license->catalog_settings = ['categories' => [$category->id => false]];
+        $this->assertSame([], app(\App\Services\SiteSearch::class)->paths($license));
+    }
+
+    public function test_site_search_rejects_suspended_sites_even_with_cached_results(): void
+    {
+        $this->createLicense(['status' => 'suspended']);
+        $this->expectException(GraphQLException::class);
+        app(\App\GraphQL\Queries\SearchSite::class)(null, ['query' => 'кухня'],
+            $this->createContext(['X-Forwarded-Host' => 'example.com']), $this->createResolveInfo());
+    }
+
+    public function test_site_search_rate_limit_is_independent_for_each_client_ip(): void
+    {
+        config(['templates' => [1 => ['pages' => []]]]);
+        $license = $this->createLicense(['template_id' => 1]);
+        \Illuminate\Support\Facades\RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
+        for ($i = 1; $i < 60; $i++) {
+            \Illuminate\Support\Facades\RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
+        }
+        $search = app(\App\GraphQL\Queries\SearchSite::class);
+        $request = Request::create('/graphql', 'POST', [], [], [], ['REMOTE_ADDR' => '192.0.2.2']);
+        $request->headers->set('X-Forwarded-Host', 'example.com');
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('request')->willReturn($request);
+        $this->assertSame(0, $search(null, ['query' => 'кухня'], $context, $this->createResolveInfo())['total']);
+        $this->expectException(GraphQLException::class);
+        $this->expectExceptionMessage('Слишком много запросов');
+        $search(null, ['query' => 'кухня'], $this->createContext(['X-Forwarded-Host' => 'example.com']), $this->createResolveInfo());
+    }
+
 }

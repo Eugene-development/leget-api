@@ -1,0 +1,78 @@
+extend type Query {
+    "List available component types for a given template and page slug. Requires authentication."
+    templateComponents(templateId: Int!, slug: String!): [TemplateComponent!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\TemplateComponents")
+
+    "Найти компонент каталога по координатам (template + slug + type) — возвращает артикул."
+    component(templateId: Int! @rename(attribute: "template_id"), slug: String!, type: String!): Component
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\FindComponent")
+
+    "Список компонентов каталога, опционально по шаблону."
+    components(templateId: Int @rename(attribute: "template_id")): [Component!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\Components")
+}
+
+extend type Mutation {
+    "Зарегистрировать компонент в каталоге с авто-присвоением артикула. Requires authentication."
+    createComponent(
+        templateId: Int! @rename(attribute: "template_id")
+        slug: String!
+        type: String!
+        name: String
+        "Список версий компонента (1..N); по умолчанию [1]."
+        variants: [Int!]
+    ): Component! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateComponent")
+}
+
+"A single component type available for a template page."
+type TemplateComponent {
+    type: String!
+    label: String!
+}
+
+"Страница шаблона в каталоге (даёт странице порядковый номер артикула)."
+type TemplatePage {
+    id: ID!
+    templateId: Int! @rename(attribute: "template_id")
+    slug: String!
+    pageNumber: Int! @rename(attribute: "page_number")
+    name: String
+    components: [Component!]! @hasMany
+}
+
+"Каталожный компонент (дизайн-блок шаблона). Групповой артикул = template.page.component."
+type Component {
+    id: ID!
+    templateId: Int! @rename(attribute: "template_id")
+    type: String!
+    componentNumber: Int! @rename(attribute: "component_number")
+    name: String
+    isActive: Boolean! @rename(attribute: "is_active")
+    "3-сегментный артикул «1.8.12»."
+    article: String!
+    page: TemplatePage @belongsTo
+    variants: [ComponentVariant!]! @hasMany
+}
+
+"Версия компонента (v1…v4). Полный артикул «1.8.12.4»."
+type ComponentVariant {
+    id: ID!
+    componentId: ID! @rename(attribute: "component_id")
+    "Версия компонента: 1=v1 … 4=v4 (4-й сегмент артикула). Это НЕ цветовая схема."
+    version: Int!
+    name: String
+    "4-сегментный артикул «1.8.12.4»."
+    article: String!
+    """
+    Статус в жизненном цикле: draft | active | legacy.
+    legacy означает «не предлагается в переключателе, но продолжает рендериться там,
+    где уже выбрана» — вывод компонента не ломает существующие сайты.
+    Независим от принадлежности дизайн-системе.
+    """
+    status: String!
+    "Дизайн-системы, которым принадлежит версия (одна или несколько)."
+    designSystems: [DesignSystem!]! @belongsToMany
+}

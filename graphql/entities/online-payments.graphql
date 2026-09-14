@@ -1,0 +1,38 @@
+extend type Mutation {
+    """
+    Создать онлайн-платёж для пополнения баланса (ЮKassa).
+    Баланс не меняется до подтверждения оплаты провайдером.
+    Клиента нужно перенаправить на confirmationUrl. Requires authentication.
+    """
+    createOnlinePayment(
+        amount: String! @rules(
+            apply: ["required", "numeric", "min:1", "max:1000000"]
+            messages: [
+                { rule: "numeric", message: "Сумма должна быть числом." }
+                { rule: "min", message: "Минимальная сумма пополнения — 1 ₽." }
+                { rule: "max", message: "Максимальная сумма пополнения — 1 000 000 ₽." }
+            ]
+        )
+    ): OnlinePayment! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateOnlinePayment")
+
+    """
+    Синхронизировать состояние онлайн-платежа с ЮKassa и зачислить деньги,
+    если платёж оплачен. Вызывается при возврате пользователя со страницы
+    оплаты; безопасна при повторных вызовах. Requires authentication.
+    """
+    syncOnlinePayment(
+        id: ID!
+    ): OnlinePayment! @guard @field(resolver: "App\\GraphQL\\Mutations\\SyncOnlinePayment")
+}
+
+"Онлайн-платёж для пополнения баланса через ЮKassa."
+type OnlinePayment {
+    id: ID!
+    amount: String!
+    "Статус платежа в ЮKassa: pending, waiting_for_capture, succeeded, canceled."
+    status: String!
+    "Ссылка на страницу оплаты. Заполнена только при создании платежа."
+    confirmationUrl: String
+    "Баланс кошелька после синхронизации. Заполнен только в syncOnlinePayment."
+    balance: String
+}

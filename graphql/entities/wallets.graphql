@@ -1,0 +1,23 @@
+extend type Query {
+    "Get the authenticated user's wallet and transaction history. Requires authentication."
+    myWallet: Wallet! @guard @field(resolver: "App\\GraphQL\\Queries\\MyWallet")
+}
+
+type Wallet {
+    id: ID!
+    userId: Int! @rename(attribute: "user_id")
+    balance: String!
+    transactions(
+        orderBy: [OrderByClause!] @orderBy
+    ): [Transaction!]! @paginate
+}
+
+type Transaction {
+    id: ID!
+    walletId: ID! @rename(attribute: "wallet_id")
+    licenseId: ID @rename(attribute: "license_id")
+    amount: String!
+    type: String!
+    description: String
+    createdAt: DateTime @rename(attribute: "created_at")
+}

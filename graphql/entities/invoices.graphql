@@ -1,0 +1,50 @@
+extend type Query {
+    "Get all invoices for the authenticated user (bank wire top-ups). Requires authentication."
+    myInvoices: [Invoice!]!
+        @guard
+        @paginate(builder: "App\\GraphQL\\Queries\\MyInvoices@builder", defaultCount: 20, maxCount: 100)
+}
+
+extend type Mutation {
+    "Create a bank wire invoice for topping up the balance. Requires authentication."
+    createInvoice(
+        amount: String! @rules(
+            apply: ["required", "numeric", "min:1", "max:1000000"]
+            messages: [
+                { rule: "numeric", message: "Сумма должна быть числом." }
+                { rule: "min", message: "Минимальная сумма счёта — 1 ₽." }
+                { rule: "max", message: "Максимальная сумма счёта — 1 000 000 ₽." }
+            ]
+        )
+        companyName: String! @rules(
+            apply: ["required", "string", "max:255"]
+            messages: [
+                { rule: "required", message: "Укажите наименование организации или ФИО." }
+                { rule: "max", message: "Наименование не должно превышать 255 символов." }
+            ]
+        )
+        "ИНН плательщика: 10 цифр для организации, 12 — для ИП или физлица."
+        inn: String @rules(
+            apply: ["nullable", "regex:/^\\d{10}(\\d{2})?$/"]
+            messages: [
+                { rule: "regex", message: "ИНН должен содержать 10 или 12 цифр." }
+            ]
+        )
+    ): InvoiceResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateInvoice")
+}
+
+"A bank wire invoice created by the user for balance top-up."
+type Invoice {
+    id: ID!
+    number: String!
+    amount: String!
+    status: String!
+    companyName: String! @rename(attribute: "company_name")
+    inn: String
+    createdAt: DateTime @rename(attribute: "created_at")
+}
+
+type InvoiceResult {
+    success: Boolean!
+    invoice: Invoice!
+}

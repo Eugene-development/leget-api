@@ -1,0 +1,49 @@
+extend type Query {
+    "List components for a page. Requires authentication."
+    pageComponents(licenseId: ID!, pageId: ID!): [PageComponent!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\PageComponents")
+}
+
+extend type Mutation {
+    "Create or update a page component. Requires authentication."
+    upsertPageComponent(
+        pageId: ID! @rename(attribute: "page_id")
+        licenseId: ID! @rename(attribute: "license_id")
+        type: String!
+        data: JSON!
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertPageComponent")
+
+    "Move a page block up or down. Only the site owner may change the order."
+    movePageComponent(
+        pageId: ID! @rename(attribute: "page_id")
+        licenseId: ID! @rename(attribute: "license_id")
+        type: String! @rules(apply: ["max:255"])
+        direction: String! @rules(apply: ["in:up,down"])
+    ): [String!]! @guard @field(resolver: "App\\GraphQL\\Mutations\\MovePageComponent")
+
+    "Toggle the active state of a page component. Requires authentication."
+    togglePageComponent(
+        id: ID!
+        isActive: Boolean! @rename(attribute: "is_active")
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\TogglePageComponent")
+
+    "Delete a page component. Requires authentication."
+    deletePageComponent(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+    ): PageComponent! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeletePageComponent")
+}
+
+type PageComponent {
+    id: ID!
+    pageId: ID! @rename(attribute: "page_id")
+    licenseId: ID! @rename(attribute: "license_id")
+    "Технический ключ каталога: поиск в шаблоне, пути к файлам и подпись блока в редакторе."
+    type: String!
+    data: JSON!
+    isActive: Boolean! @rename(attribute: "is_active")
+    sortOrder: Int! @rename(attribute: "sort_order")
+    createdAt: DateTime! @rename(attribute: "created_at")
+    updatedAt: DateTime! @rename(attribute: "updated_at")
+}

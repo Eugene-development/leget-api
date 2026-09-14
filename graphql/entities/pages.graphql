@@ -1,0 +1,49 @@
+extend type Query {
+    "List all pages for a license. Requires authentication."
+    pages(licenseId: ID! @eq(key: "license_id")): [Page!]! @guard @all
+
+    "Get a single page by license and page ID. Requires authentication."
+    page(licenseId: ID! @eq(key: "license_id"), id: ID! @eq): Page! @guard @find
+}
+
+extend type Mutation {
+    "Create a new page. Requires authentication."
+    createPage(
+        licenseId: ID! @rename(attribute: "license_id")
+        slug: String!
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreatePage")
+
+    "Update an existing page. Requires authentication."
+    updatePage(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+        slug: String
+        seoTitle: String
+            @rename(attribute: "seo_title")
+            @rules(apply: ["nullable", "string", "max:255"])
+        seoDescription: String
+            @rename(attribute: "seo_description")
+            @rules(apply: ["nullable", "string", "max:500"])
+        seoKeywords: String
+            @rename(attribute: "seo_keywords")
+            @rules(apply: ["nullable", "string", "max:500"])
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdatePage")
+
+    "Delete a page. Requires authentication."
+    deletePage(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+    ): Page! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeletePage")
+}
+
+type Page {
+    id: ID!
+    licenseId: ID! @rename(attribute: "license_id")
+    slug: String!
+    seoTitle: String @rename(attribute: "seo_title")
+    seoDescription: String @rename(attribute: "seo_description")
+    seoKeywords: String @rename(attribute: "seo_keywords")
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+    license: License! @belongsTo
+}

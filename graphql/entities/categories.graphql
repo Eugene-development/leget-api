@@ -1,0 +1,63 @@
+extend type Query {
+    "Find a category by its URL slug (public)."
+    categoryBySlug(slug: String! @eq): Category @find
+
+    "List all categories, optionally filtered by rubric (public)."
+    categories(
+        "Filter by active status."
+        is_active: Boolean @eq
+        "Filter by rubric ID."
+        rubric_id: ID @eq
+    ): [Category!]! @all @orderBy(column: "sort_order", direction: ASC)
+}
+
+extend type Mutation {
+    "Включить/выключить пункт каталога только на сайте владельца."
+    toggleCategory(
+        id: ID!
+        licenseId: ID! @rename(attribute: "license_id")
+        isEnabled: Boolean! @rename(attribute: "is_enabled")
+    ): Category! @guard @field(resolver: "App\\GraphQL\\Mutations\\ToggleCategory")
+}
+
+"A category within a rubric (e.g. Kitchens, Wardrobes)."
+type Category {
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "ID of the parent rubric."
+    rubric_id: ID
+
+    "Parent rubric."
+    rubric: Rubric @belongsTo
+
+    "Name of the category."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Description of the category."
+    description: String
+
+    "Background color or image."
+    bg: String
+
+    "Whether the category is active."
+    is_active: Boolean!
+
+    "Whether the category is enabled in the catalog."
+    is_enabled: Boolean!
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Projects belonging to this category."
+    mebelProjects: [MebelProject!]! @hasMany(relation: "mebelProjects")
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+}

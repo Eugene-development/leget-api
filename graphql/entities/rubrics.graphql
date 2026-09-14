@@ -1,0 +1,40 @@
+extend type Query {
+    "Find a rubric by its URL slug (public)."
+    rubricBySlug(slug: String! @eq): Rubric @find
+
+    "List all rubrics, sorted by sort_order (public)."
+    rubrics(
+        "Filter by active status."
+        is_active: Boolean @eq
+    ): [Rubric!]! @all @orderBy(column: "sort_order", direction: ASC)
+}
+
+"A rubric (top-level catalog section, e.g. Mebel, Santehnika)."
+type Rubric {
+    "Unique ULID identifier."
+    id: ID!
+
+    "Unique key for external references."
+    key: ID!
+
+    "Name of the rubric."
+    value: String!
+
+    "URL-friendly slug."
+    slug: String!
+
+    "Description of the rubric."
+    description: String
+
+    "Whether the rubric is active."
+    is_active: Boolean!
+
+    "Sort order for display."
+    sort_order: Int!
+
+    "Categories belonging to this rubric."
+    categories: [Category!]! @hasMany
+
+    createdAt: DateTime @rename(attribute: "created_at")
+    updatedAt: DateTime @rename(attribute: "updated_at")
+}

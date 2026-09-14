@@ -1,0 +1,18 @@
+extend type Query {
+    "Search public pages of the site resolved by the request host."
+    searchSite(
+        query: String! @rules(apply: ["max:120"])
+        offset: Int = 0 @rules(apply: ["min:0", "max:10000"])
+    ): SiteSearchResponse! @field(resolver: "App\\GraphQL\\Queries\\SearchSite")
+}
+
+type SiteSearchResponse {
+    items: [SiteSearchResult!]!
+    total: Int!
+}
+
+type SiteSearchResult {
+    title: String!
+    url: String!
+    snippet: String!
+}
