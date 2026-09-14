@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
-use App\Models\Category;
 use App\Models\CatalogBrand;
+use App\Models\Category;
 use App\Models\Component;
 use App\Models\License;
 use App\Models\MebelProject;
@@ -131,7 +131,7 @@ final class RenderPage
                 ->where(function ($q) use ($license) {
                     $q->whereNull('license_id')->orWhere('license_id', $license->id);
                 })
-                ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                ->with(['tags', 'images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                 ->first();
 
             if ($project) {
@@ -257,6 +257,7 @@ final class RenderPage
                         'project' => [
                             'id' => $project->id,
                             'category_id' => $project->category_id,
+                            'can_delete' => $project->license_id !== null,
                             'value' => $project->value,
                             'slug' => $project->slug,
                             'short_description' => $project->short_description,
@@ -268,6 +269,7 @@ final class RenderPage
                             'completed_at' => $project->completed_at?->format('Y-m-d'),
                             'object_address' => $project->object_address,
                             'meta' => $project->meta ?? [],
+                            'tags' => $project->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id'])),
                             'price' => $project->price,
                             'old_price' => $project->old_price,
                             'is_new' => $project->is_new,

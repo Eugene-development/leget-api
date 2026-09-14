@@ -8,6 +8,8 @@ scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
 scalar JSON @scalar(class: "App\\GraphQL\\Scalars\\JSON")
 
 type Query {
+    tagGroups: [TagGroup!]! @all @orderBy(column: "sort_order", direction: ASC)
+
     "Render a page for the resolved tenant site. Requires X-Forwarded-Host or Host header."
     renderPage(slug: String!): RenderPageResponse!
         @field(resolver: "App\\GraphQL\\Queries\\RenderPage")
@@ -104,6 +106,8 @@ type Query {
 }
 
 type Mutation {
+    createTag(input: CreateTagInput!): Tag! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateTag")
+
     "Create a new license for the authenticated user with the given template. Requires authentication."
     createLicense(
         templateId: Int! @rename(attribute: "template_id")
@@ -190,6 +194,9 @@ type Mutation {
         id: ID!
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CancelLicense")
 
+    "Мягко удалить проект своей лицензии. Повторный запрос безопасен."
+    deleteMebelProject(id: ID!): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteMebelProject")
+
     "Create or update a Mebel Project. Requires authentication."
     upsertMebelProject(
         input: UpsertMebelProjectInput!
@@ -269,7 +276,29 @@ type Mutation {
     ): Component! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateComponent")
 }
 
+type TagGroup {
+    id: ID!
+    slug: String!
+    name: String!
+    tags: [Tag!]! @hasMany
+}
+
+type Tag {
+    id: ID!
+    name: String!
+    tag_group_id: ID!
+    group: TagGroup! @belongsTo
+}
+
+input CreateTagInput {
+    tag_group_id: ID!
+    name: String!
+}
+
 input UpsertMebelProjectInput {
+    "Выбранные теги: [] очищает связи, отсутствие поля сохраняет их."
+    tag_ids: [ID!]
+
     id: ID
     category_id: ID!
     value: String!
@@ -626,6 +655,8 @@ type Category {
 
 "A furniture project (card in the catalog)."
 type MebelProject {
+    tags: [Tag!]! @morphToMany
+
     "Unique ULID identifier."
     id: ID!
 

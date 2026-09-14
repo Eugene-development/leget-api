@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['key', 'category_id', 'license_id', 'is_active', 'value', 'slug', 'description', 'short_description', 'completed_at', 'object_address', 'price', 'old_price', 'seo_title', 'seo_description', 'seo_keywords', 'meta', 'sort_order', 'is_featured', 'is_new', 'created_by', 'updated_by', 'deleted_by'])]
@@ -37,13 +38,13 @@ class MebelProject extends Model
     protected function casts(): array
     {
         return [
-            'is_active'   => 'boolean',
+            'is_active' => 'boolean',
             'is_featured' => 'boolean',
-            'is_new'      => 'boolean',
-            'price'       => 'decimal:2',
-            'old_price'   => 'decimal:2',
-            'sort_order'  => 'integer',
-            'meta'        => 'array',
+            'is_new' => 'boolean',
+            'price' => 'decimal:2',
+            'old_price' => 'decimal:2',
+            'sort_order' => 'integer',
+            'meta' => 'array',
             // Дата, а не datetime: сдача объекта — календарный день, времени
             // у неё нет, и хранить его значит показывать «14.03.2026 00:00».
             'completed_at' => 'date',
@@ -60,6 +61,16 @@ class MebelProject extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(Tag::class, 'taggable')->withTimestamps()->orderBy('name');
+    }
+
+    protected static function booted(): void
+    {
+        static::forceDeleted(fn (self $project) => $project->tags()->detach());
     }
 
     /**

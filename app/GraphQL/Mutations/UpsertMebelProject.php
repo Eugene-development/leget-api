@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace App\GraphQL\Mutations;
 
 use App\Exceptions\GraphQLException;
-use App\Models\Image;
-use App\Models\License;
 use App\Models\MebelProject;
+use App\Support\MebelProjectImages;
 use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpsertMebelProject
@@ -25,6 +27,40 @@ final class UpsertMebelProject
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): MebelProject
     {
         $input = $args['input'];
+        if (isset($input['value']) && is_string($input['value'])) {
+            $input['value'] = trim($input['value']);
+        }
+        Validator::make($input, [
+            'id' => ['sometimes', 'nullable', 'string'],
+            'value' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'string', Rule::exists('categories', 'id')->where(fn ($query) => $query
+                ->whereNull('deleted_at')->where('is_active', true)
+                ->whereIn('rubric_id', DB::table('rubrics')->select('id')->where('slug', 'mebel')->whereNull('deleted_at')))],
+            'short_description' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:20000'],
+            'price' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
+            'old_price' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
+            'is_active' => ['sometimes', 'boolean'],
+            'is_new' => ['sometimes', 'boolean'],
+            'is_featured' => ['sometimes', 'boolean'],
+            'completed_at' => ['sometimes', 'nullable', 'date'],
+            'object_address' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'maker' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'hardware_brands' => ['sometimes', 'nullable', 'array', 'max:100'],
+            'hardware_brands.*' => ['string', 'max:120'],
+            'appliance_brands' => ['sometimes', 'nullable', 'array', 'max:100'],
+            'appliance_brands.*' => ['string', 'max:120'],
+            'tag_ids' => ['sometimes', 'array', 'max:200'],
+            'tag_ids.*' => ['required', 'string', 'distinct', 'exists:tags,id'],
+            'image_urls' => ['sometimes', 'nullable', 'array', 'max:8'],
+            'image_urls.*' => ['required', 'string', 'distinct', 'max:2048'],
+        ], [
+            'value.required' => 'Введите название проекта.',
+            'category_id.exists' => 'Выберите действующую категорию мебели.',
+            'price.min' => 'Цена не может быть отрицательной.',
+            'old_price.min' => 'Старая цена не может быть отрицательной.',
+            'image_urls.max' => 'Можно добавить не больше восьми фотографий.',
+        ])->validate();
 
         $user = $context->user();
         $request = $context->request();
@@ -66,16 +102,16 @@ final class UpsertMebelProject
             $project->license_id = $license->id;
 
             // Generate a slug if creating
-            $baseSlug = RussianSlug::make($input['value']);
+            $baseSlug = substr(RussianSlug::make($input['value']), 0, 220) ?: 'project';
             $project->slug = $baseSlug;
 
             // Ensure slug uniqueness
             $count = 1;
-            while (MebelProject::where('slug', $project->slug)->exists()) {
+            while (MebelProject::withTrashed()->where('slug', $project->slug)->exists()) {
                 $project->slug = "{$baseSlug}-{$count}";
                 $count++;
             }
-            $project->key = $project->slug;
+            $project->key = (string) Str::ulid();
 
             // Set default sort order for new projects
             $project->sort_order = MebelProject::where('category_id', $input['category_id'])
@@ -149,45 +185,22 @@ final class UpsertMebelProject
             $project->is_active = $input['is_active'];
         }
 
-        $project->save();
-
-        // Handle image_urls if provided
-        if (isset($input['image_urls'])) {
-            // Delete old images
-            $project->images()->delete();
-
-            // Add new images
-            foreach ($input['image_urls'] as $index => $url) {
-                $image = new Image;
-                $image->key = (string) Str::ulid();
-                $image->path = $url;
-
-                $fullFilename = basename(parse_url($url, PHP_URL_PATH) ?? 'image.jpg');
-                $pathInfo = pathinfo($fullFilename);
-
-                // Fetch content to calculate real sha256 hash (as in Novostroy)
-                try {
-                    $content = file_get_contents($url);
-                    $hash = $content ? hash('sha256', $content) : hash('sha256', $fullFilename);
-                    $size = $content ? strlen($content) : 0;
-                } catch (\Throwable $e) {
-                    $hash = hash('sha256', $fullFilename);
-                    $size = 0;
-                }
-
-                $image->hash = $hash;
-                $image->filename = $fullFilename;
-                $image->original_name = $fullFilename;
-                $image->mime_type = 'image/'.($pathInfo['extension'] ?? 'jpeg');
-                $image->size = $size;
-
-                $image->sort_order = $index + 1;
-                $image->is_active = true;
-                $image->parentable_id = $project->id;
-                $image->parentable_type = MebelProject::class;
-                $image->save();
+        // External storage is read before the transaction; database writes are atomic.
+        $images = isset($input['image_urls'])
+            ? app(MebelProjectImages::class)->prepare($input['image_urls'], $licenseIds)
+            : null;
+        DB::transaction(function () use ($project, $input, $images) {
+            $project->save();
+            if (array_key_exists('tag_ids', $input)) {
+                $project->tags()->sync($input['tag_ids']);
             }
-        }
+            if ($images !== null) {
+                $project->images()->delete();
+                foreach ($images as $image) {
+                    $project->images()->create(['key' => (string) Str::ulid(), ...$image]);
+                }
+            }
+        });
 
         // Clear cache for this site to reflect changes immediately
         try {
