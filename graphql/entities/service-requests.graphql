@@ -2,7 +2,7 @@ extend type Mutation {
     "Create a new service request from a public site."
     createServiceRequest(
         input: CreateServiceRequestInput!
-    ): ServiceRequest! @field(resolver: "App\\GraphQL\\Mutations\\CreateServiceRequest")
+    ): ServiceRequest! @deprecated(reason: "Public forms must use leget-auth /api/notify/service-request for durable mail delivery") @field(resolver: "App\\GraphQL\\Mutations\\CreateServiceRequest")
 }
 
 "A service request submitted by a client/visitor."
