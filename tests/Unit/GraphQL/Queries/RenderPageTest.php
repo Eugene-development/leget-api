@@ -3,8 +3,11 @@
 namespace Tests\Unit\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\GraphQL\Mutations\MovePageComponent;
 use App\GraphQL\Mutations\ToggleCategory;
 use App\GraphQL\Queries\RenderPage;
+use App\GraphQL\Queries\SearchSite;
+use App\Models\CatalogBrand;
 use App\Models\Category;
 use App\Models\Component;
 use App\Models\ComponentVariant;
@@ -16,12 +19,14 @@ use App\Models\Rubric;
 use App\Models\TemplatePage;
 use App\Models\User;
 use App\Services\CatalogVisibility;
+use App\Services\SiteSearch;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
@@ -486,7 +491,7 @@ class RenderPageTest extends TestCase
         $types = array_values(array_filter(array_column($before['page']['componentsData'], 'type'), fn ($type) => $type !== 'Footer'));
         $ownerContext = $this->createMock(GraphQLContext::class);
         $ownerContext->method('user')->willReturn(User::findOrFail($license->user_id));
-        $order = app(\App\GraphQL\Mutations\MovePageComponent::class)(null, [
+        $order = app(MovePageComponent::class)(null, [
             'license_id' => $license->id, 'page_id' => 'slug:/bytovaya-tehnika/bosch',
             'type' => $types[1], 'direction' => 'up',
         ], $ownerContext, $this->createResolveInfo());
@@ -872,9 +877,9 @@ class RenderPageTest extends TestCase
 
         // Глобальные блоки (футер) дописываются после блоков страницы — сверяем
         // только состав самой страницы.
-        $types = collect($result['page']['componentsData'])->pluck('type')->take(4)->all();
+        $types = collect($result['page']['componentsData'])->pluck('type')->take(5)->all();
         $this->assertSame(
-            ['ByttehnikaSidebar', 'ByttehnikaBrandHero', 'ByttehnikaBenefits', 'ByttehnikaCTA'],
+            ['ByttehnikaSidebar', 'ByttehnikaBrandHero', 'BrandAbout', 'ByttehnikaBenefits', 'ByttehnikaCTA'],
             $types
         );
 
@@ -1260,8 +1265,8 @@ class RenderPageTest extends TestCase
         $license = $this->createLicense(['template_id' => 1]);
         $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Столешницы', 'slug' => 'stoleshnica']);
         $material = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Кварцевый агломерат', 'slug' => 'kvarc', 'is_enabled' => true]);
-        $brand = \App\Models\CatalogBrand::create(['category_id' => $material->id, 'value' => 'Тестовый бренд', 'slug' => 'test-brand', 'description' => 'Описание бренда']);
-        \App\Models\CatalogBrand::create(['category_id' => $material->id, 'value' => 'Неактивный', 'slug' => 'inactive', 'is_active' => false]);
+        $brand = CatalogBrand::create(['category_id' => $material->id, 'value' => 'Тестовый бренд', 'slug' => 'test-brand', 'description' => 'Описание бренда']);
+        CatalogBrand::create(['category_id' => $material->id, 'value' => 'Неактивный', 'slug' => 'inactive', 'is_active' => false]);
         $context = $this->createContext(['X-Forwarded-Host' => $license->domain]);
         $render = fn ($slug) => ($this->resolver)(null, ['slug' => $slug], $context, $this->createResolveInfo());
         $components = collect($render('/stoleshnica')['page']['componentsData']);
@@ -1304,8 +1309,8 @@ class RenderPageTest extends TestCase
         $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Столешницы', 'slug' => 'stoleshnica']);
         $quartz = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Кварц', 'slug' => 'kvarc', 'is_enabled' => true]);
         Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Акрил', 'slug' => 'akril', 'is_enabled' => true]);
-        \App\Models\CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Brand', 'slug' => 'brand']);
-        \App\Models\CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Inactive', 'slug' => 'inactive', 'is_active' => false]);
+        CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Brand', 'slug' => 'brand']);
+        CatalogBrand::create(['category_id' => $quartz->id, 'value' => 'Inactive', 'slug' => 'inactive', 'is_active' => false]);
         foreach (['/stoleshnica/akril/brand', '/stoleshnica/kvarc/missing', '/stoleshnica/kvarc/inactive', '/stoleshnica/kvarc/brand/extra'] as $slug) {
             // Even a saved concrete page must not bypass catalog validation.
             Page::create(['license_id' => $license->id, 'slug' => $slug]);
@@ -1347,9 +1352,9 @@ class RenderPageTest extends TestCase
 
         // Глобальные блоки (футер) дописываются после блоков страницы — сверяем
         // только состав самой страницы.
-        $types = collect($result['page']['componentsData'])->pluck('type')->take(4)->all();
+        $types = collect($result['page']['componentsData'])->pluck('type')->take(5)->all();
         $this->assertSame(
-            ['SantehnikaSidebar', 'SantehnikaBrandHero', 'SantehnikaBenefits', 'SantehnikaCTA'],
+            ['SantehnikaSidebar', 'SantehnikaBrandHero', 'BrandAbout', 'SantehnikaBenefits', 'SantehnikaCTA'],
             $types
         );
 
@@ -1671,6 +1676,7 @@ class RenderPageTest extends TestCase
         $this->assertSame('/mebel', $result['page']['requestedSlug']);
         $this->assertArrayHasKey('seo', $result['page']);
     }
+
     public function test_site_search_uses_merged_content_and_isolates_tenants(): void
     {
         config(['templates' => [1 => ['pages' => [
@@ -1684,7 +1690,7 @@ class RenderPageTest extends TestCase
         PageComponent::create(['license_id' => $license->id, 'page_id' => $page->id,
             'type' => 'AboutHero', 'data' => ['title' => 'Кухня на заказ', 'description' => '<p>Редкий фасад</p>'], 'is_active' => true]);
         $context = $this->createContext(['X-Forwarded-Host' => 'example.com']);
-        $search = app(\App\GraphQL\Queries\SearchSite::class);
+        $search = app(SearchSite::class);
         $result = $search(null, ['query' => 'КУХ'], $context, $this->createResolveInfo());
         $this->assertSame(2, $result['total']);
         $this->assertSame(['/', '/about'], array_column($result['items'], 'url'));
@@ -1706,19 +1712,19 @@ class RenderPageTest extends TestCase
             MebelProject::create(['category_id' => $category->id, 'license_id' => $owner,
                 'slug' => $slug, 'value' => $slug, 'is_active' => true]);
         }
-        $paths = app(\App\Services\SiteSearch::class)->paths($license);
+        $paths = app(SiteSearch::class)->paths($license);
         $this->assertContains('/mebel/kuhni/shared', $paths);
         $this->assertContains('/mebel/kuhni/own', $paths);
         $this->assertNotContains('/mebel/kuhni/foreign', $paths);
         $license->catalog_settings = ['categories' => [$category->id => false]];
-        $this->assertSame([], app(\App\Services\SiteSearch::class)->paths($license));
+        $this->assertSame([], app(SiteSearch::class)->paths($license));
     }
 
     public function test_site_search_rejects_suspended_sites_even_with_cached_results(): void
     {
         $this->createLicense(['status' => 'suspended']);
         $this->expectException(GraphQLException::class);
-        app(\App\GraphQL\Queries\SearchSite::class)(null, ['query' => 'кухня'],
+        app(SearchSite::class)(null, ['query' => 'кухня'],
             $this->createContext(['X-Forwarded-Host' => 'example.com']), $this->createResolveInfo());
     }
 
@@ -1726,11 +1732,11 @@ class RenderPageTest extends TestCase
     {
         config(['templates' => [1 => ['pages' => []]]]);
         $license = $this->createLicense(['template_id' => 1]);
-        \Illuminate\Support\Facades\RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
+        RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
         for ($i = 1; $i < 60; $i++) {
-            \Illuminate\Support\Facades\RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
+            RateLimiter::hit('site-search:'.$license->id.':127.0.0.1', 60);
         }
-        $search = app(\App\GraphQL\Queries\SearchSite::class);
+        $search = app(SearchSite::class);
         $request = Request::create('/graphql', 'POST', [], [], [], ['REMOTE_ADDR' => '192.0.2.2']);
         $request->headers->set('X-Forwarded-Host', 'example.com');
         $context = $this->createMock(GraphQLContext::class);
@@ -1740,5 +1746,4 @@ class RenderPageTest extends TestCase
         $this->expectExceptionMessage('Слишком много запросов');
         $search(null, ['query' => 'кухня'], $this->createContext(['X-Forwarded-Host' => 'example.com']), $this->createResolveInfo());
     }
-
 }
