@@ -68,7 +68,7 @@ final class ApplianceBrands
         foreach ($custom->whereNull('source_category_id')->filter(fn ($brand) => ! $brand->trashed()) as $brand) {
             $entry = new Category;
             $entry->forceFill($brand->only(['id', 'slug', 'value', 'description', 'logo', 'sort_order']));
-            $entry->forceFill(['is_active' => true, 'is_enabled' => true, 'has_brand_content' => true]);
+            $entry->forceFill(['is_active' => true, 'is_enabled' => true, 'has_brand_content' => true, 'tag_target_type' => 'site_brand']);
             $entry->setRelation('tags', $brand->tags);
             $entries->push($entry);
         }

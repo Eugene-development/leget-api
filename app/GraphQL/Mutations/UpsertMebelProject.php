@@ -6,6 +6,8 @@ namespace App\GraphQL\Mutations;
 
 use App\Exceptions\GraphQLException;
 use App\Models\MebelProject;
+use App\Models\Tag;
+use App\Services\BrandTags;
 use App\Support\MebelProjectImages;
 use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpsertMebelProject
@@ -117,6 +120,22 @@ final class UpsertMebelProject
             $project->sort_order = MebelProject::where('category_id', $input['category_id'])
                 ->whereIn('license_id', $licenseIds)
                 ->max('sort_order') + 1;
+        }
+
+        if (array_key_exists('tag_ids', $input)) {
+            $tagLicense = $project->license_id ? $licenses->firstWhere('id', $project->license_id) : $license;
+            $tags = Tag::whereIn('id', $input['tag_ids'])->get();
+            $allowedGroups = DB::table('tag_group_rubric')->where('rubric_slug', 'mebel')->pluck('tag_group_id');
+            $presented = app(BrandTags::class)->present($tags, $tagLicense)->keyBy('id');
+            // Existing unavailable tags may be retained while editing; new broken/foreign links cannot be assigned.
+            $previous = $project->exists ? $project->tags()->pluck('tags.id')->all() : [];
+            foreach ($tags as $tag) {
+                $item = $presented->get($tag->id);
+                if ((! $project->license_id && $tag->license_id) || ! $allowedGroups->contains($tag->tag_group_id) || ! $item
+                    || ($item['managed'] && ! $item['href'] && ! in_array($tag->id, $previous, true))) {
+                    throw ValidationException::withMessages(['tag_ids' => 'Выберите доступные теги рубрики «Мебель» этого сайта.']);
+                }
+            }
         }
 
         $project->category_id = $input['category_id'];

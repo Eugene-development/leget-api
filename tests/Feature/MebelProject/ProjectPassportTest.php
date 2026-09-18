@@ -121,6 +121,11 @@ class ProjectPassportTest extends TestCase
             });
         }
 
+        (require base_path('../leget-db/database/migrations/2026_08_30_000001_create_catalog_brands_table.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_180000_create_appliance_brands_table.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_190000_add_rubric_to_site_brands.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_18_120000_add_tag_destinations.php'))->up();
+
         $rubric = Rubric::create([
             'key' => (string) Str::ulid(),
             'value' => 'Мебель',
@@ -133,6 +138,24 @@ class ProjectPassportTest extends TestCase
             'value' => 'Кухни',
             'slug' => 'kitchens',
         ]);
+    }
+
+    public function test_project_cannot_assign_another_sites_brand_or_assortment_tags(): void
+    {
+        $project = $this->upsert(['value' => 'Original']);
+        $tag = new Tag;
+        $tag->forceFill(['tag_group_id' => 1, 'name' => 'Private brand', 'normalized_name' => 'private brand',
+            'target_type' => 'site_brand', 'target_id' => (string) Str::ulid(), 'license_id' => (string) Str::ulid()])->save();
+        $assortment = Tag::create(['tag_group_id' => TagGroup::where('slug', 'appliance-type')->value('id'), 'name' => 'Ovens', 'normalized_name' => 'ovens']);
+        foreach ([$tag, $assortment] as $invalid) {
+            try {
+                $this->upsert(['id' => $project->id, 'value' => 'Changed', 'tag_ids' => [$invalid->id]]);
+                $this->fail('Unavailable tag must be rejected');
+            } catch (ValidationException) {
+                $this->assertSame('Original', $project->fresh()->value);
+                $this->assertCount(0, $project->fresh()->tags);
+            }
+        }
     }
 
     public function test_saves_passport_fields_on_create(): void
@@ -248,8 +271,8 @@ class ProjectPassportTest extends TestCase
         $this->assertSame([
             'Бренд техники', 'Бренд сантехники', 'Материал фасадов',
             'Материал столешницы', 'Бренд столешницы', 'Фабрика изготовитель',
-        ], TagGroup::orderBy('sort_order')->pluck('name')->all());
-        $response = $this->postJson('/graphql', ['query' => '{ tagGroups { id name tags { id name } } }']);
+        ], TagGroup::whereIn('id', DB::table('tag_group_rubric')->select('tag_group_id')->where('rubric_slug', 'mebel'))->orderBy('sort_order')->pluck('name')->all());
+        $response = $this->postJson('/graphql', ['query' => '{ tagGroups(rubric: "mebel") { id name tags { id name } } }']);
         $response->assertOk()->assertJsonCount(6, 'data.tagGroups')->assertJsonMissingPath('errors');
     }
 
@@ -313,16 +336,32 @@ class ProjectPassportTest extends TestCase
         $context = $this->createMock(GraphQLContext::class);
         $context->method('user')->willReturn(User::where('email', 'owner@example.com')->first());
         $create = app(CreateTag::class);
-        $a = $create(null, ['input' => ['tag_group_id' => 1, 'name' => '  Bosch  ']], $context);
-        $b = $create(null, ['input' => ['tag_group_id' => 1, 'name' => 'BOSCH']], $context);
-        $c = $create(null, ['input' => ['tag_group_id' => 2, 'name' => 'Bosch']], $context);
+        $a = $create(null, ['input' => ['tag_group_id' => 3, 'name' => '  Bosch  ']], $context);
+        $b = $create(null, ['input' => ['tag_group_id' => 3, 'name' => 'BOSCH']], $context);
+        $c = $create(null, ['input' => ['tag_group_id' => 4, 'name' => 'Bosch']], $context);
         $this->assertSame($a->id, $b->id);
         $this->assertNotSame($a->id, $c->id);
         $this->assertSame('Bosch', $a->name);
         $this->assertDatabaseCount('tags', 2);
         $guest = $this->createMock(GraphQLContext::class);
         $this->expectException(GraphQLException::class);
-        $create(null, ['input' => ['tag_group_id' => 1, 'name' => 'Denied']], $guest);
+        $create(null, ['input' => ['tag_group_id' => 3, 'name' => 'Denied']], $guest);
+    }
+
+    public function test_brand_tags_cannot_be_created_without_a_brand(): void
+    {
+        $this->upsert(['value' => 'Кухня']);
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('user')->willReturn(User::where('email', 'owner@example.com')->first());
+        foreach ([1, 2, 5] as $group) {
+            try {
+                app(CreateTag::class)(null, ['input' => ['tag_group_id' => $group, 'name' => 'Brand']], $context);
+                $this->fail('A brand tag requires a destination');
+            } catch (GraphQLException $exception) {
+                $this->assertSame('BRAND_TAG_AUTOMATIC', $exception->getErrorCode());
+            }
+        }
+        $this->assertDatabaseCount('tags', 0);
     }
 
     public function test_tag_rename_and_delete_through_graphql_preserve_projects(): void

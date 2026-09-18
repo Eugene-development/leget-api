@@ -186,6 +186,7 @@ class RenderPageTest extends TestCase
         (require base_path('../leget-db/database/migrations/2026_09_14_120000_create_project_tags_tables.php'))->up();
         (require base_path('../leget-db/database/migrations/2026_09_17_180000_create_appliance_brands_table.php'))->up();
         (require base_path('../leget-db/database/migrations/2026_09_17_190000_add_rubric_to_site_brands.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_18_120000_add_tag_destinations.php'))->up();
 
         // Лента `/projects` подгружает кадры работ — без таблицы eager load падает.
         if (! Schema::hasTable('images')) {
@@ -258,6 +259,92 @@ class RenderPageTest extends TestCase
             'is_active' => true,
             'status' => 'active',
         ], $attributes));
+    }
+
+    public function test_brand_tags_are_links_scoped_to_site_and_preserved_after_delete(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other.example.com', 'template_id' => 1]);
+        foreach (['santehnika', 'bytovaya-tehnika', 'stoleshnica', 'mebel'] as $slug) {
+            $rubrics[$slug] = Rubric::create(['key' => (string) Str::ulid(), 'slug' => $slug, 'value' => $slug]);
+        }
+        $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubrics['bytovaya-tehnika']->id, 'slug' => 'bosch', 'value' => 'Bosch']);
+        $material = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubrics['stoleshnica']->id, 'slug' => 'quartz', 'value' => 'Кварц']);
+        $stone = CatalogBrand::create(['category_id' => $material->id, 'slug' => 'stone', 'value' => 'Stone']);
+        $site = \App\Models\ApplianceBrand::create(['license_id' => $license->id, 'rubric_slug' => 'santehnika', 'slug' => 'bosch', 'value' => 'Bosch']);
+        $this->assertDatabaseCount('tags', 3);
+        $siteTag = Tag::where('target_type', 'site_brand')->sole();
+        $present = app(\App\Services\BrandTags::class)->present(Tag::all(), $license)->keyBy('id');
+        $this->assertSame('/santehnika/bosch', $present[$siteTag->id]['href']);
+        $this->assertContains('/bytovaya-tehnika/bosch', $present->pluck('href')->all());
+        $this->assertContains('/stoleshnica/quartz/stone', $present->pluck('href')->all());
+        $this->assertCount(2, app(\App\Services\BrandTags::class)->present(Tag::all(), $other));
+        $query = '{ tagGroups(rubric: "mebel") { slug tags { id name href managed } } siteMap }';
+        $response = $this->withHeader('X-Forwarded-Host', $license->domain)->postJson('/graphql', ['query' => $query])->assertJsonMissingPath('errors');
+        $this->assertCount(6, $response->json('data.tagGroups'));
+        $this->assertContains('/santehnika/bosch', $response->json('data.siteMap'));
+        foreach ($response->json('data.tagGroups') as $group) {
+            foreach ($group['tags'] as $tag) {
+                $this->assertTrue($tag['managed']);
+                $this->assertContains($tag['href'], $response->json('data.siteMap'));
+            }
+        }
+        $furniture = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubrics['mebel']->id, 'slug' => 'kitchens', 'value' => 'Кухни']);
+        $project = MebelProject::create(['category_id' => $furniture->id, 'license_id' => $license->id, 'slug' => 'project', 'value' => 'Проект']);
+        $project->tags()->attach($siteTag);
+        $render = ($this->resolver)(null, ['slug' => '/mebel/kitchens/project'], $this->brandContext($license), $this->createResolveInfo());
+        $hero = collect($render['page']['componentsData'])->firstWhere('type', 'MebelProjectHero');
+        $this->assertSame('/santehnika/bosch', $hero['data']['project']['tags'][0]['href']);
+        $site->update(['value' => 'Новое название']);
+        $this->assertSame($siteTag->id, Tag::where('target_type', 'site_brand')->sole()->id);
+        $this->assertSame('Новое название', $siteTag->fresh()->name);
+        $site->delete();
+        $this->assertNull(app(\App\Services\BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
+        $this->assertCount(1, $project->fresh()->tags);
+        $this->assertNotContains('/santehnika/bosch', app(\App\Services\PublicSitePages::class)->paths($license));
+        $site->restore();
+        $this->assertSame('/santehnika/bosch', app(\App\Services\BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
+        $license->catalog_settings = ['categories' => [$site->id => false, $material->id => false]];
+        $license->save();
+        $paths = app(\App\Services\PublicSitePages::class)->paths($license);
+        $this->assertNotContains('/santehnika/bosch', $paths);
+        $this->assertNotContains('/stoleshnica/quartz/stone', $paths);
+        $this->assertNotContains('/favorites', $paths);
+        $this->assertNotContains('/mebel/{category}', $paths);
+    }
+
+    public function test_shared_brand_override_keeps_tag_identity_and_managed_tags_cannot_be_edited(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'bytovaya-tehnika', 'value' => 'Техника']);
+        $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'slug' => 'bosch', 'value' => 'Bosch']);
+        $tag = Tag::where('target_type', 'category')->sole();
+        $override = \App\Models\ApplianceBrand::create(['license_id' => $license->id, 'source_category_id' => $shared->id, 'rubric_slug' => 'bytovaya-tehnika', 'slug' => 'bosch', 'value' => 'Bosch local']);
+        $this->assertDatabaseCount('tags', 1);
+        $this->assertSame('Bosch local', app(\App\Services\BrandTags::class)->present(collect([$tag]), $license)->first()['name']);
+        foreach ([UpdateTag::class, DeleteTag::class] as $mutation) {
+            try {
+                app($mutation)(null, $mutation === UpdateTag::class ? ['input' => ['id' => $tag->id, 'name' => 'Broken']] : ['id' => $tag->id], $this->brandContext($license));
+                $this->fail('Managed tag mutation must be rejected');
+            } catch (GraphQLException) {
+                $this->assertSame('Bosch', $tag->fresh()->name);
+            }
+        }
+        $override->delete();
+        $this->assertNull(app(\App\Services\BrandTags::class)->present(collect([$tag]), $license)->first()['href']);
+    }
+
+    public function test_same_countertop_brand_name_can_link_to_different_materials(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'stoleshnica', 'value' => 'Столешницы']);
+        foreach (['quartz', 'acrylic'] as $slug) {
+            $category = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'slug' => $slug, 'value' => $slug]);
+            CatalogBrand::create(['category_id' => $category->id, 'slug' => 'brand', 'value' => 'Brand']);
+        }
+        $this->assertDatabaseCount('tags', 2);
+        $this->assertSame(['/stoleshnica/quartz/brand', '/stoleshnica/acrylic/brand'], app(\App\Services\BrandTags::class)->present(Tag::all(), $license)->pluck('href')->all());
     }
 
     public function test_plumbing_brand_graphql_crud_tags_and_public_pages(): void

@@ -51,7 +51,7 @@ input UpsertMebelProjectInput {
 
 "A furniture project (card in the catalog)."
 type MebelProject {
-    tags: [Tag!]! @morphToMany
+    tags: [Tag!]! @field(resolver: "App\\GraphQL\\Queries\\ProjectTags")
 
     "Unique ULID identifier."
     id: ID!

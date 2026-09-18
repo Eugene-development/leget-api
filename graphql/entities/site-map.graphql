@@ -1,0 +1,4 @@
+extend type Query {
+    "Public canonical paths of the current site, including dynamic catalog pages."
+    siteMap: [String!]! @field(resolver: "App\\GraphQL\\Queries\\SiteMap")
+}

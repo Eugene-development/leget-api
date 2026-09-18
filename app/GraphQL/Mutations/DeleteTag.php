@@ -21,6 +21,9 @@ final class DeleteTag
 
         Validator::make($args, ['id' => ['required', 'ulid', 'exists:tags,id']])->validate();
         $tag = Tag::findOrFail($args['id']);
+        if ($tag->target_type) {
+            throw new GraphQLException('Этот тег управляется через страницу бренда.', 'MANAGED_TAG');
+        }
         // FK cascade removes all polymorphic links, including soft-deleted projects.
         $tag->delete();
 

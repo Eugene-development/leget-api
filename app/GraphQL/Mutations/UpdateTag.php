@@ -27,6 +27,9 @@ final class UpdateTag
             'name' => ['required', 'string', 'max:120'],
         ])->validate();
         $tag = Tag::findOrFail($input['id']);
+        if ($tag->target_type) {
+            throw new GraphQLException('Этот тег управляется через страницу бренда.', 'MANAGED_TAG');
+        }
         $tag->name = $input['name'];
         $tag->normalized_name = Str::lower($input['name']);
         try {

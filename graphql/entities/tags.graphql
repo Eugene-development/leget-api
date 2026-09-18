@@ -1,5 +1,5 @@
 extend type Query {
-    tagGroups: [TagGroup!]! @all @orderBy(column: "sort_order", direction: ASC)
+    tagGroups(rubric: String): [TagGroup!]! @field(resolver: "App\\GraphQL\\Queries\\TagGroups")
 }
 
 extend type Mutation {
@@ -12,14 +12,16 @@ type TagGroup {
     id: ID!
     slug: String!
     name: String!
-    tags: [Tag!]! @hasMany
+    tags: [Tag!]!
 }
 
 type Tag {
     id: ID!
     name: String!
     tag_group_id: ID!
-    group: TagGroup! @belongsTo
+    href: String
+    managed: Boolean
+    group: TagGroup!
 }
 
 input CreateTagInput {

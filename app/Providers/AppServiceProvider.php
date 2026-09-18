@@ -11,7 +11,11 @@ use App\Events\PromoDealReported;
 use App\Listeners\AccrueCuratorCommission;
 use App\Listeners\RecordOfflineConversion;
 use App\Listeners\SendPromoNotifications;
+use App\Models\ApplianceBrand;
+use App\Models\CatalogBrand;
+use App\Models\Category;
 use App\Models\User;
+use App\Services\BrandTags;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        foreach ([Category::class, CatalogBrand::class, ApplianceBrand::class] as $model) {
+            $model::saved(fn ($brand) => app(BrandTags::class)->sync($brand));
+            $model::deleted(fn () => BrandTags::changed());
+        }
         $this->registerRoleGates();
         $this->registerPromoListeners();
     }

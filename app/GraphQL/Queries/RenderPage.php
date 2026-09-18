@@ -29,7 +29,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v12';
+    private const CACHE_VERSION = 'v13';
 
     public function __construct(
         private TemplateService $templateService,
@@ -289,7 +289,7 @@ final class RenderPage
                             'completed_at' => $project->completed_at?->format('Y-m-d'),
                             'object_address' => $project->object_address,
                             'meta' => $project->meta ?? [],
-                            'tags' => $project->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id'])),
+                            'tags' => app(\App\Services\BrandTags::class)->present($project->tags, $license),
                             'price' => $project->price,
                             'old_price' => $project->old_price,
                             'is_new' => $project->is_new,

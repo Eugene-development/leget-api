@@ -50,7 +50,7 @@ class CacheInvalidationTest extends TestCase
     {
         $version = (new \ReflectionClass(RenderPage::class))->getConstant('CACHE_VERSION');
 
-        return "render:{$version}:{$licenseId}:{$slug}";
+        return "render:{$version}:{$licenseId}:{$slug}".app(\App\Services\CatalogVisibility::class)->cacheSuffix(License::findOrFail($licenseId));
     }
 
     protected function setUp(): void

@@ -33,6 +33,12 @@ final class ToggleCategoryTest extends TestCase
             $table->json('catalog_settings')->nullable();
             $table->timestamps();
         });
+        Schema::create('pages', function (Blueprint $table) {
+            $table->id();
+            $table->ulid('license_id');
+            $table->string('slug');
+            $table->timestamps();
+        });
         Schema::create('rubrics', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->ulid('key');
@@ -53,6 +59,12 @@ final class ToggleCategoryTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+        (require base_path('../leget-db/database/migrations/2026_08_30_000001_create_catalog_brands_table.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_14_120000_create_project_tags_tables.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_180000_create_appliance_brands_table.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_190000_add_rubric_to_site_brands.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_18_120000_add_tag_destinations.php'))->up();
+
     }
 
     private function owner(): User

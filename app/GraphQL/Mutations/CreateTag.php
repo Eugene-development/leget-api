@@ -26,8 +26,12 @@ final class CreateTag
             'name' => ['required', 'string', 'max:120'],
         ])->validate();
 
+        if (\App\Models\TagGroup::whereKey($input['tag_group_id'])->whereIn('slug', ['appliance-brand', 'plumbing-brand', 'countertop-brand'])->exists()) {
+            throw new GraphQLException('Создайте бренд в соответствующей рубрике — тег появится автоматически.', 'BRAND_TAG_AUTOMATIC');
+        }
+
         // Уникальный индекс также защищает от двух одновременных запросов.
-        $tag = Tag::firstOrCreate([
+        $tag = Tag::whereNull('target_type')->firstOrCreate([
             'tag_group_id' => $input['tag_group_id'],
             'normalized_name' => Str::lower($input['name']),
         ], ['name' => $input['name']]);

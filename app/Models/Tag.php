@@ -15,6 +15,13 @@ class Tag extends Model
 {
     use HasUlids;
 
+    protected static function booted(): void
+    {
+        static::saving(function (Tag $tag) {
+            $tag->manual_name = $tag->target_type ? null : $tag->normalized_name;
+        });
+    }
+
     public function group(): BelongsTo
     {
         return $this->belongsTo(TagGroup::class, 'tag_group_id');

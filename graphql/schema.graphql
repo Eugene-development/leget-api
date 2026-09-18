@@ -11,6 +11,7 @@ type Mutation
 #import entities/page-components.graphql
 #import entities/render-page.graphql
 #import entities/site-search.graphql
+#import entities/site-map.graphql
 #import entities/components.graphql
 #import entities/design-systems.graphql
 #import entities/rubrics.graphql
