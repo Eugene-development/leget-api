@@ -7,6 +7,7 @@ namespace App\GraphQL\Mutations;
 use App\Exceptions\GraphQLException;
 use App\Models\Category;
 use App\Models\License;
+use App\Services\ApplianceBrands;
 use App\Services\CatalogVisibility;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,16 @@ final class ToggleCategory
             ->whereHas('rubric', fn ($q) => $q->where('is_active', true)
                 ->whereIn('slug', array_column(CatalogVisibility::SIDEBARS, 0)))
             ->first();
+
+        if (! $category || isset(ApplianceBrands::RUBRICS[$category->rubric?->slug ?? ''])) {
+            $category = null;
+            foreach (array_keys(ApplianceBrands::RUBRICS) as $rubric) {
+                $category = app(ApplianceBrands::class)->entries($license, $rubric)->firstWhere('id', $args['id']);
+                if ($category) {
+                    break;
+                }
+            }
+        }
 
         if (! $category) {
             throw new GraphQLException('Category not found.', 'VALIDATION');

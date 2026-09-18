@@ -6,6 +6,7 @@ namespace App\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
 use App\Models\License;
+use App\Services\CatalogVisibility;
 use App\Services\SiteSearch;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
@@ -34,7 +35,7 @@ final class SearchSite
         }
         RateLimiter::hit($rateKey, 60);
 
-        $key = 'site-search:v2:'.$license->id.':'.hash('sha256', json_encode($license->catalog_settings ?? []));
+        $key = 'site-search:v4:'.$license->id.app(CatalogVisibility::class)->cacheSuffix($license);
         try {
             $cache = Cache::tags(['license:'.$license->id]);
         } catch (\BadMethodCallException) {

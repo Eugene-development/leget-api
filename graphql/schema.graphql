@@ -15,6 +15,7 @@ type Mutation
 #import entities/design-systems.graphql
 #import entities/rubrics.graphql
 #import entities/categories.graphql
+#import entities/appliance-brands.graphql
 #import entities/mebel-projects.graphql
 #import entities/wallets.graphql
 #import entities/online-payments.graphql

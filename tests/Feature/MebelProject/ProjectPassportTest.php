@@ -7,6 +7,8 @@ namespace Tests\Feature\MebelProject;
 use App\Exceptions\GraphQLException;
 use App\GraphQL\Mutations\CreateTag;
 use App\GraphQL\Mutations\DeleteMebelProject;
+use App\GraphQL\Mutations\DeleteTag;
+use App\GraphQL\Mutations\UpdateTag;
 use App\GraphQL\Mutations\UpsertMebelProject;
 use App\Models\Category;
 use App\Models\License;
@@ -49,6 +51,7 @@ class ProjectPassportTest extends TestCase
     {
         parent::setUp();
 
+        config(['lighthouse.schema_cache.enable' => false]);
         $this->mutation = app(UpsertMebelProject::class);
         (require base_path('../leget-db/database/migrations/2026_09_14_120000_create_project_tags_tables.php'))->up();
 
@@ -320,6 +323,93 @@ class ProjectPassportTest extends TestCase
         $guest = $this->createMock(GraphQLContext::class);
         $this->expectException(GraphQLException::class);
         $create(null, ['input' => ['tag_group_id' => 1, 'name' => 'Denied']], $guest);
+    }
+
+    public function test_tag_rename_and_delete_through_graphql_preserve_projects(): void
+    {
+        $tag = $this->tag('Bosch');
+        $other = $this->tag('Miele');
+        $first = $this->upsert(['value' => 'Первый', 'tag_ids' => [$tag->id, $other->id]]);
+        $second = $this->upsert(['value' => 'Второй', 'tag_ids' => [$tag->id]]);
+        $second->delete();
+        $this->actingAs(User::where('email', 'owner@example.com')->first(), 'api');
+        $this->postJson('/graphql', [
+            'query' => 'mutation($input: UpdateTagInput!) { updateTag(input: $input) { id name } }',
+            'variables' => ['input' => ['id' => $tag->id, 'name' => '  Bosch   Home  ']],
+        ])->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.updateTag.name', 'Bosch Home');
+        $this->assertSame('Bosch Home', $first->fresh()->tags->firstWhere('id', $tag->id)->name);
+        $this->assertDatabaseHas('tags', ['id' => $tag->id, 'normalized_name' => 'bosch home']);
+        $this->postJson('/graphql', [
+            'query' => 'mutation($id: ID!) { deleteTag(id: $id) { id } }',
+            'variables' => ['id' => $tag->id],
+        ])->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.deleteTag.id', $tag->id);
+        $this->assertDatabaseMissing('tags', ['id' => $tag->id]);
+        $this->assertDatabaseMissing('taggables', ['tag_id' => $tag->id]);
+        $this->assertSame([$other->id], $first->fresh()->tags->modelKeys());
+        $this->assertDatabaseCount('mebel_projects', 2);
+        $second->restore();
+        $this->assertCount(0, $second->fresh()->tags);
+    }
+
+    public function test_tag_management_rejects_invalid_names_ids_and_duplicates(): void
+    {
+        $this->upsert(['value' => 'Кухня']);
+        $tag = $this->tag('Bosch');
+        $this->tag('Miele');
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('user')->willReturn(User::where('email', 'owner@example.com')->first());
+        foreach (['   ', str_repeat('x', 121)] as $name) {
+            try {
+                app(UpdateTag::class)(null, ['input' => ['id' => $tag->id, 'name' => $name]], $context);
+                $this->fail('Invalid name accepted');
+            } catch (ValidationException) {
+                $this->assertSame('Bosch', $tag->fresh()->name);
+            }
+        }
+        foreach (['invalid', (string) Str::ulid()] as $id) {
+            try {
+                app(DeleteTag::class)(null, ['id' => $id], $context);
+                $this->fail('Invalid ID accepted');
+            } catch (ValidationException) {
+                $this->assertDatabaseCount('tags', 2);
+            }
+        }
+        try {
+            app(UpdateTag::class)(null, ['input' => ['id' => $tag->id, 'name' => '  MIELE ']], $context);
+            $this->fail('Duplicate accepted');
+        } catch (GraphQLException $exception) {
+            $this->assertSame('TAG_NAME_TAKEN', $exception->getErrorCode());
+            $this->assertSame('Bosch', $tag->fresh()->name);
+        }
+    }
+
+    public function test_tag_management_requires_owner_for_both_mutations(): void
+    {
+        $tag = $this->tag('Bosch');
+        $unlicensed = User::create(['name' => 'Visitor', 'email' => 'visitor@example.com', 'password' => bcrypt('password')]);
+        foreach ([null, $unlicensed] as $user) {
+            $context = $this->createMock(GraphQLContext::class);
+            $context->method('user')->willReturn($user);
+            foreach ([
+                [UpdateTag::class, ['input' => ['id' => $tag->id, 'name' => 'Changed']]],
+                [DeleteTag::class, ['id' => $tag->id]],
+            ] as [$mutation, $args]) {
+                try {
+                    app($mutation)(null, $args, $context);
+                    $this->fail('Unauthorized mutation accepted');
+                } catch (GraphQLException $exception) {
+                    $this->assertSame('FORBIDDEN', $exception->getErrorCode());
+                    $this->assertSame('Bosch', $tag->fresh()->name);
+                }
+            }
+        }
+        foreach ([
+            'mutation($id: ID!) { deleteTag(id: $id) { id } }',
+            'mutation($id: ID!) { updateTag(input: {id: $id, name: "Changed"}) { id } }',
+        ] as $query) {
+            $this->postJson('/graphql', ['query' => $query, 'variables' => ['id' => $tag->id]])
+                ->assertJsonStructure(['errors' => [['message']]]);
+        }
     }
 
     public function test_invalid_group_and_blank_name_are_rejected(): void

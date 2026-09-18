@@ -3,8 +3,12 @@
 namespace Tests\Unit\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\GraphQL\Mutations\DeleteApplianceBrand;
+use App\GraphQL\Mutations\DeleteTag;
 use App\GraphQL\Mutations\MovePageComponent;
 use App\GraphQL\Mutations\ToggleCategory;
+use App\GraphQL\Mutations\UpdateTag;
+use App\GraphQL\Mutations\UpsertApplianceBrand;
 use App\GraphQL\Queries\RenderPage;
 use App\GraphQL\Queries\SearchSite;
 use App\Models\CatalogBrand;
@@ -16,8 +20,11 @@ use App\Models\MebelProject;
 use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
+use App\Models\Tag;
+use App\Models\TagGroup;
 use App\Models\TemplatePage;
 use App\Models\User;
+use App\Services\ApplianceBrands;
 use App\Services\CatalogVisibility;
 use App\Services\SiteSearch;
 use App\Services\TemplateService;
@@ -28,7 +35,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 use Tests\TestCase;
 
@@ -174,6 +183,10 @@ class RenderPageTest extends TestCase
             });
         }
 
+        (require base_path('../leget-db/database/migrations/2026_09_14_120000_create_project_tags_tables.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_180000_create_appliance_brands_table.php'))->up();
+        (require base_path('../leget-db/database/migrations/2026_09_17_190000_add_rubric_to_site_brands.php'))->up();
+
         // Лента `/projects` подгружает кадры работ — без таблицы eager load падает.
         if (! Schema::hasTable('images')) {
             Schema::create('images', function (Blueprint $table) {
@@ -207,7 +220,7 @@ class RenderPageTest extends TestCase
     {
         $version = (new \ReflectionClass(RenderPage::class))->getConstant('CACHE_VERSION');
 
-        return "render:{$version}:{$licenseId}:{$slug}";
+        return "render:{$version}:{$licenseId}:{$slug}".app(CatalogVisibility::class)->cacheSuffix(License::findOrFail($licenseId));
     }
 
     private function createContext(array $headers = []): GraphQLContext
@@ -245,6 +258,208 @@ class RenderPageTest extends TestCase
             'is_active' => true,
             'status' => 'active',
         ], $attributes));
+    }
+
+    public function test_plumbing_brand_graphql_crud_tags_and_public_pages(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other.example.com', 'template_id' => 1]);
+        Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'santehnika', 'value' => 'Сантехника']);
+        $context = $this->brandContext($license);
+        $tag = Tag::create(['tag_group_id' => TagGroup::where('slug', 'plumbing-type')->value('id'), 'name' => 'Мойки', 'normalized_name' => 'мойки']);
+        $input = ['value' => 'Brand', 'logo' => $this->brandLogo($license), 'description' => '<!--leget-rich-text:v1--><p><strong>Сантехника</strong></p>', 'tag_ids' => [$tag->id]];
+        ($this->resolver)(null, ['slug' => '/santehnika'], $context, $this->createResolveInfo());
+        $query = 'mutation($license: ID!, $rubric: BrandRubric!, $input: ApplianceBrandInput!) { upsertApplianceBrand(licenseId: $license, rubric: $rubric, input: $input) { id slug value tags { id } } }';
+        $this->actingAs($license->user, 'api');
+        $response = $this->postJson('/graphql', ['query' => $query, 'variables' => ['license' => $license->id, 'rubric' => 'PLUMBING', 'input' => $input]])->assertOk()->assertJsonMissingPath('errors');
+        $id = $response->json('data.upsertApplianceBrand.id');
+        $this->assertDatabaseHas('appliance_brands', ['id' => $id, 'rubric_slug' => 'santehnika']);
+        $directory = ($this->resolver)(null, ['slug' => '/santehnika'], $context, $this->createResolveInfo());
+        $this->assertCount(1, collect($directory['page']['componentsData'])->firstWhere('type', 'SantehnikaSidebar')['data']['brands']);
+        $page = ($this->resolver)(null, ['slug' => '/santehnika/brand'], $context, $this->createResolveInfo());
+        $components = collect($page['page']['componentsData']);
+        $this->assertSame($input['logo'], $components->firstWhere('type', 'SantehnikaBrandHero')['data']['logo']);
+        $this->assertSame('Мойки', $components->firstWhere('type', 'SantehnikaBrandHero')['data']['tags'][0]['name']);
+        $this->assertSame($input['description'], $components->firstWhere('type', 'BrandAbout')['data']['description']);
+        $this->assertContains('/santehnika/brand', app(SiteSearch::class)->paths($license));
+        $this->assertNotContains('/santehnika/brand', app(SiteSearch::class)->paths($other));
+        $this->postJson('/graphql', ['query' => $query, 'variables' => ['license' => $license->id, 'rubric' => 'PLUMBING', 'input' => [...$input, 'id' => $id, 'value' => 'Новое имя']]])->assertJsonMissingPath('errors')->assertJsonPath('data.upsertApplianceBrand.slug', 'brand');
+        // Same name/slug in a different rubric is independent.
+        $this->postJson('/graphql', ['query' => $query, 'variables' => ['license' => $license->id, 'rubric' => 'APPLIANCES', 'input' => [...$input, 'tag_ids' => []]]])->assertJsonMissingPath('errors')->assertJsonPath('data.upsertApplianceBrand.slug', 'brand');
+        app(UpdateTag::class)(null, ['input' => ['id' => $tag->id, 'name' => 'Кухонные мойки']], $context);
+        $page = ($this->resolver)(null, ['slug' => '/santehnika/brand'], $context, $this->createResolveInfo());
+        $this->assertSame('Кухонные мойки', collect($page['page']['componentsData'])->firstWhere('type', 'SantehnikaBrandHero')['data']['tags'][0]['name']);
+        app(DeleteTag::class)(null, ['id' => $tag->id], $context);
+        $this->assertDatabaseMissing('taggables', ['tag_id' => $tag->id]);
+        $this->postJson('/graphql', ['query' => 'mutation($license: ID!, $id: ID!) { deleteApplianceBrand(licenseId: $license, rubric: PLUMBING, id: $id) { id } }', 'variables' => ['license' => $license->id, 'id' => $id]])->assertJsonMissingPath('errors');
+        $this->assertSoftDeleted('appliance_brands', ['id' => $id]);
+        $this->assertContains('/bytovaya-tehnika/brand', app(SiteSearch::class)->paths($license->fresh()));
+        $this->assertNotContains('/santehnika/brand', app(SiteSearch::class)->paths($license->fresh()));
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/santehnika/brand'], $context, $this->createResolveInfo());
+    }
+
+    public function test_brand_mutations_reject_cross_rubric_ids_and_tags(): void
+    {
+        $license = $this->createLicense();
+        Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'santehnika', 'value' => 'Сантехника']);
+        $context = $this->brandContext($license);
+        $input = ['value' => 'Brand', 'description' => 'Описание', 'logo' => $this->brandLogo($license), 'tag_ids' => []];
+        $brand = app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'input' => $input], $context);
+        foreach ([UpsertApplianceBrand::class, DeleteApplianceBrand::class] as $mutation) {
+            try {
+                app($mutation)(null, ['licenseId' => $license->id, 'rubric' => 'santehnika', 'id' => $brand->id, 'input' => [...$input, 'id' => $brand->id]], $context);
+                $this->fail('Cross-rubric mutation accepted');
+            } catch (GraphQLException $exception) {
+                $this->assertSame('NOT_FOUND', $exception->getErrorCode());
+            }
+        }
+        $this->assertDatabaseHas('appliance_brands', ['id' => $brand->id, 'deleted_at' => null, 'rubric_slug' => 'bytovaya-tehnika']);
+        $tag = Tag::create(['tag_group_id' => TagGroup::where('slug', 'appliance-type')->value('id'), 'name' => 'Холодильник', 'normalized_name' => 'холодильник']);
+        $this->expectException(ValidationException::class);
+        app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => 'santehnika', 'input' => [...$input, 'tag_ids' => [$tag->id]]], $context);
+    }
+
+    public function test_shared_plumbing_brand_override_is_local_and_toggle_controls_new_brands(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other.example.com', 'template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'santehnika', 'value' => 'Сантехника']);
+        $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'slug' => 'grohe', 'value' => 'Grohe']);
+        $context = $this->brandContext($license);
+        $input = ['value' => 'Grohe Home', 'description' => 'Описание', 'logo' => $this->brandLogo($license), 'tag_ids' => []];
+        app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => 'santehnika', 'input' => [...$input, 'id' => $shared->id]], $context);
+        $this->assertSame('Grohe', $shared->fresh()->value);
+        $directory = app(ApplianceBrands::class);
+        $this->assertSame('Grohe Home', $directory->entries($license, 'santehnika')->first()->value);
+        $this->assertSame('Grohe', $directory->entries($other, 'santehnika')->first()->value);
+        app(DeleteApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => 'santehnika', 'id' => $shared->id], $context);
+        $this->assertCount(0, $directory->entries($license, 'santehnika'));
+        $this->assertCount(1, $directory->entries($other, 'santehnika'));
+        $brand = app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => 'santehnika', 'input' => [...$input, 'value' => 'Новый']], $context);
+        app(ToggleCategory::class)(null, ['license_id' => $license->id, 'id' => $brand->id, 'is_enabled' => false], $context, $this->createResolveInfo());
+        $this->assertNotContains('/santehnika/'.$brand->slug, app(SiteSearch::class)->paths($license->fresh()));
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/santehnika/'.$brand->slug], $context, $this->createResolveInfo());
+    }
+
+    public function test_appliance_brand_crud_is_site_scoped_and_updates_render_and_search(): void
+    {
+        $license = $this->createLicense(['domain' => 'brand.example.com', 'template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other.example.com', 'template_id' => 1]);
+        $tag = Tag::create(['tag_group_id' => TagGroup::where('slug', 'appliance-type')->value('id'), 'name' => 'Холодильники', 'normalized_name' => 'холодильники']);
+        $context = $this->brandContext($license);
+        $input = ['value' => 'Новый бренд', 'logo' => $this->brandLogo($license), 'description' => '<!--leget-rich-text:v1--><p><strong>Описание техники</strong></p>', 'tag_ids' => [$tag->id]];
+        // Warm the directory cache before the write.
+        ($this->resolver)(null, ['slug' => '/bytovaya-tehnika'], $context, $this->createResolveInfo());
+        $brand = app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'input' => $input], $context);
+        $this->assertSame('novyy-brend', $brand->slug);
+        $this->assertSame([$tag->id], $brand->tags->modelKeys());
+        $rendered = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/'.$brand->slug], $context, $this->createResolveInfo());
+        $components = collect($rendered['page']['componentsData']);
+        $this->assertSame($input['logo'], $components->firstWhere('type', 'ByttehnikaBrandHero')['data']['logo']);
+        $this->assertSame($input['description'], $components->firstWhere('type', 'BrandAbout')['data']['description']);
+        $this->assertSame('Холодильники', $components->firstWhere('type', 'ByttehnikaBrandHero')['data']['tags'][0]['name']);
+        $this->assertContains('/bytovaya-tehnika/'.$brand->slug, app(SiteSearch::class)->paths($license));
+        $this->assertNotContains('/bytovaya-tehnika/'.$brand->slug, app(SiteSearch::class)->paths($other));
+        $directory = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika'], $context, $this->createResolveInfo());
+        $this->assertCount(1, collect($directory['page']['componentsData'])->firstWhere('type', 'ByttehnikaSidebar')['data']['brands']);
+        $renamed = app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'input' => [...$input, 'id' => $brand->id, 'value' => 'Другое имя', 'tag_ids' => []]], $context);
+        $this->assertSame($brand->slug, $renamed->slug);
+        $this->assertCount(0, $renamed->tags);
+        app(DeleteApplianceBrand::class)(null, ['licenseId' => $license->id, 'id' => $brand->id], $context);
+        $this->assertSoftDeleted('appliance_brands', ['id' => $brand->id]);
+        $this->assertDatabaseHas('tags', ['id' => $tag->id]);
+        $this->assertNotContains('/bytovaya-tehnika/'.$brand->slug, app(SiteSearch::class)->paths($license->fresh()));
+        $this->expectException(GraphQLException::class);
+        ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/'.$brand->slug], $context, $this->createResolveInfo());
+    }
+
+    public function test_shared_brand_edit_and_delete_do_not_change_other_sites(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other.example.com', 'template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'bytovaya-tehnika', 'value' => 'Техника']);
+        $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'slug' => 'bosch', 'value' => 'Bosch']);
+        $context = $this->brandContext($license);
+        $input = ['id' => $shared->id, 'value' => 'Bosch Home', 'description' => 'Описание', 'logo' => $this->brandLogo($license), 'tag_ids' => []];
+        $brand = app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'input' => $input], $context);
+        $directory = app(ApplianceBrands::class);
+        $this->assertSame('Bosch Home', $directory->entries($license)->first()->value);
+        $this->assertSame($shared->id, $directory->entries($license)->first()->id);
+        $this->assertSame('Bosch', $directory->entries($other)->first()->value);
+        $this->assertSame('Bosch', $shared->fresh()->value);
+        app(DeleteApplianceBrand::class)(null, ['licenseId' => $license->id, 'id' => $shared->id], $context);
+        $this->assertCount(0, $directory->entries($license));
+        $this->assertCount(1, $directory->entries($other));
+        $this->assertSoftDeleted('appliance_brands', ['id' => $brand->id]);
+    }
+
+    public function test_appliance_brand_rejects_foreign_owner_tags_and_invalid_logo_without_partial_writes(): void
+    {
+        $license = $this->createLicense();
+        $other = $this->createLicense(['domain' => 'other.example.com']);
+        $context = $this->brandContext($license);
+        $input = ['value' => 'Brand', 'description' => 'Description', 'logo' => $this->brandLogo($license), 'tag_ids' => []];
+        foreach ([
+            ['logo' => 'https://example.com/logo.png'],
+            ['logo' => $this->brandLogo($other)],
+            ['description' => '<!--leget-rich-text:v1--><p>&nbsp;</p>'],
+            ['tag_ids' => [(string) Str::ulid()]],
+        ] as $invalid) {
+            try {
+                app(UpsertApplianceBrand::class)(null, ['licenseId' => $license->id, 'input' => [...$input, ...$invalid]], $context);
+                $this->fail('Invalid brand accepted');
+            } catch (ValidationException) {
+                $this->assertDatabaseCount('appliance_brands', 0);
+            }
+        }
+        foreach ([UpsertApplianceBrand::class, DeleteApplianceBrand::class] as $mutation) {
+            try {
+                app($mutation)(null, ['licenseId' => $other->id, 'input' => $input, 'id' => (string) Str::ulid()], $context);
+                $this->fail('Foreign license accepted');
+            } catch (GraphQLException $error) {
+                $this->assertSame('FORBIDDEN', $error->getErrorCode());
+            }
+        }
+    }
+
+    public function test_appliance_brand_graphql_contract_and_duplicate_name_validation(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $license = $this->createLicense();
+        $input = ['value' => 'Brand', 'description' => 'Description', 'logo' => $this->brandLogo($license), 'tag_ids' => []];
+        $query = 'mutation($license: ID!, $input: ApplianceBrandInput!) { upsertApplianceBrand(licenseId: $license, input: $input) { id slug value tags { id } } }';
+        $payload = ['query' => $query, 'variables' => ['license' => $license->id, 'input' => $input]];
+        $this->postJson('/graphql', $payload)->assertJsonStructure(['errors' => [['message']]]);
+        $this->actingAs($license->user, 'api');
+        $response = $this->postJson('/graphql', $payload)->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.upsertApplianceBrand.value', 'Brand');
+        $this->postJson('/graphql', $payload)->assertJsonStructure(['errors' => [['message']]]);
+        $this->assertDatabaseCount('appliance_brands', 1);
+        $this->postJson('/graphql', ['query' => 'mutation($license: ID!, $id: ID!) { deleteApplianceBrand(licenseId: $license, id: $id) { id } }', 'variables' => ['license' => $license->id, 'id' => $response->json('data.upsertApplianceBrand.id')]])->assertOk()->assertJsonMissingPath('errors');
+    }
+
+    private function brandContext(License $license): GraphQLContext
+    {
+        $context = $this->createMock(GraphQLContext::class);
+        $request = Request::create('/graphql', 'POST');
+        $request->headers->set('X-Forwarded-Host', $license->domain);
+        $context->method('request')->willReturn($request);
+        $context->method('user')->willReturn($license->user);
+
+        return $context;
+    }
+
+    private function brandLogo(License $license): string
+    {
+        Rubric::firstOrCreate(['slug' => 'bytovaya-tehnika'], ['key' => (string) Str::ulid(), 'value' => 'Техника']);
+        Storage::fake('yandex');
+        config(['filesystems.disks.yandex.endpoint' => 'https://storage.yandexcloud.net', 'filesystems.disks.yandex.bucket' => 'leget-main']);
+        $key = 'brand-logos/'.md5($license->id).'/'.str_repeat('a', 40).'.png';
+        Storage::disk('yandex')->put($key, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSgAAAABJRU5ErkJggg=='));
+
+        return 'https://storage.yandexcloud.net/leget-main/'.$key;
     }
 
     public function test_resolves_domain_from_x_forwarded_host_header(): void

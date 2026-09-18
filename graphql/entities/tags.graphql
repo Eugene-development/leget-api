@@ -3,6 +3,8 @@ extend type Query {
 }
 
 extend type Mutation {
+    updateTag(input: UpdateTagInput!): Tag! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdateTag")
+    deleteTag(id: ID!): Tag! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteTag")
     createTag(input: CreateTagInput!): Tag! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateTag")
 }
 
@@ -22,5 +24,10 @@ type Tag {
 
 input CreateTagInput {
     tag_group_id: ID!
+    name: String!
+}
+
+input UpdateTagInput {
+    id: ID!
     name: String!
 }

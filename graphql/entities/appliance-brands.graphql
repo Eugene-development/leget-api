@@ -1,0 +1,26 @@
+extend type Mutation {
+    upsertApplianceBrand(licenseId: ID!, rubric: BrandRubric = APPLIANCES, input: ApplianceBrandInput!): ApplianceBrand! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertApplianceBrand")
+    deleteApplianceBrand(licenseId: ID!, rubric: BrandRubric = APPLIANCES, id: ID!): ApplianceBrand! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteApplianceBrand")
+}
+
+type ApplianceBrand {
+    id: ID!
+    slug: String!
+    value: String!
+    description: String
+    logo: String
+    tags: [Tag!]! @morphToMany
+}
+
+input ApplianceBrandInput {
+    id: ID
+    value: String!
+    description: String!
+    logo: String!
+    tag_ids: [ID!]!
+}
+
+enum BrandRubric {
+    APPLIANCES @enum(value: "bytovaya-tehnika")
+    PLUMBING @enum(value: "santehnika")
+}

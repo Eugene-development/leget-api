@@ -13,7 +13,9 @@ use App\Models\MebelProject;
 use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
+use App\Services\ApplianceBrands;
 use App\Services\CatalogVisibility;
+use App\Services\SiteSearch;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Collection;
@@ -27,7 +29,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v10';
+    private const CACHE_VERSION = 'v12';
 
     public function __construct(
         private TemplateService $templateService,
@@ -94,10 +96,12 @@ final class RenderPage
         $segments = explode('/', trim($slug, '/'));
         $rubricSlug = $segments[0] ?? '';
         if (count($segments) >= 2 && in_array($rubricSlug, array_column(CatalogVisibility::SIDEBARS, 0), true)) {
-            $entry = Category::where('slug', $segments[1])
-                ->where('is_active', true)
-                ->whereHas('rubric', fn ($q) => $q->where('slug', $rubricSlug)->where('is_active', true))
-                ->first();
+            $entry = isset(ApplianceBrands::RUBRICS[$rubricSlug])
+                ? app(ApplianceBrands::class)->entries($license, $rubricSlug)->firstWhere('slug', $segments[1])
+                : Category::where('slug', $segments[1])
+                    ->where('is_active', true)
+                    ->whereHas('rubric', fn ($q) => $q->where('slug', $rubricSlug)->where('is_active', true))
+                    ->first();
             if (! $entry || ! $this->catalogVisibility->enabled($entry, $license)) {
                 throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
             }
@@ -242,10 +246,26 @@ final class RenderPage
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], array_filter([
                     'title' => $brand->value,
-                    'description' => $brand->description,
+                    'description' => $brand->hero_description ?? $brand->description,
                 ], fn ($value) => $value !== null && $value !== ''), [
                     'brandSlug' => $brand->slug,
                 ]);
+            }
+
+            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
+                $component = clone $component;
+                $extra = ['tags' => $brand->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id']))];
+                if ($brand->has_brand_content) {
+                    $extra['logo'] = $brand->logo;
+                    // Full description belongs to BrandAbout, not the hero's short lead.
+                    $extra['description'] = '';
+                    $extra['managedBrand'] = true;
+                }
+                $component->data = array_merge($component->data ?? [], $extra);
+            }
+            if ($brand && $brand->has_brand_content && $component->type === 'BrandAbout') {
+                $component = clone $component;
+                $component->data = array_merge($component->data ?? [], ['description' => $brand->description, 'managedBrand' => true]);
             }
 
             // Enrich project-specific components
@@ -538,6 +558,13 @@ final class RenderPage
      */
     private function getRubricCategories(string $rubricSlug, License $license): Collection
     {
+        if (isset(ApplianceBrands::RUBRICS[$rubricSlug])) {
+            return app(ApplianceBrands::class)->entries($license, $rubricSlug)->map(fn (Category $brand) => [
+                ...$brand->only(['id', 'value', 'slug', 'logo', 'description', 'sort_order']),
+                'is_enabled' => $this->catalogVisibility->enabled($brand, $license),
+                'tags' => $brand->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id']))->all(),
+            ]);
+        }
         $rubric = Rubric::where('slug', $rubricSlug)
             ->where('is_active', true)
             ->first();
@@ -742,7 +769,7 @@ final class RenderPage
             ];
             $variables['brand_description'] = [
                 'label' => 'Описание бренда',
-                'value' => (string) ($brand->description ?? ''),
+                'value' => SiteSearch::text((string) ($brand->description ?? ''), 'description'),
             ];
         }
 

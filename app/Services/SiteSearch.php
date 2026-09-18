@@ -44,6 +44,10 @@ final class SiteSearch
                 if ($category && in_array($type, ['MebelCategoryHero', 'ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
                     $data = array_merge($data, array_filter(['title' => $category->value, 'description' => $category->description], fn ($v) => $v !== null && $v !== ''));
                 }
+                if ($category?->has_brand_content && $type === 'BrandAbout') {
+                    $data['description'] = $category->description;
+                    $data['tags'] = $category->tags->map(fn ($tag) => ['name' => $tag->name])->all();
+                }
                 if ($category && $type === 'StoleshnicaBrandHero') {
                     foreach (['title' => $brand?->value ?? $category->value, 'description' => $brand?->description ?? $category->description] as $key => $value) {
                         if ((! $component || ! array_key_exists($key, $data)) && $value !== null && $value !== '') {
@@ -80,7 +84,14 @@ final class SiteSearch
         $categories = Category::where('is_active', true)
             ->whereHas('rubric', fn ($q) => $q->where('is_active', true))
             ->with(['rubric', 'brands' => fn ($q) => $q->where('is_active', true)])->get()
-            ->filter(fn ($category) => $this->visibility->enabled($category, $license));
+            ->filter(fn ($category) => ! isset(ApplianceBrands::RUBRICS[$category->rubric->slug]) && $this->visibility->enabled($category, $license));
+        foreach (array_keys(ApplianceBrands::RUBRICS) as $rubric) {
+            foreach (app(ApplianceBrands::class)->entries($license, $rubric) as $entry) {
+                if ($this->visibility->enabled($entry, $license)) {
+                    $sources['/'.$rubric.'/'.$entry->slug] = ['category' => $entry];
+                }
+            }
+        }
         foreach ($categories as $category) {
             $path = '/'.$category->rubric->slug.'/'.$category->slug;
             $sources[$path] = ['category' => $category];
