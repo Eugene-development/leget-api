@@ -406,7 +406,7 @@ return [
             '/guarantees' => [
                 ['type' => 'GuaranteesHero',  'defaults' => ['title' => 'Гарантия качества', 'subtitle' => 'Мы уверены в качестве продукции наших партнёров. Вся продукция имеет расширенную гарантию на материалы и работу мастеров.']],
                 ['type' => 'GuaranteeTerms',  'defaults' => ['title' => 'Сроки гарантии', 'subtitle' => 'Официальная гарантия от производителей на все категории', 'items' => []]],
-                ['type' => 'WhatsCovered',    'defaults' => ['title' => 'Что покрывает гарантия', 'description' => 'Наша гарантия распространяется на производственные дефекты материалов и качество сборки.', 'items' => [], 'imageUrl' => '']],
+                ['type' => 'WhatsCovered',    'defaults' => ['title' => 'Что покрывает гарантия', 'description' => 'Наша гарантия распространяется на производственные дефекты материалов и качество сборки.', 'items' => [], 'imageUrl' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/guarantees/whats-covered-craftsmanship-20260918.png']],
                 ['type' => 'HowToApply',      'defaults' => ['title' => 'Как обратиться по гарантии', 'subtitle' => 'Простой процесс решения гарантийных вопросов', 'steps' => []]],
                 ['type' => 'GuaranteesCTA',   'defaults' => ['title' => 'Гарантийный случай?', 'subtitle' => 'Заполните форму или позвоните нам — решим вопрос в кратчайшие сроки', 'buttonText' => 'Оставить заявку', 'phone' => '']],
             ],
