@@ -462,8 +462,8 @@ return [
                 ['type' => 'MebelHero',      'defaults' => [
                     'title' => 'Мебель на заказ',
                     'description' => 'Создаём уникальную корпусную мебель по вашим размерам и дизайну. Индивидуальный подход к каждому проекту.',
-                    'primaryButton' => 'Ваш проект',
-                    'secondaryButton' => 'Бесплатный замер',
+                    'primaryButton' => 'Составить проект мебели',
+                    'secondaryButton' => 'Заказать замер помещения',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_hero.png',
                 ]],
                 ['type' => 'MebelBenefits',  'defaults' => [
@@ -503,7 +503,8 @@ return [
                 ['type' => 'MebelCategoryHero', 'defaults' => [
                     'title' => 'Категория',
                     'description' => 'Описание категории',
-                    'buttonText' => 'Создать проект',
+                    'primaryButton' => 'Составить проект мебели',
+                    'secondaryButton' => 'Заказать замер помещения',
                 ]],
                 ['type' => 'MebelProjectsGrid', 'defaults' => [
                     'projects' => [], // Will be enriched
@@ -679,7 +680,7 @@ return [
                     'title' => 'Столешницы',
                     'description' => 'Изготавливаем столешницы из искусственного камня, кварца, массива и других материалов. Точный раскрой под вашу кухню с вырезами под мойку и варочную панель.',
                     'primaryButton' => 'Рассчитать стоимость',
-                    'secondaryButton' => 'Вызвать замерщика',
+                    'secondaryButton' => 'Заказать замер столешницы',
                 ]],
                 ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды столешниц', 'brands' => []]],
                 ['type' => 'StoleshnicaMaterials', 'defaults' => [
@@ -728,7 +729,8 @@ return [
                 ['type' => 'StoleshnicaBrandHero', 'defaults' => [
                     'title' => 'Столешницы',
                     'description' => 'Подберём столешницу под ваш проект кухни и рассчитаем стоимость.',
-                    'buttonText' => 'Подобрать столешницу',
+                    'primaryButton' => 'Рассчитать стоимость',
+                    'secondaryButton' => 'Заказать замер столешницы',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/countertops_hero.png',
                 ]],
                 ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды материала', 'brands' => []]],
@@ -746,7 +748,8 @@ return [
                 ['type' => 'StoleshnicaBrandHero', 'defaults' => [
                     'title' => 'Столешницы',
                     'description' => 'Подберём столешницу под ваш проект кухни и рассчитаем стоимость.',
-                    'buttonText' => 'Подобрать столешницу',
+                    'primaryButton' => 'Рассчитать стоимость',
+                    'secondaryButton' => 'Заказать замер столешницы',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/countertops_hero.png',
                 ]],
                 ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды материала', 'brands' => []]],
@@ -873,7 +876,7 @@ return [
                 ['type' => 'SantehnikaHero', 'defaults' => [
                     'title' => 'Сантехника',
                     'description' => 'Кухонные мойки, смесители, измельчители и аксессуары от ведущих производителей. Подберём идеальное сочетание цвета и формы для вашей кухни.',
-                    'primaryButton' => 'Подобрать комплект',
+                    'primaryButton' => 'Подобрать сантехнику',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/plumbing_hero.png',
                 ]],
                 // Карточки брендов ведут на /santehnika/{brand}, поэтому список
