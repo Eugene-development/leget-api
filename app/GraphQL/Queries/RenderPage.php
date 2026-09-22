@@ -29,7 +29,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v13';
+    private const CACHE_VERSION = 'v14';
 
     public function __construct(
         private TemplateService $templateService,
@@ -545,7 +545,7 @@ final class RenderPage
     /**
      * Активные категории рубрики — справочник, из которого живут списки
      * сайдбаров каталога: у мебели это категории («Кухни», «Шкафы»),
-     * у бытовой техники — бренды («Bosch», «Siemens»). Разница между ними
+     * у бытовой техники — бренды (например, «Bosch»). Разница между ними
      * только в рубрике, поэтому и запрос один.
      *
      * `is_enabled` едет вместе со списком, а не фильтрует его: владелец сайта

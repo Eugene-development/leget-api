@@ -778,8 +778,18 @@ class RenderPageTest extends TestCase
         $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
             $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
 
-        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrandHero');
+        $components = collect($result['page']['componentsData']);
+        $hero = $components->firstWhere('type', 'ByttehnikaBrandHero');
         $this->assertSame($expected, $hero['catalog']);
+        $this->assertSame(
+            'https://storage.yandexcloud.net/leget-main/templates/promo-1/bosch-logo.webp',
+            $hero['data']['logo'],
+        );
+        $this->assertStringContainsString('Bosch', $hero['data']['description']);
+        $this->assertStringContainsString(
+            'основанный Робертом Бошем в 1886 году',
+            $components->firstWhere('type', 'BrandAbout')['data']['description'],
+        );
     }
 
     public function test_saved_order_is_rendered_for_guests_and_preserves_dynamic_data(): void
@@ -1743,6 +1753,37 @@ class RenderPageTest extends TestCase
             ['Omoikiri', 'Pereal'],
             collect($cards['data']['brands'])->pluck('value')->all()
         );
+    }
+
+    public function test_inactive_appliance_brands_are_absent_from_sidebar_and_cards(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'appliance-active-only.example.com',
+            'template_id' => 1,
+        ]);
+
+        $this->createBrand(['value' => 'Bosch', 'slug' => 'bosch', 'sort_order' => 10]);
+        $this->createBrand([
+            'value' => 'Siemens',
+            'slug' => 'siemens',
+            'sort_order' => 20,
+            'is_active' => false,
+        ]);
+
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika'],
+            $this->createContext(['X-Forwarded-Host' => 'appliance-active-only.example.com']),
+            $this->createResolveInfo()
+        );
+
+        $components = collect($result['page']['componentsData'])->keyBy('type');
+        foreach (['ByttehnikaSidebar', 'ByttehnikaBrands'] as $type) {
+            $this->assertSame(
+                ['Bosch'],
+                collect($components[$type]['data']['brands'])->pluck('value')->all(),
+            );
+        }
     }
 
     private function createSantehnikaBrand(array $attributes = []): Category

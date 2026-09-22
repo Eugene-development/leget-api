@@ -766,10 +766,6 @@ return [
                 ['type' => 'ByttehnikaSidebar', 'defaults' => [
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
-                        ['title' => 'Siemens',   'slug' => 'siemens'],
-                        ['title' => 'Electrolux', 'slug' => 'electrolux'],
-                        ['title' => 'Hansa',     'slug' => 'hansa'],
-                        ['title' => 'Gorenje',   'slug' => 'gorenje'],
                     ],
                 ]],
                 ['type' => 'ByttehnikaHero', 'defaults' => [
@@ -782,11 +778,6 @@ return [
                     'title' => 'Работаем с лучшими брендами',
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
-                        ['title' => 'Siemens',   'slug' => 'siemens'],
-                        ['title' => 'Electrolux', 'slug' => 'electrolux'],
-                        ['title' => 'Hansa',     'slug' => 'hansa'],
-                        ['title' => 'Gorenje',   'slug' => 'gorenje'],
-                        ['title' => 'Whirlpool', 'slug' => 'whirlpool'],
                     ],
                 ]],
                 ['type' => 'ByttehnikaBenefits', 'defaults' => [
@@ -806,11 +797,11 @@ return [
                 ]],
                 ['type' => 'ByttehnikaComplex', 'defaults' => [
                     'title' => 'Комплексное решение',
-                    'description' => 'Закажите кухню вместе с техникой и получите скидку до 15% на весь комплект. Наши дизайнеры подберут технику, которая идеально впишется в ваш проект.',
+                    'description' => 'Закажите мебель вместе с техникой и получите скидку до 5% на весь комплект. Наши специалисты подберут технику, которая идеально впишется в ваш проект.',
                     'buttonText' => 'Заказать проект мебели',
                     'perks' => [
                         'Единый проект кухни и техники',
-                        'Скидка на комплект до 15%',
+                        'Скидка на комплект до 5%',
                         'Одновременная доставка и установка',
                     ],
                 ]],
@@ -836,13 +827,14 @@ return [
                 ]],
                 ['type' => 'ByttehnikaBrandHero', 'defaults' => [
                     'title' => 'Бренд',
-                    'description' => 'Техника бренда: подберём модели под ваш проект кухни и рассчитаем комплект.',
+                    'description' => 'Bosch — немецкая бытовая техника для современной кухни: продуманная эргономика, точная работа и надёжные технологии на каждый день.',
+                    'logo' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/bosch-logo.webp',
                     'buttonText' => 'Подобрать технику',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/appliances_hero.png',
                 ]],
                 ['type' => 'BrandAbout', 'defaults' => [
                     'title' => 'О бренде',
-                    'description' => 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+                    'description' => '<!--leget-rich-text:v1--><p>Bosch — немецкий бренд, основанный Робертом Бошем в 1886 году. В бытовой технике компания делает акцент на надёжности, точной инженерии и понятном управлении.</p><p>В ассортименте для кухни — духовые шкафы, варочные панели, вытяжки, холодильники, посудомоечные машины и компактная техника. Линейки рассчитаны на разные сценарии: от базовых моделей до решений с автоматическими программами и дистанционным управлением Home Connect.</p><p>Мы поможем подобрать модели Bosch под размеры мебели, привычки семьи и бюджет, проверим совместимость техники и подготовим комплект для установки.</p>',
                 ]],
                 ['type' => 'ByttehnikaBenefits', 'defaults' => [
                     'title' => 'Почему покупают у нас',
@@ -853,7 +845,7 @@ return [
                     ],
                 ]],
                 ['type' => 'ByttehnikaCTA', 'defaults' => [
-                    'title' => 'Не нашли нужную модель?',
+                    'title' => 'Нужна помощь в выборе?',
                     'description' => 'Наши специалисты подберут технику этого бренда под ваши задачи и бюджет',
                     'buttonText' => 'Получить консультацию',
                 ]],
