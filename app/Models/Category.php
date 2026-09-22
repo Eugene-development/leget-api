@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['key', 'rubric_id', 'is_active', 'is_enabled', 'value', 'slug', 'description', 'bg', 'seo_title', 'seo_description', 'seo_keywords', 'sort_order', 'created_by', 'updated_by', 'deleted_by'])]
+#[Fillable(['key', 'rubric_id', 'is_active', 'is_enabled', 'value', 'slug', 'description', 'full_description', 'bg', 'logo', 'seo_title', 'seo_description', 'seo_keywords', 'sort_order', 'created_by', 'updated_by', 'deleted_by'])]
 class Category extends Model
 {
     use HasUlids, SoftDeletes;

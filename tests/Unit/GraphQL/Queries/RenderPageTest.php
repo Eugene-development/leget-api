@@ -146,6 +146,11 @@ class RenderPageTest extends TestCase
                 $table->string('value');
                 $table->string('slug')->unique();
                 $table->text('description')->nullable();
+                $table->text('full_description')->nullable();
+                $table->string('logo')->nullable();
+                $table->string('seo_title')->nullable();
+                $table->text('seo_description')->nullable();
+                $table->string('seo_keywords')->nullable();
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
                 $table->softDeletes();
@@ -772,7 +777,13 @@ class RenderPageTest extends TestCase
     public function test_dynamic_brand_uses_template_slug_for_catalog_articles(): void
     {
         $license = $this->createLicense(['template_id' => 1]);
-        $this->createBrand(['slug' => 'bosch', 'value' => 'Bosch']);
+        $this->createBrand([
+            'slug' => 'bosch',
+            'value' => 'Bosch',
+            'description' => 'Краткое описание Bosch',
+            'full_description' => '<!--leget-rich-text:v1--><p>Полное описание Bosch</p>',
+            'logo' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/bosch-logo.webp',
+        ]);
         $expected = $this->createCatalogComponent(1, '/bytovaya-tehnika/{brand}', 28, 'ByttehnikaBrandHero', 1);
 
         $result = ($this->resolver)(null, ['slug' => '/bytovaya-tehnika/bosch'],
@@ -785,9 +796,9 @@ class RenderPageTest extends TestCase
             'https://storage.yandexcloud.net/leget-main/templates/promo-1/bosch-logo.webp',
             $hero['data']['logo'],
         );
-        $this->assertStringContainsString('Bosch', $hero['data']['description']);
-        $this->assertStringContainsString(
-            'основанный Робертом Бошем в 1886 году',
+        $this->assertSame('Краткое описание Bosch', $hero['data']['description']);
+        $this->assertSame(
+            '<!--leget-rich-text:v1--><p>Полное описание Bosch</p>',
             $components->firstWhere('type', 'BrandAbout')['data']['description'],
         );
     }
@@ -1652,6 +1663,11 @@ class RenderPageTest extends TestCase
             'value' => 'Omoikiri',
             'slug' => 'omoikiri',
             'description' => 'Кухонные мойки и смесители Omoikiri: гранитные и стальные модели.',
+            'full_description' => '<!--leget-rich-text:v1--><p>Полное описание Omoikiri</p>',
+            'logo' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/omoikiri-logo.svg',
+            'seo_title' => 'Сантехника Omoikiri — каталог',
+            'seo_description' => 'Мойки и смесители Omoikiri для кухни.',
+            'seo_keywords' => 'Omoikiri, мойка Omoikiri',
         ]);
 
         $context = $this->createContext(['X-Forwarded-Host' => 'santehnika-brand.example.com']);
@@ -1670,13 +1686,25 @@ class RenderPageTest extends TestCase
             $types
         );
 
-        $hero = collect($result['page']['componentsData'])->firstWhere('type', 'SantehnikaBrandHero');
+        $components = collect($result['page']['componentsData']);
+        $hero = $components->firstWhere('type', 'SantehnikaBrandHero');
         $this->assertSame('Omoikiri', $hero['data']['title']);
         $this->assertSame(
             'Кухонные мойки и смесители Omoikiri: гранитные и стальные модели.',
             $hero['data']['description']
         );
+        $this->assertSame(
+            'https://storage.yandexcloud.net/leget-main/templates/promo-1/omoikiri-logo.svg',
+            $hero['data']['logo'],
+        );
+        $this->assertSame(
+            '<!--leget-rich-text:v1--><p>Полное описание Omoikiri</p>',
+            $components->firstWhere('type', 'BrandAbout')['data']['description'],
+        );
         $this->assertSame('omoikiri', $hero['data']['brandSlug']);
+        $this->assertSame('Сантехника Omoikiri — каталог', $result['page']['seo']['title']);
+        $this->assertSame('Мойки и смесители Omoikiri для кухни.', $result['page']['seo']['description']);
+        $this->assertSame('Omoikiri, мойка Omoikiri', $result['page']['seo']['keywords']);
 
         // Сайдбар подсвечивает открытый бренд.
         $sidebar = collect($result['page']['componentsData'])->firstWhere('type', 'SantehnikaSidebar');
@@ -1953,6 +1981,41 @@ class RenderPageTest extends TestCase
             ['token' => '{category}', 'label' => 'Название категории', 'value' => 'Кухни'],
             $seo['variables']
         );
+    }
+
+    public function test_dynamic_shared_brand_uses_directory_seo_without_saved_page(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'brand-seo.example.com',
+            'name' => 'Общее название сайта',
+            'meta_description' => 'Общее описание сайта',
+            'template_id' => 1,
+        ]);
+        $this->createBrand([
+            'value' => 'SMEG',
+            'slug' => 'smeg',
+            'description' => 'Краткое описание SMEG',
+            'seo_title' => 'Техника SMEG — каталог',
+            'seo_description' => 'Итальянская бытовая техника SMEG для кухни.',
+            'seo_keywords' => 'SMEG, техника SMEG',
+        ]);
+
+        $result = ($this->resolver)(
+            null,
+            ['slug' => '/bytovaya-tehnika/smeg'],
+            $this->createContext(['X-Forwarded-Host' => 'brand-seo.example.com']),
+            $this->createResolveInfo()
+        );
+
+        $seo = $result['page']['seo'];
+        $this->assertSame('Техника SMEG — каталог', $seo['title']);
+        $this->assertSame('Итальянская бытовая техника SMEG для кухни.', $seo['description']);
+        $this->assertSame('SMEG, техника SMEG', $seo['keywords']);
+        $this->assertNull($seo['rawTitle']);
+        $this->assertNull($seo['rawDescription']);
+        $this->assertTrue($seo['isDynamic']);
+        $this->assertSame('/bytovaya-tehnika/{brand}', $seo['pattern']);
+        $this->assertSame('/bytovaya-tehnika/smeg', $result['page']['requestedSlug']);
     }
 
     public function test_caches_response_in_redis(): void

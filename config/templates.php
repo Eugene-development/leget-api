@@ -682,12 +682,13 @@ return [
                     'primaryButton' => 'Рассчитать стоимость',
                     'secondaryButton' => 'Заказать замер столешницы',
                 ]],
-                ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды столешниц', 'brands' => []]],
+                ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Другие бренды материала', 'brands' => []]],
                 ['type' => 'StoleshnicaMaterials', 'defaults' => [
                     'title' => 'Сравнение материалов',
                     'rows' => [
                         ['material' => 'Кварцевый агломерат', 'price' => 'Высокая', 'strength' => 'Высокая', 'care' => 'Простой',       'strengthColor' => 'emerald', 'careColor' => 'emerald'],
                         ['material' => 'Акриловый камень',    'price' => 'Средняя', 'strength' => 'Средняя', 'care' => 'Простой',       'strengthColor' => 'amber',   'careColor' => 'emerald'],
+                        ['material' => 'Компакт плита',       'price' => 'Средняя', 'strength' => 'Высокая', 'care' => 'Простой',       'strengthColor' => 'emerald', 'careColor' => 'emerald'],
                         ['material' => 'ДСП / Постформинг',  'price' => 'Низкая',  'strength' => 'Средняя', 'care' => 'Простой',       'strengthColor' => 'amber',   'careColor' => 'emerald'],
                         ['material' => 'Массив дерева',       'price' => 'Высокая', 'strength' => 'Низкая',  'care' => 'Требует ухода', 'strengthColor' => 'sky',     'careColor' => 'amber'],
                         ['material' => 'Керамика',            'price' => 'Высокая', 'strength' => 'Высокая', 'care' => 'Простой',       'strengthColor' => 'emerald', 'careColor' => 'emerald'],
@@ -766,6 +767,11 @@ return [
                 ['type' => 'ByttehnikaSidebar', 'defaults' => [
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
+                        ['title' => 'Korting',   'slug' => 'korting'],
+                        ['title' => 'Evelux',    'slug' => 'evelux'],
+                        ['title' => 'Krona',     'slug' => 'krona'],
+                        ['title' => 'ASCO',      'slug' => 'asco'],
+                        ['title' => 'SMEG',      'slug' => 'smeg'],
                     ],
                 ]],
                 ['type' => 'ByttehnikaHero', 'defaults' => [
@@ -778,6 +784,11 @@ return [
                     'title' => 'Работаем с лучшими брендами',
                     'brands' => [
                         ['title' => 'Bosch',     'slug' => 'bosch'],
+                        ['title' => 'Korting',   'slug' => 'korting'],
+                        ['title' => 'Evelux',    'slug' => 'evelux'],
+                        ['title' => 'Krona',     'slug' => 'krona'],
+                        ['title' => 'ASCO',      'slug' => 'asco'],
+                        ['title' => 'SMEG',      'slug' => 'smeg'],
                     ],
                 ]],
                 ['type' => 'ByttehnikaBenefits', 'defaults' => [
@@ -827,14 +838,13 @@ return [
                 ]],
                 ['type' => 'ByttehnikaBrandHero', 'defaults' => [
                     'title' => 'Бренд',
-                    'description' => 'Bosch — немецкая бытовая техника для современной кухни: продуманная эргономика, точная работа и надёжные технологии на каждый день.',
-                    'logo' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/bosch-logo.webp',
+                    'description' => 'Подберём бытовую технику бренда под ваш проект кухни и рассчитаем комплект.',
                     'buttonText' => 'Подобрать технику',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/appliances_hero.png',
                 ]],
                 ['type' => 'BrandAbout', 'defaults' => [
                     'title' => 'О бренде',
-                    'description' => '<!--leget-rich-text:v1--><p>Bosch — немецкий бренд, основанный Робертом Бошем в 1886 году. В бытовой технике компания делает акцент на надёжности, точной инженерии и понятном управлении.</p><p>В ассортименте для кухни — духовые шкафы, варочные панели, вытяжки, холодильники, посудомоечные машины и компактная техника. Линейки рассчитаны на разные сценарии: от базовых моделей до решений с автоматическими программами и дистанционным управлением Home Connect.</p><p>Мы поможем подобрать модели Bosch под размеры мебели, привычки семьи и бюджет, проверим совместимость техники и подготовим комплект для установки.</p>',
+                    'description' => 'Информация о бренде, его ассортименте и особенностях техники.',
                 ]],
                 ['type' => 'ByttehnikaBenefits', 'defaults' => [
                     'title' => 'Почему покупают у нас',
@@ -862,7 +872,8 @@ return [
                         ['title' => 'EMAR',       'slug' => 'emar'],
                         ['title' => 'Florentina', 'slug' => 'florentina'],
                         ['title' => 'Paulmark',   'slug' => 'paulmark'],
-                        ['title' => 'Pereal',     'slug' => 'pereal'],
+                        ['title' => 'Pureal',     'slug' => 'pureal'],
+                        ['title' => 'Granula',    'slug' => 'granula'],
                     ],
                 ]],
                 ['type' => 'SantehnikaHero', 'defaults' => [
@@ -886,7 +897,8 @@ return [
                         ['title' => 'EMAR',       'slug' => 'emar'],
                         ['title' => 'Florentina', 'slug' => 'florentina'],
                         ['title' => 'Paulmark',   'slug' => 'paulmark'],
-                        ['title' => 'Pereal',     'slug' => 'pereal'],
+                        ['title' => 'Pureal',     'slug' => 'pureal'],
+                        ['title' => 'Granula',    'slug' => 'granula'],
                     ],
                 ]],
                 ['type' => 'SantehnikaSinkTypes', 'defaults' => [

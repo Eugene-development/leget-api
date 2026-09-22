@@ -48,13 +48,14 @@ final class ApplianceBrands
             }
             $entry = clone $category;
             $entry->setAttribute('hero_description', $category->description);
+            $entry->setAttribute('description', $category->full_description ?? $category->description);
             $saved = ($pages->get('/'.$rubric.'/'.$category->slug) ?? $pages->get('/'.$rubric.'/{brand}'))?->pageComponents->keyBy('type');
-            $entry->setAttribute('logo', $saved?->get($definition['hero'])?->data['logo'] ?? null);
+            $entry->setAttribute('logo', $saved?->get($definition['hero'])?->data['logo'] ?? $category->logo);
             if ($saved?->get('BrandAbout') && array_key_exists('description', $saved->get('BrandAbout')->data ?? [])) {
                 $entry->setAttribute('description', $saved->get('BrandAbout')->data['description']);
             }
             $entry->setRelation('tags', collect());
-            $entry->setAttribute('has_brand_content', false);
+            $entry->setAttribute('has_brand_content', filled($entry->description) || filled($entry->logo));
             if ($override) {
                 foreach (['value', 'description', 'logo'] as $key) {
                     $entry->setAttribute($key, $override->$key);

@@ -29,7 +29,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v14';
+    private const CACHE_VERSION = 'v15';
 
     public function __construct(
         private TemplateService $templateService,
@@ -257,8 +257,12 @@ final class RenderPage
                 $extra = ['tags' => $brand->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id']))];
                 if ($brand->has_brand_content) {
                     $extra['logo'] = $brand->logo;
-                    // Full description belongs to BrandAbout, not the hero's short lead.
-                    $extra['description'] = '';
+                    // A site-only brand has no separate short lead: its full text belongs
+                    // to BrandAbout and must not be duplicated in the hero. Shared brands
+                    // keep the concise directory description in hero_description.
+                    if (blank($brand->hero_description ?? null)) {
+                        $extra['description'] = '';
+                    }
                     $extra['managedBrand'] = true;
                 }
                 $component->data = array_merge($component->data ?? [], $extra);
@@ -790,17 +794,24 @@ final class RenderPage
 
         $rawTitle = $page->seo_title;
         $rawDescription = $page->seo_description;
+        $rawKeywords = $page->seo_keywords;
+        $directoryTitle = $brand instanceof Category ? $brand->seo_title : null;
+        $directoryDescription = $brand instanceof Category ? $brand->seo_description : null;
+        $directoryKeywords = $brand instanceof Category ? $brand->seo_keywords : null;
+        $titleSource = $rawTitle ?? ($isDynamic ? $directoryTitle : null);
+        $descriptionSource = $rawDescription ?? ($isDynamic ? $directoryDescription : null);
+        $keywordsSource = $rawKeywords ?? ($isDynamic ? $directoryKeywords : null);
         $title = $isDynamic
-            ? $this->renderSeoTemplate($rawTitle, $variables)
-            : $this->normalizeSeoValue($rawTitle);
+            ? $this->renderSeoTemplate($titleSource, $variables)
+            : $this->normalizeSeoValue($titleSource);
         $description = $isDynamic
-            ? $this->renderSeoTemplate($rawDescription, $variables)
-            : $this->normalizeSeoValue($rawDescription);
+            ? $this->renderSeoTemplate($descriptionSource, $variables)
+            : $this->normalizeSeoValue($descriptionSource);
 
         return [
             'title' => $title ?? $this->normalizeSeoValue($license->name),
             'description' => $description ?? $this->normalizeSeoValue($license->meta_description),
-            'keywords' => $this->normalizeSeoValue($page->seo_keywords),
+            'keywords' => $this->normalizeSeoValue($keywordsSource),
             'rawTitle' => $rawTitle,
             'rawDescription' => $rawDescription,
             'isDynamic' => $isDynamic,
