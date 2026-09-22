@@ -15,10 +15,9 @@ final class MyWallet
      *
      * @param  mixed  $root
      * @param  array{}  $args
-     * @return Wallet
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): Wallet
     {
-        return Wallet::where('user_id', $context->user()->id)->firstOrFail();
+        return Wallet::forUser($context->user()->id);
     }
 }

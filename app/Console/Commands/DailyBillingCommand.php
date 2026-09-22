@@ -38,19 +38,19 @@ class DailyBillingCommand extends Command
             ['Метрика', 'Значение'],
             [
                 ['Обработано сайтов', $results['processed']],
-                ['Успешно списано', $results['charged']],
-                ['Баланс ушёл в минус', $results['negative']],
+                ['Учтено расчётных дней', $results['charged']],
+                ['Кошельков с отрицательным балансом', $results['negative']],
                 ['Ошибки', $results['errors']],
             ]
         );
 
         if ($results['errors'] > 0) {
-            $this->warn("Обнаружены ошибки при обработке. Проверьте логи для деталей.");
+            $this->warn('Обнаружены ошибки при обработке. Проверьте логи для деталей.');
         }
 
         $this->newLine();
         $this->info('Биллинг завершён.');
 
-        return self::SUCCESS;
+        return $results['errors'] > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

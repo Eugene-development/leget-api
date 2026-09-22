@@ -7,8 +7,12 @@ namespace App\GraphQL\Mutations;
 use App\Exceptions\GraphQLException;
 use App\Models\License;
 use App\Models\Page;
+use App\Models\User;
+use App\Models\Wallet;
+use App\Services\BillingService;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
@@ -39,30 +43,37 @@ final class CreateLicense
 
         $user = $context->user();
 
-        $dailyPrice = config("waas.template_prices.{$templateId}", 0);
+        return DB::transaction(function () use ($user, $templateId, $template, $args) {
+            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $key = $args['creationKey'] ?? null;
+            if ($key) {
+                $existing = License::where('user_id', $user->id)->where('creation_key', $key)->first();
+                if ($existing) {
+                    if ((int) $existing->template_id !== $templateId) {
+                        throw new GraphQLException('Ключ запроса уже использован для другого шаблона.', 'VALIDATION');
+                    }
 
-        // Create license with a temporary domain (user will set real domain later)
-        $license = License::create([
-            'id'          => (string) Str::ulid(),
-            'user_id'     => $user->id,
-            'domain'      => 'pending-' . strtolower((string) Str::ulid()) . '.leget.ru',
-            'template_id' => $templateId,
-            'is_active'   => true,
-            'status'      => 'active',
-            'daily_price' => $dailyPrice,
-            'billing_started_at' => now()->addHours(72),
-        ]);
-
-        // Seed all pages and default components from template config
-        $slugs = array_keys($template['pages'] ?? []);
-        foreach ($slugs as $slug) {
-            $page = Page::create([
-                'license_id' => $license->id,
-                'slug'       => $slug,
+                    return $existing;
+                }
+            }
+            Wallet::forUser($user->id);
+            $startsAt = now()->addHours(72);
+            $license = License::create([
+                'user_id' => $user->id,
+                'domain' => 'pending-'.strtolower((string) Str::ulid()).'.leget.ru',
+                'template_id' => $templateId,
+                'is_active' => true, 'status' => 'active',
+                'daily_price' => config("waas.template_prices.{$templateId}", 0),
+                'billing_started_at' => $startsAt,
+                'next_billing_date' => BillingService::firstBillingDate($startsAt),
+                'creation_key' => $key,
             ]);
-            $this->templateService->seedDefaultComponents($page, $templateId);
-        }
+            foreach (array_keys($template['pages'] ?? []) as $slug) {
+                $page = Page::create(['license_id' => $license->id, 'slug' => $slug]);
+                $this->templateService->seedDefaultComponents($page, $templateId);
+            }
 
-        return $license;
+            return $license;
+        }, 3);
     }
 }

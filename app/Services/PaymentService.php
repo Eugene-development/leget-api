@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -34,16 +33,16 @@ final class PaymentService
      */
     public function start(User $user, string $amount): array
     {
-        $wallet = Wallet::where('user_id', $user->id)->firstOrFail();
+        $wallet = Wallet::forUser($user->id);
 
         $payment = Payment::create([
-            'user_id'         => $user->id,
-            'wallet_id'       => $wallet->id,
-            'provider'        => 'yookassa',
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'provider' => 'yookassa',
             'idempotence_key' => (string) Str::uuid(),
-            'amount'          => $amount,
-            'currency'        => 'RUB',
-            'status'          => Payment::STATUS_PENDING,
+            'amount' => $amount,
+            'currency' => 'RUB',
+            'status' => Payment::STATUS_PENDING,
         ]);
 
         try {
@@ -51,7 +50,7 @@ final class PaymentService
         } catch (Throwable $e) {
             // Не оставляем «висящий» pending, по которому никто никогда не заплатит
             $payment->update([
-                'status'              => Payment::STATUS_CANCELED,
+                'status' => Payment::STATUS_CANCELED,
                 'cancellation_reason' => 'provider_request_failed',
             ]);
 
@@ -60,13 +59,14 @@ final class PaymentService
 
         $payment->update([
             'provider_payment_id' => $data['id'] ?? null,
-            'status'              => $data['status'] ?? Payment::STATUS_PENDING,
-            'provider_payload'    => $data,
+            'provider_payload' => $data,
         ]);
 
+        $payment = $this->applyProviderState($payment, $data);
+
         return [
-            'payment'          => $payment->refresh(),
-            'confirmation_url' => $data['confirmation']['confirmation_url'] ?? null,
+            'payment' => $payment->refresh(),
+            'confirmation_url' => $payment->isCredited() ? $this->returnUrl($payment) : ($data['confirmation']['confirmation_url'] ?? null),
         ];
     }
 
@@ -97,69 +97,52 @@ final class PaymentService
      */
     public function applyProviderState(Payment $payment, array $data): Payment
     {
-        $status = (string) ($data['status'] ?? $payment->status);
-
-        $payment->update([
-            'status'              => $status,
-            'provider_payload'    => $data,
-            'cancellation_reason' => $data['cancellation_details']['reason'] ?? $payment->cancellation_reason,
-        ]);
-
-        if ($status === Payment::STATUS_SUCCEEDED) {
-            $paidAmount = (string) ($data['amount']['value'] ?? $payment->amount);
-            $this->credit($payment, $paidAmount);
-        }
-
-        return $payment->refresh();
-    }
-
-    /**
-     * Зачисляет оплаченную сумму на баланс кошелька.
-     *
-     * Идемпотентность: платёж блокируется на чтение, и если transaction_id уже
-     * заполнен, повторное уведомление ничего не делает.
-     */
-    private function credit(Payment $payment, string $paidAmount): void
-    {
-        if (bccomp($paidAmount, (string) $payment->amount, 2) !== 0) {
-            Log::warning('Оплаченная сумма не совпадает с суммой платежа', [
-                'payment_id'  => $payment->id,
-                'expected'    => $payment->amount,
-                'paid'        => $paidAmount,
-            ]);
-        }
-
-        DB::transaction(function () use ($payment, $paidAmount): void {
+        return DB::transaction(function () use ($payment, $data): Payment {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
-
-            if ($locked->transaction_id !== null) {
-                return; // уже зачислено другим уведомлением
+            if ($locked->isCredited()) {
+                return $locked;
             }
+            if (($data['id'] ?? null) !== $locked->provider_payment_id) {
+                throw new RuntimeException('Идентификатор платежа не совпадает с ответом провайдера.');
+            }
+            $status = (string) ($data['status'] ?? '');
+            if (! in_array($status, ['pending', 'waiting_for_capture', 'succeeded', 'canceled'], true)) {
+                throw new RuntimeException('Неизвестный статус платежа.');
+            }
+            // A late non-terminal response cannot resurrect a finished payment.
+            if (in_array($locked->status, ['canceled', 'test'], true)) {
+                return $locked;
+            }
+            if (($data['test'] ?? false) === true) {
+                $locked->update(['status' => 'test', 'provider_payload' => $data,
+                    'cancellation_reason' => 'test_payment_not_credited']);
 
-            $wallet = Wallet::whereKey($locked->wallet_id)->lockForUpdate()->firstOrFail();
-            $wallet->balance = bcadd((string) $wallet->balance, $paidAmount, 2);
-            $wallet->save();
+                return $locked;
+            }
+            if ($status === Payment::STATUS_SUCCEEDED) {
+                $amount = $data['amount']['value'] ?? '';
+                if (($data['paid'] ?? false) !== true
+                    || ($data['amount']['currency'] ?? null) !== $locked->currency
+                    || ! is_string($amount) || ! preg_match('/^\d+\.\d{2}$/D', $amount)
+                    || bccomp($amount, (string) $locked->amount, 2) !== 0) {
+                    throw new RuntimeException('Платёж не прошёл проверку суммы, валюты или подтверждения.');
+                }
+                $wallet = Wallet::whereKey($locked->wallet_id)->lockForUpdate()->firstOrFail();
+                $transaction = Transaction::create([
+                    'wallet_id' => $wallet->id, 'amount' => $amount, 'type' => 'deposit',
+                    'description' => 'Пополнение баланса (онлайн)',
+                ]);
+                $wallet->update(['balance' => bcadd($wallet->balance, $amount, 2)]);
+                $locked->transaction_id = $transaction->id;
+                $locked->paid_at = now();
+            }
+            $locked->fill([
+                'status' => $status, 'provider_payload' => $data,
+                'cancellation_reason' => $data['cancellation_details']['reason'] ?? null,
+            ])->save();
 
-            $transaction = Transaction::create([
-                'wallet_id'   => $wallet->id,
-                'amount'      => $paidAmount,
-                'type'        => 'deposit',
-                'description' => 'Пополнение баланса (онлайн)',
-            ]);
-
-            $locked->update([
-                'status'         => Payment::STATUS_SUCCEEDED,
-                'paid_at'        => $locked->paid_at ?? now(),
-                'transaction_id' => $transaction->id,
-            ]);
-
-            Log::info('Баланс пополнен онлайн-платежом', [
-                'payment_id'     => $locked->id,
-                'wallet_id'      => $wallet->id,
-                'amount'         => $paidAmount,
-                'transaction_id' => $transaction->id,
-            ]);
-        });
+            return $locked;
+        }, 3);
     }
 
     /**
@@ -175,6 +158,6 @@ final class PaymentService
 
         $separator = str_contains($base, '?') ? '&' : '?';
 
-        return rtrim($base, '/') . $separator . 'payment=' . $payment->id;
+        return rtrim($base, '/').$separator.'payment='.$payment->id;
     }
 }

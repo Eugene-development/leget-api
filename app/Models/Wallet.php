@@ -10,6 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['user_id', 'balance'])]
 class Wallet extends Model
 {
+    public static function forUser(int $userId): self
+    {
+        return static::firstOrCreate(['user_id' => $userId], ['balance' => '0.00']);
+    }
+
     /**
      * Получить владельца кошелька.
      */

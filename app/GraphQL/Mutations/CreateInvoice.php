@@ -20,17 +20,17 @@ final class CreateInvoice
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
-        $user   = $context->user();
-        $wallet = Wallet::where('user_id', $user->id)->firstOrFail();
+        $user = $context->user();
+        $wallet = Wallet::forUser($user->id);
 
         // Номер присваивается внутри с повтором при коллизии UNIQUE-индекса
         $invoice = Invoice::createWithUniqueNumber([
-            'user_id'      => $user->id,
-            'wallet_id'    => $wallet->id,
-            'amount'       => $args['amount'],
-            'status'       => 'pending',
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'amount' => $args['amount'],
+            'status' => 'pending',
             'company_name' => trim($args['companyName']),
-            'inn'          => isset($args['inn']) && $args['inn'] !== '' ? $args['inn'] : null,
+            'inn' => isset($args['inn']) && $args['inn'] !== '' ? $args['inn'] : null,
         ]);
 
         return [

@@ -8,8 +8,11 @@ type Wallet {
     userId: Int! @rename(attribute: "user_id")
     balance: String!
     transactions(
-        orderBy: [OrderByClause!] @orderBy
-    ): [Transaction!]! @paginate
+        type: String @rules(apply: ["nullable", "in:deposit,withdraw"])
+        dateFrom: String @rules(apply: ["nullable", "date_format:Y-m-d"])
+        dateTo: String @rules(apply: ["nullable", "date_format:Y-m-d"])
+        orderBy: [OrderByClause!]
+    ): [Transaction!]! @paginate(builder: "App\\GraphQL\\Queries\\WalletTransactions@builder", defaultCount: 20, maxCount: 200)
 }
 
 type Transaction {
@@ -20,4 +23,6 @@ type Transaction {
     type: String!
     description: String
     createdAt: DateTime @rename(attribute: "created_at")
+    occurredAt: String @rename(attribute: "occurred_at")
+    billingDate: String @rename(attribute: "billing_date")
 }

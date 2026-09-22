@@ -47,6 +47,10 @@ final class CreateOnlinePayment
 
         $payment = $result['payment'];
 
+        if ($payment->status === 'test') {
+            throw new GraphQLException('Подключён тестовый магазин. Рабочий баланс не пополняется.', 'PAYMENT_PROVIDER_ERROR');
+        }
+
         if ($result['confirmation_url'] === null) {
             throw new GraphQLException(
                 'Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.',
@@ -55,11 +59,11 @@ final class CreateOnlinePayment
         }
 
         return [
-            'id'              => $payment->id,
-            'amount'          => $payment->amount,
-            'status'          => $payment->status,
+            'id' => $payment->id,
+            'amount' => $payment->amount,
+            'status' => $payment->status,
             'confirmationUrl' => $result['confirmation_url'],
-            'balance'         => null,
+            'balance' => null,
         ];
     }
 }

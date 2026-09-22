@@ -68,7 +68,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('app:daily-billing')
             ->dailyAt('06:30')
-            ->timezone('Europe/Moscow');
+            ->timezone('Europe/Moscow')
+            ->withoutOverlapping();
 
         // Срок промокода истекает сам, состояние в БД — нет. Раз в сутки
         // догоняем те коды, к которым никто не обратился.

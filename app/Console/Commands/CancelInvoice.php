@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Invoice;
+use App\Services\InvoicePaymentService;
 use Illuminate\Console\Command;
 
 class CancelInvoice extends Command
@@ -50,15 +51,15 @@ class CancelInvoice extends Command
         if ($invoice->status === 'paid') {
             $this->error(
                 "Счёт №{$invoice->number} оплачен ("
-                . ($invoice->paid_at ? $invoice->paid_at->format('d.m.Y H:i:s') : 'дата неизвестна')
-                . '). Отменить его нельзя — баланс уже пополнен.'
+                .($invoice->paid_at ? $invoice->paid_at->format('d.m.Y H:i:s') : 'дата неизвестна')
+                .'). Отменить его нельзя — баланс уже пополнен.'
             );
 
             return 1;
         }
 
         $this->info("Найден счёт №{$invoice->number} на сумму {$invoice->amount} ₽.");
-        $this->info("Плательщик: {$invoice->company_name} (ИНН: " . ($invoice->inn ?? 'не указан') . ').');
+        $this->info("Плательщик: {$invoice->company_name} (ИНН: ".($invoice->inn ?? 'не указан').').');
 
         if (! $this->confirm('Отменить этот счёт?', true)) {
             $this->warn('Операция отменена.');
@@ -66,8 +67,13 @@ class CancelInvoice extends Command
             return 0;
         }
 
-        $invoice->status = 'cancelled';
-        $invoice->save();
+        try {
+            app(InvoicePaymentService::class)->cancel($invoice->id);
+        } catch (\RuntimeException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         $this->info("Статус счёта №{$invoice->number} изменён на \"Отменён\" (cancelled).");
 

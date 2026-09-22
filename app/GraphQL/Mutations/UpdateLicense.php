@@ -7,9 +7,11 @@ namespace App\GraphQL\Mutations;
 use App\Exceptions\GraphQLException;
 use App\Models\License;
 use App\Models\Page;
+use App\Services\BillingService;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 final class UpdateLicense
@@ -30,52 +32,60 @@ final class UpdateLicense
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): License
     {
-        $license = License::find($args['id']);
+        $license = DB::transaction(function () use ($args, $context) {
+            $license = License::whereKey($args['id'])->lockForUpdate()->first();
 
-        if (! $license) {
-            throw new GraphQLException('License not found.', 'VALIDATION');
-        }
-
-        // Verify ownership
-        if ($context->user()->id !== $license->user_id) {
-            throw new GraphQLException('This action is unauthorized.', 'AUTHORIZATION');
-        }
-
-        // Validate template_id if provided
-        if (array_key_exists('template_id', $args) && $args['template_id'] !== null) {
-            $templates = config('templates');
-            if (! isset($templates[$args['template_id']])) {
-                throw new GraphQLException("Template {$args['template_id']} not found.", 'VALIDATION');
+            if (! $license) {
+                throw new GraphQLException('License not found.', 'VALIDATION');
             }
-        }
 
-        // Build update data from provided args
-        $updateData = [];
-
-        foreach (['domain', 'name', 'meta_description', 'template_id', 'header_data', 'footer_data', 'favicon_url'] as $field) {
-            if (array_key_exists($field, $args)) {
-                $updateData[$field] = $args[$field];
+            // Verify ownership
+            if ($context->user()->id !== $license->user_id) {
+                throw new GraphQLException('This action is unauthorized.', 'AUTHORIZATION');
             }
-        }
 
-        // Resiliently support camelCase faviconUrl if Lighthouse did not rename it in resolver args
-        if (array_key_exists('faviconUrl', $args)) {
-            $updateData['favicon_url'] = $args['faviconUrl'];
-        }
-
-        $license->update($updateData);
-
-        // If template_id was set or changed — seed all pages and default components
-        if (array_key_exists('template_id', $args) && $args['template_id'] !== null) {
-            $this->seedTemplatePages($license, $args['template_id']);
-
-            // Set daily price and billing start if not already set
-            $license->daily_price = config("waas.template_prices.{$args['template_id']}", 0);
-            if (! $license->billing_started_at) {
-                $license->billing_started_at = now()->addHours(72);
+            // Validate template_id if provided
+            if (array_key_exists('template_id', $args) && $args['template_id'] !== null) {
+                $templates = config('templates');
+                if (! isset($templates[$args['template_id']])) {
+                    throw new GraphQLException("Template {$args['template_id']} not found.", 'VALIDATION');
+                }
             }
-            $license->save();
-        }
+
+            // Build update data from provided args
+            $updateData = [];
+
+            foreach (['domain', 'name', 'meta_description', 'template_id', 'header_data', 'footer_data', 'favicon_url'] as $field) {
+                if (array_key_exists($field, $args)) {
+                    $updateData[$field] = $args[$field];
+                }
+            }
+
+            // Resiliently support camelCase faviconUrl if Lighthouse did not rename it in resolver args
+            if (array_key_exists('faviconUrl', $args)) {
+                $updateData['favicon_url'] = $args['faviconUrl'];
+            }
+
+            if (isset($args['template_id'])) {
+                app(BillingService::class)->settleLockedLicense($license);
+            }
+            $license->update($updateData);
+
+            // If template_id was set or changed — seed all pages and default components
+            if (array_key_exists('template_id', $args) && $args['template_id'] !== null) {
+                $this->seedTemplatePages($license, $args['template_id']);
+
+                // Set daily price and billing start if not already set
+                $license->daily_price = config("waas.template_prices.{$args['template_id']}", 0);
+                if (! $license->billing_started_at) {
+                    $license->billing_started_at = now()->addHours(72);
+                    $license->next_billing_date = BillingService::firstBillingDate($license->billing_started_at);
+                }
+                $license->save();
+            }
+
+            return $license;
+        }, 3);
 
         // Invalidate cache for the license (tagged if supported, plain otherwise)
         try {

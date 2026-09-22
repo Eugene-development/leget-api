@@ -29,7 +29,7 @@ extend type Mutation {
 type OnlinePayment {
     id: ID!
     amount: String!
-    "Статус платежа в ЮKassa: pending, waiting_for_capture, succeeded, canceled."
+    "Статус платежа в ЮKassa: pending, waiting_for_capture, succeeded, canceled; test — тестовый платёж без зачисления."
     status: String!
     "Ссылка на страницу оплаты. Заполнена только при создании платежа."
     confirmationUrl: String

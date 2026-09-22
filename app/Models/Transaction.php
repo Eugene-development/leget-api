@@ -6,9 +6,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['wallet_id', 'license_id', 'amount', 'type', 'description'])]
+#[Fillable(['wallet_id', 'license_id', 'billing_date', 'amount', 'type', 'description'])]
 class Transaction extends Model
 {
+    public function getOccurredAtAttribute(): ?string
+    {
+        return $this->created_at?->toIso8601String();
+    }
+
     /**
      * Получить кошелёк, к которому относится транзакция.
      */
@@ -28,6 +33,4 @@ class Transaction extends Model
             'amount' => 'decimal:2',
         ];
     }
-
-
 }

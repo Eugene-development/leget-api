@@ -10,6 +10,7 @@ extend type Mutation {
     "Create a new license for the authenticated user with the given template. Requires authentication."
     createLicense(
         templateId: Int! @rename(attribute: "template_id")
+        creationKey: String @rules(apply: ["nullable", "uuid"])
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreateLicense")
 
     "Update license site settings. Requires authentication."

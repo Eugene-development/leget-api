@@ -222,7 +222,7 @@ class OnlineTopUpTest extends TestCase
     private function providerPayment(string $status, string $amount): array
     {
         return [
-            'id'     => 'yk-payment',
+            'id'     => Payment::latest('id')->value('provider_payment_id'),
             'status' => $status,
             'paid'   => $status === 'succeeded',
             'amount' => ['value' => $amount, 'currency' => 'RUB'],

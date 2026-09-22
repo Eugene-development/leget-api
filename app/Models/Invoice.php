@@ -19,10 +19,11 @@ class Invoice extends Model
         'company_name',
         'inn',
         'paid_at',
+        'transaction_id',
     ];
 
     protected $casts = [
-        'amount'  => 'string',
+        'amount' => 'string',
         'paid_at' => 'datetime',
     ];
 
@@ -82,8 +83,8 @@ class Invoice extends Model
      */
     public static function generateNumber(): string
     {
-        $prefix = now()->format('Ym') . '-';
-        $last   = static::where('number', 'like', $prefix . '%')
+        $prefix = now()->format('Ym').'-';
+        $last = static::where('number', 'like', $prefix.'%')
             ->orderByDesc('id')
             ->value('number');
 
@@ -91,6 +92,6 @@ class Invoice extends Model
             ? ((int) substr($last, strlen($prefix))) + 1
             : 1;
 
-        return $prefix . str_pad((string) $seq, 5, '0', STR_PAD_LEFT);
+        return $prefix.str_pad((string) $seq, 5, '0', STR_PAD_LEFT);
     }
 }

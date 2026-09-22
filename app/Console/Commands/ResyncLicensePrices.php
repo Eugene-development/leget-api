@@ -3,9 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\License;
+use App\Services\BillingService;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class ResyncLicensePrices extends Command
 {
@@ -72,16 +73,16 @@ class ResyncLicensePrices extends Command
             }
 
             if ($apply && $breakdown->isNotEmpty()) {
-                DB::transaction(function () use ($query, $price, $templateId, $breakdown) {
-                    $updated = (clone $query)->update(['daily_price' => $price]);
-
-                    Log::info('Пересинхронизация цен лицензий', [
-                        'template_id' => $templateId,
-                        'new_price' => $price,
-                        'updated' => $updated,
-                        'was' => $breakdown->toArray(),
-                    ]);
-                });
+                foreach ((clone $query)->pluck('id') as $id) {
+                    DB::transaction(function () use ($id, $price, $templateId, $allStatuses) {
+                        $license = License::whereKey($id)->lockForUpdate()->firstOrFail();
+                        if ((int) $license->template_id !== (int) $templateId || (! $allStatuses && (! $license->is_active || $license->status !== 'active'))) {
+                            return;
+                        }
+                        app(BillingService::class)->settleLockedLicense($license);
+                        $license->update(['daily_price' => $price]);
+                    }, 3);
+                }
             }
         }
 
@@ -125,7 +126,7 @@ class ResyncLicensePrices extends Command
      * намеренно: лицензия с будущей датой старта ещё не биллится, но цену
      * к моменту первого списания должна иметь уже новую.
      */
-    protected function scope(bool $allStatuses): \Illuminate\Database\Eloquent\Builder
+    protected function scope(bool $allStatuses): Builder
     {
         $query = License::query();
 

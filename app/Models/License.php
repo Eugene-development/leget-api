@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'domain', 'favicon_url', 'template_id', 'is_active', 'status', 'name', 'meta_description', 'header_data', 'footer_data', 'daily_price', 'billing_started_at'])]
+#[Fillable(['user_id', 'domain', 'favicon_url', 'template_id', 'is_active', 'status', 'name', 'meta_description', 'header_data', 'footer_data', 'daily_price', 'billing_started_at', 'next_billing_date', 'creation_key'])]
 class License extends Model
 {
     use HasUlids;
