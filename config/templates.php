@@ -753,6 +753,10 @@ return [
                     'secondaryButton' => 'Заказать замер столешницы',
                     'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/countertops_hero.png',
                 ]],
+                ['type' => 'BrandAbout', 'defaults' => [
+                    'title' => 'О бренде',
+                    'description' => '',
+                ]],
                 ['type' => 'StoleshnicaBrands', 'defaults' => ['title' => 'Бренды материала', 'brands' => []]],
                 ['type' => 'StoleshnicaServices', 'defaults' => [
                     'title' => 'Что входит в стоимость',

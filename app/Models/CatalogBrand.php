@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['category_id', 'slug', 'value', 'description', 'logo', 'is_active', 'sort_order'])]
+#[Fillable(['category_id', 'slug', 'value', 'description', 'full_description', 'logo', 'is_active', 'sort_order'])]
 class CatalogBrand extends Model
 {
     use HasUlids;

@@ -163,6 +163,7 @@ class RenderPageTest extends TestCase
             $table->string('slug');
             $table->string('value');
             $table->text('description')->nullable();
+            $table->text('full_description')->nullable();
             $table->string('logo')->nullable();
             $table->boolean('is_active')->default(true);
             $table->integer('sort_order')->default(0);
@@ -1588,7 +1589,14 @@ class RenderPageTest extends TestCase
         $license = $this->createLicense(['template_id' => 1]);
         $rubric = Rubric::create(['key' => (string) Str::ulid(), 'value' => 'Столешницы', 'slug' => 'stoleshnica']);
         $material = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'value' => 'Кварцевый агломерат', 'slug' => 'kvarc', 'is_enabled' => true]);
-        $brand = CatalogBrand::create(['category_id' => $material->id, 'value' => 'Тестовый бренд', 'slug' => 'test-brand', 'description' => 'Описание бренда']);
+        $brand = CatalogBrand::create([
+            'category_id' => $material->id,
+            'value' => 'Тестовый бренд',
+            'slug' => 'test-brand',
+            'description' => 'Короткое описание бренда',
+            'full_description' => '<!--leget-rich-text:v1--><p>Полное описание бренда</p>',
+        ]);
+        $otherBrand = CatalogBrand::create(['category_id' => $material->id, 'value' => 'Другой бренд', 'slug' => 'other-brand']);
         CatalogBrand::create(['category_id' => $material->id, 'value' => 'Неактивный', 'slug' => 'inactive', 'is_active' => false]);
         $context = $this->createContext(['X-Forwarded-Host' => $license->domain]);
         $render = fn ($slug) => ($this->resolver)(null, ['slug' => $slug], $context, $this->createResolveInfo());
@@ -1596,13 +1604,23 @@ class RenderPageTest extends TestCase
         $materials = $components->firstWhere('type', 'StoleshnicaSidebar')['data']['categories'];
         $cards = $components->firstWhere('type', 'StoleshnicaBrands')['data']['brands'];
         $this->assertSame($materials[0]['brands'], $cards);
-        $this->assertCount(1, $cards);
-        $this->assertSame('/stoleshnica/kvarc/test-brand', $cards[0]['href']);
-        $dynamic = $render($cards[0]['href']);
+        $this->assertCount(2, $cards);
+        $this->assertContains('/stoleshnica/kvarc/test-brand', array_column($cards, 'href'));
+        $dynamic = $render('/stoleshnica/kvarc/test-brand');
         $this->assertSame('/stoleshnica/{material}/{brand}', $dynamic['page']['seo']['pattern']);
-        $hero = collect($dynamic['page']['componentsData'])->firstWhere('type', 'StoleshnicaBrandHero')['data'];
+        $brandComponents = collect($dynamic['page']['componentsData']);
+        $this->assertSame(
+            ['StoleshnicaSidebar', 'StoleshnicaBrandHero', 'BrandAbout', 'StoleshnicaBrands', 'StoleshnicaServices'],
+            $brandComponents->pluck('type')->take(5)->all(),
+        );
+        $hero = $brandComponents->firstWhere('type', 'StoleshnicaBrandHero')['data'];
         $this->assertSame($brand->value, $hero['title']);
         $this->assertSame($brand->description, $hero['description']);
+        $this->assertSame($brand->full_description, $brandComponents->firstWhere('type', 'BrandAbout')['data']['description']);
+        $this->assertTrue($brandComponents->firstWhere('type', 'BrandAbout')['data']['managedBrand']);
+        $this->assertSame([$otherBrand->id], array_column($brandComponents->firstWhere('type', 'StoleshnicaBrands')['data']['brands'], 'id'));
+        $otherBrandComponents = collect($render('/stoleshnica/kvarc/other-brand')['page']['componentsData']);
+        $this->assertSame([$brand->id], array_column($otherBrandComponents->firstWhere('type', 'StoleshnicaBrands')['data']['brands'], 'id'));
         $sidebar = collect($dynamic['page']['componentsData'])->firstWhere('type', 'StoleshnicaSidebar')['data'];
         $this->assertSame('kvarc', $sidebar['activeSlug']);
         $this->assertSame('test-brand', $sidebar['activeBrandSlug']);

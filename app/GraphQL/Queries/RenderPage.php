@@ -214,7 +214,9 @@ final class RenderPage
                     $component->data = array_merge($component->data, [
                         'brands' => collect($catalogItems[$rubricSlug])
                             ->filter(fn ($item) => ! $material || $item['id'] === $material->id)
-                            ->flatMap(fn ($item) => $item['brands'])->values()->all(),
+                            ->flatMap(fn ($item) => $item['brands'])
+                            ->reject(fn ($item) => $brand instanceof CatalogBrand && $item['id'] === $brand->id)
+                            ->values()->all(),
                     ]);
                 }
             }
@@ -231,6 +233,14 @@ final class RenderPage
                     'materialTitle' => $material->value,
                     'materialSlug' => $material->slug,
                     'brandSlug' => $brand?->slug,
+                ]);
+            }
+
+            if ($brand instanceof CatalogBrand && $component->type === 'BrandAbout') {
+                $component = clone $component;
+                $component->data = array_merge($component->data ?? [], [
+                    'description' => $brand->full_description ?: $brand->description ?: '',
+                    'managedBrand' => true,
                 ]);
             }
 
