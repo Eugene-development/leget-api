@@ -20,8 +20,9 @@ return [
     // Promo-1 — единственный шаблон с папками v1…vN.
     1 => [
         'HeroMain'     => 4,
-        'ActionsCTA'   => 2,
+        'ActionsCTA'   => 4,
         'Brands'       => 2,
+        'ContactAddress' => 2,
         'ContactCTA'   => 3,
         'ContactsHero' => 2,
         'Direction'    => 2,
