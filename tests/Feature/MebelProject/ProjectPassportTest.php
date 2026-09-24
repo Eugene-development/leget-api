@@ -121,6 +121,8 @@ class ProjectPassportTest extends TestCase
             });
         }
 
+        (require base_path('../leget-db/database/migrations/2026_09_24_000001_unique_mebel_project_number_per_license.php'))->up();
+
         (require base_path('../leget-db/database/migrations/2026_08_30_000001_create_catalog_brands_table.php'))->up();
         (require base_path('../leget-db/database/migrations/2026_09_17_180000_create_appliance_brands_table.php'))->up();
         (require base_path('../leget-db/database/migrations/2026_09_17_190000_add_rubric_to_site_brands.php'))->up();
@@ -502,6 +504,84 @@ class ProjectPassportTest extends TestCase
         $this->assertSame(MebelProject::class, $image->parentable_type);
     }
 
+    public function test_project_number_is_unique_across_categories_and_survives_soft_deletion(): void
+    {
+        $first = $this->upsert(['value' => '26-100']);
+        $otherCategory = Category::create([
+            'key' => (string) Str::ulid(),
+            'rubric_id' => $this->category->rubric_id,
+            'value' => 'Шкафы',
+            'slug' => 'wardrobes',
+        ]);
+
+        foreach ([' 26-100 ', '26-100'] as $index => $number) {
+            try {
+                $this->upsert(['category_id' => $otherCategory->id, 'value' => $number]);
+                $this->fail('Duplicate number must be rejected');
+            } catch (ValidationException $e) {
+                $this->assertSame('Проект с таким номером уже существует.', $e->errors()['value'][0]);
+                $this->assertDatabaseCount('mebel_projects', 1);
+            }
+            if ($index === 0) {
+                $first->delete();
+            }
+        }
+    }
+
+    public function test_edit_keeps_own_number_but_cannot_take_another_project_number(): void
+    {
+        $first = $this->upsert(['value' => '26-100']);
+        $second = $this->upsert(['value' => '26-101']);
+
+        $this->assertSame($first->id, $this->upsert(['id' => $first->id, 'value' => '26-100'])->id);
+
+        try {
+            $this->upsert(['id' => $second->id, 'value' => '26-100']);
+            $this->fail('Rename to an occupied number must be rejected');
+        } catch (ValidationException $e) {
+            $this->assertSame('Проект с таким номером уже существует.', $e->errors()['value'][0]);
+            $this->assertSame('26-101', $second->fresh()->value);
+        }
+    }
+
+    public function test_database_index_prevents_duplicate_numbers_on_same_license(): void
+    {
+        $first = $this->upsert(['value' => '26-100']);
+
+        $this->expectException(QueryException::class);
+        MebelProject::create([
+            'key' => (string) Str::ulid(),
+            'category_id' => $this->category->id,
+            'license_id' => $first->license_id,
+            'value' => '26-100',
+            'slug' => 'another-slug',
+        ]);
+    }
+
+    public function test_number_may_repeat_on_another_license_but_not_against_a_global_project(): void
+    {
+        $first = $this->upsert(['value' => '26-100']);
+        $otherLicense = License::create([
+            'user_id' => License::first()->user_id,
+            'domain' => 'second-passport.example.com',
+            'name' => 'Second site',
+            'is_active' => true,
+        ]);
+        $first->update(['license_id' => $otherLicense->id]);
+        $this->assertNotNull($this->upsert(['value' => '26-100'])->id);
+
+        $global = $this->upsert(['value' => '26-200']);
+        $global->update(['license_id' => null]);
+        foreach ([['value' => '26-200'], ['id' => $global->id, 'value' => '26-100']] as $input) {
+            try {
+                $this->upsert($input);
+                $this->fail('A visible project number must not be reused');
+            } catch (ValidationException $e) {
+                $this->assertSame('Проект с таким номером уже существует.', $e->errors()['value'][0]);
+            }
+        }
+    }
+
     public function test_invalid_project_fields_are_rejected_before_writes(): void
     {
         foreach ([['value' => '   '], ['value' => str_repeat('a', 256)], ['price' => -1], ['price' => 12.123], ['price' => 10000000000], ['category_id' => 'unknown'], ['is_active' => 'yes'], ['image_urls' => array_fill(0, 9, 'https://example.com/image.jpg')]] as $invalid) {
@@ -560,10 +640,11 @@ class ProjectPassportTest extends TestCase
         $url = $this->uploadTestImage();
         $project = $this->upsert(['id' => $project->id, 'value' => 'Исходное имя', 'image_urls' => [$url]]);
         $oldImageId = $project->images->sole()->id;
+        $newUrl = $this->uploadTestImage(null, 'b');
         $tag = $this->tag('Bosch');
         DB::unprepared("CREATE TRIGGER fail_image_insert BEFORE INSERT ON images BEGIN SELECT RAISE(ABORT, 'test failure'); END");
         try {
-            $this->upsert(['id' => $project->id, 'value' => 'Изменено', 'image_urls' => [$url], 'tag_ids' => [$tag->id]]);
+            $this->upsert(['id' => $project->id, 'value' => 'Изменено', 'image_urls' => [$url, $newUrl], 'tag_ids' => [$tag->id]]);
             $this->fail('Image write must fail');
         } catch (QueryException) {
             $this->assertSame('Исходное имя', $project->fresh()->value);
@@ -572,10 +653,51 @@ class ProjectPassportTest extends TestCase
         }
     }
 
+    public function test_edit_adds_photo_without_replacing_retained_images(): void
+    {
+        $this->prepareImageSchema();
+        $project = $this->upsert(['value' => 'Кухня']);
+        $oldUrl = $this->uploadTestImage();
+        $project = $this->upsert(['id' => $project->id, 'value' => 'Кухня', 'image_urls' => [$oldUrl]]);
+        $oldImageId = $project->images->sole()->id;
+        $newUrl = $this->uploadTestImage(null, 'b');
+
+        $updated = $this->upsert(['id' => $project->id, 'value' => 'Кухня', 'image_urls' => [$oldUrl, $newUrl]]);
+
+        $this->assertSame([$oldUrl, $newUrl], $updated->images->pluck('path')->all());
+        $this->assertSame($oldImageId, $updated->images->first()->id);
+    }
+
+    public function test_edit_can_keep_an_existing_global_photo_when_adding_one(): void
+    {
+        $this->prepareImageSchema();
+        $project = $this->upsert(['value' => 'Общий проект']);
+        $originalUrl = $this->uploadTestImage();
+        $project = $this->upsert(['id' => $project->id, 'value' => 'Общий проект', 'image_urls' => [$originalUrl]]);
+        $project->license_id = null;
+        $project->save();
+        $legacyUrl = 'https://legacy.example/retained-photo.jpg';
+        $project->images()->first()->update(['path' => $legacyUrl]);
+        $newUrl = $this->uploadTestImage();
+
+        $updated = $this->upsert([
+            'id' => $project->id, 'value' => 'Общий проект', 'image_urls' => [$legacyUrl, $newUrl],
+        ]);
+
+        $this->assertSame([$legacyUrl, $newUrl], $updated->images->pluck('path')->all());
+    }
+
     public function test_deleted_slug_is_not_reused(): void
     {
         $first = $this->upsert(['value' => 'Кухня']);
         $first->delete();
+        $otherLicense = License::create([
+            'user_id' => License::first()->user_id,
+            'domain' => 'other-slug.example.com',
+            'name' => 'Other site',
+            'is_active' => true,
+        ]);
+        $first->update(['license_id' => $otherLicense->id]);
         $second = $this->upsert(['value' => 'Кухня']);
         $this->assertNotSame($first->slug, $second->slug);
     }
@@ -590,6 +712,8 @@ class ProjectPassportTest extends TestCase
         $invalid->assertOk()->assertJsonPath('errors.0.extensions.validation.price.0', 'Цена не может быть отрицательной.');
         $valid = $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => ['category_id' => $this->category->id, 'value' => 'Из формы', 'price' => 0, 'image_urls' => [$this->uploadTestImage()], 'tag_ids' => [$this->tag('Miele')->id]]]]);
         $valid->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.upsertMebelProject.price', 0)->assertJsonCount(1, 'data.upsertMebelProject.tags');
+        $duplicate = $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => ['category_id' => $this->category->id, 'value' => ' Из формы ']]]);
+        $duplicate->assertOk()->assertJsonPath('errors.0.extensions.validation.value.0', 'Проект с таким номером уже существует.');
     }
 
     public function test_edit_payload_updates_existing_project_and_preserves_photos(): void
@@ -714,11 +838,11 @@ class ProjectPassportTest extends TestCase
         (require base_path('../leget-db/database/migrations/2026_05_09_000004_create_images_table.php'))->up();
     }
 
-    private function uploadTestImage(?string $content = null): string
+    private function uploadTestImage(?string $content = null, string $keyCharacter = 'a'): string
     {
         Storage::fake('yandex');
         config(['filesystems.disks.yandex.endpoint' => 'https://storage.yandexcloud.net', 'filesystems.disks.yandex.bucket' => 'leget-main']);
-        $key = 'mebel/'.md5(License::first()->id).'/'.str_repeat('a', 40).'.png';
+        $key = 'mebel/'.md5(License::first()->id).'/'.str_repeat($keyCharacter, 40).'.png';
         $content ??= base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSgAAAABJRU5ErkJggg==');
         Storage::disk('yandex')->put($key, $content);
 

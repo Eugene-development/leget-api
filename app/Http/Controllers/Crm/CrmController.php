@@ -84,7 +84,7 @@ final class CrmController extends Controller
     {
         $license = $this->access->site($r->user(), $site, $resource === 'members');
         abort_unless(isset(self::TABLES[$resource]), 404);
-        $v = $r->validate(['search' => 'nullable|string|max:255', 'page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100', 'assigned_to' => 'nullable|integer', 'stage_id' => 'nullable|string|max:26', 'client_id' => 'nullable|string|max:26', 'source' => 'nullable|string|max:32', 'status' => 'nullable|string|max:24', 'overdue' => 'nullable|boolean']);
+        $v = $r->validate(['options' => 'nullable|boolean', 'search' => 'nullable|string|max:255', 'page' => 'sometimes|integer|min:1', 'per_page' => 'sometimes|integer|min:1|max:100', 'assigned_to' => 'nullable|integer', 'stage_id' => 'nullable|string|max:26', 'client_id' => 'nullable|string|max:26', 'source' => 'nullable|string|max:32', 'status' => 'nullable|string|max:24', 'overdue' => 'nullable|boolean']);
         $q = $resource === 'incoming' ? $this->incoming($site, $this->access->manages($r->user(), $license)) : $this->store->query(self::TABLES[$resource], $site);
         if (! empty($v['search'])) {
             $cols = match ($resource) {
@@ -119,6 +119,25 @@ final class CrmController extends Controller
         }
         if ($resource === 'stages') {
             $q->orderBy('sort_order');
+        }
+        // Selects need labels, not histories, template bodies or a COUNT query.
+        if (! empty($v['options'])) {
+            $columns = match ($resource) {
+                'clients', 'companies' => ['id', 'name'],
+                'deals' => ['id', 'title'],
+                'templates' => ['id', 'name', 'published_version'],
+                default => null,
+            };
+            abort_unless($columns, 422, 'Для этого раздела нет списка выбора.');
+
+            return response()->json(['items' => $q->orderByDesc('created_at')->orderByDesc('id')->limit((int) ($v['per_page'] ?? 30))->get($columns)]);
+        }
+        if ($resource === 'deals') {
+            // One query for the visible names, scoped to the same site. No whole-client-directory fetch.
+            $q->select('crm_deals.*')->selectSub(
+                DB::table('crm_clients')->select('name')->whereColumn('crm_clients.id', 'crm_deals.client_id')->where('crm_clients.license_id', $site),
+                'client_name'
+            );
         }
         $page = $q->orderByDesc('created_at')->orderByDesc('id')->paginate((int) ($v['per_page'] ?? 30));
         $page->through(function ($row) use ($resource) {

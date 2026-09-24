@@ -11,6 +11,7 @@ use App\Services\BrandTags;
 use App\Support\MebelProjectImages;
 use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -58,7 +59,7 @@ final class UpsertMebelProject
             'image_urls' => ['sometimes', 'nullable', 'array', 'max:8'],
             'image_urls.*' => ['required', 'string', 'distinct', 'max:2048'],
         ], [
-            'value.required' => 'Введите название проекта.',
+            'value.required' => 'Введите номер проекта.',
             'category_id.exists' => 'Выберите действующую категорию мебели.',
             'price.min' => 'Цена не может быть отрицательной.',
             'old_price.min' => 'Старая цена не может быть отрицательной.',
@@ -120,6 +121,10 @@ final class UpsertMebelProject
             $project->sort_order = MebelProject::where('category_id', $input['category_id'])
                 ->whereIn('license_id', $licenseIds)
                 ->max('sort_order') + 1;
+        }
+
+        if ($this->numberExists($project, $input['value'])) {
+            throw ValidationException::withMessages(['value' => 'Проект с таким номером уже существует.']);
         }
 
         if (array_key_exists('tag_ids', $input)) {
@@ -204,22 +209,50 @@ final class UpsertMebelProject
             $project->is_active = $input['is_active'];
         }
 
-        // External storage is read before the transaction; database writes are atomic.
-        $images = isset($input['image_urls'])
-            ? app(MebelProjectImages::class)->prepare($input['image_urls'], $licenseIds)
+        // Existing images belong to this project already. Only new URLs need the
+        // owner's upload-folder check; this also keeps legacy/global images usable.
+        $existingImages = isset($input['image_urls']) && $project->exists
+            ? $project->images()->get()->keyBy('path')
+            : collect();
+        $newImages = isset($input['image_urls'])
+            ? collect(app(MebelProjectImages::class)->prepare(
+                array_values(array_filter($input['image_urls'], fn ($url) => ! $existingImages->has($url))),
+                $licenseIds,
+            ))->keyBy('path')
             : null;
-        DB::transaction(function () use ($project, $input, $images) {
-            $project->save();
-            if (array_key_exists('tag_ids', $input)) {
-                $project->tags()->sync($input['tag_ids']);
-            }
-            if ($images !== null) {
-                $project->images()->delete();
-                foreach ($images as $image) {
-                    $project->images()->create(['key' => (string) Str::ulid(), ...$image]);
+        try {
+            DB::transaction(function () use ($project, $input, $existingImages, $newImages) {
+                $project->save();
+                if (array_key_exists('tag_ids', $input)) {
+                    $project->tags()->sync($input['tag_ids']);
                 }
+                if ($newImages !== null) {
+                    foreach ($existingImages as $url => $image) {
+                        if (! in_array($url, $input['image_urls'], true)) {
+                            $image->delete();
+                        }
+                    }
+                    foreach ($input['image_urls'] as $index => $url) {
+                        if ($existingImages->has($url)) {
+                            $existingImages->get($url)->update(['sort_order' => $index + 1]);
+                        } else {
+                            $project->images()->create([
+                                'key' => (string) Str::ulid(),
+                                ...$newImages->get($url),
+                                'sort_order' => $index + 1,
+                            ]);
+                        }
+                    }
+                }
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            // Индекс закрывает гонку между проверкой и одновременной записью.
+            if ($this->numberExists($project, $input['value'])) {
+                throw ValidationException::withMessages(['value' => 'Проект с таким номером уже существует.']);
             }
-        });
+
+            throw $e;
+        }
 
         // Clear cache for this site to reflect changes immediately
         try {
@@ -230,6 +263,24 @@ final class UpsertMebelProject
         }
 
         return $project;
+    }
+
+    private function numberExists(MebelProject $project, string $number): bool
+    {
+        $query = MebelProject::withTrashed()->where('value', $number);
+
+        if ($project->license_id !== null) {
+            // Глобальные проекты также видны на сайте владельца.
+            $query->where(function ($query) use ($project) {
+                $query->whereNull('license_id')->orWhere('license_id', $project->license_id);
+            });
+        }
+
+        if ($project->exists) {
+            $query->where('id', '!=', $project->id);
+        }
+
+        return $query->exists();
     }
 
     /** Пустая и пробельная строка — это отсутствие значения, а не значение. */

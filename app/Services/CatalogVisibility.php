@@ -17,6 +17,7 @@ final class CatalogVisibility
         'StoleshnicaSidebar' => ['stoleshnica', 'categories'],
         'ByttehnikaSidebar' => ['bytovaya-tehnika', 'brands'],
         'SantehnikaSidebar' => ['santehnika', 'brands'],
+        'OsveshchenieSidebar' => ['osveshchenie', 'brands'],
         'FurnituraSidebar' => ['furnitura', 'shops'],
         'PliitkaSidebar' => ['plitka', 'brands'],
     ];

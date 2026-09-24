@@ -23,4 +23,5 @@ input ApplianceBrandInput {
 enum BrandRubric {
     APPLIANCES @enum(value: "bytovaya-tehnika")
     PLUMBING @enum(value: "santehnika")
+    LIGHTING @enum(value: "osveshchenie")
 }

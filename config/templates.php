@@ -557,6 +557,17 @@ return [
                 ]],
             ],
 
+            // Избранные проекты выбираются в браузере, но сама страница и её
+            // настройки принадлежат сайту и редактируются как обычный блок.
+            '/favorites' => [
+                ['type' => 'FavoritesPage', 'defaults' => [
+                    'projects' => [], // Will be enriched from the public project catalog
+                    'title' => 'Избранное',
+                    'emptyTitle' => 'Здесь пока пусто',
+                    'emptyMessage' => 'Нажмите на сердце в карточке проекта — он появится здесь.',
+                ]],
+            ],
+
             /*
              * Страница «Вакансии» шаблона Promo-1.
              *
@@ -984,6 +995,50 @@ return [
                 ]],
             ],
 
+            '/osveshchenie' => [
+                ['type' => 'OsveshchenieSidebar', 'defaults' => [
+                    'brands' => [
+                        ['title' => 'Maytoni', 'slug' => 'maytoni'],
+                        ['title' => 'Lightstar', 'slug' => 'lightstar'],
+                    ],
+                ]],
+                ['type' => 'OsveshchenieHero', 'defaults' => [
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/lighting_hero_20260924.png',
+                    'title' => 'Освещение',
+                    'description' => 'Подберём светильники для разных зон дома: общий, рабочий и акцентный свет. Поможем сочетать их с мебелью и интерьером.',
+                    'buttonText' => 'Подобрать освещение',
+                ]],
+                ['type' => 'OsveshchenieBrands', 'defaults' => [
+                    'title' => 'Бренды освещения',
+                    'brands' => [
+                        ['title' => 'Maytoni', 'slug' => 'maytoni'],
+                        ['title' => 'Lightstar', 'slug' => 'lightstar'],
+                    ],
+                ]],
+                ['type' => 'OsveshchenieCTA', 'defaults' => [
+                    'title' => 'Свет под ваш проект',
+                    'description' => 'Расскажите о помещении и задачах — поможем выбрать освещение для каждого сценария.',
+                    'buttonText' => 'Получить консультацию',
+                ]],
+            ],
+            '/osveshchenie/{brand}' => [
+                ['type' => 'OsveshchenieSidebar', 'defaults' => ['brands' => []]],
+                ['type' => 'OsveshchenieBrandHero', 'defaults' => [
+                    'title' => 'Бренд',
+                    'description' => 'Подберём светильники бренда под ваш интерьер и задачи.',
+                    'buttonText' => 'Подобрать освещение',
+                ]],
+                ['type' => 'BrandAbout', 'defaults' => [
+                    'title' => 'О бренде',
+                    'description' => 'Информация о светильниках и решениях бренда.',
+                ]],
+                ['type' => 'OsveshchenieCTA', 'defaults' => [
+                    'title' => 'Нужна помощь с выбором?',
+                    'description' => 'Поможем подобрать светильники этого бренда под ваш проект.',
+                    'buttonText' => 'Получить консультацию',
+                ]],
+            ],
+
             '/furnitura' => [
                 ['type' => 'FurnituraSidebar', 'defaults' => [
                     'shops' => [],
@@ -992,7 +1047,7 @@ return [
                     'title' => 'Фурнитура',
                     'description' => 'Каталог интернет-магазинов и поставщиков мебельной фурнитуры. Петли, направляющие, подъёмники и системы хранения от проверенных поставщиков.',
                     'primaryButton' => 'Подобрать фурнитуру',
-                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero.png',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero_20260924.png',
                 ]],
                 ['type' => 'FurnituraShops', 'defaults' => [
                     'title' => 'Магазины и поставщики',
@@ -1002,6 +1057,32 @@ return [
                     'title' => 'Подберём фурнитуру под ваш проект',
                     'description' => 'Поможем выбрать оптимальное решение с учётом бюджета и требований к мебели',
                     'buttonText' => 'Получить консультацию',
+                ]],
+            ],
+
+            '/furnitura/{shop}' => [
+                ['type' => 'FurnituraSidebar', 'defaults' => ['shops' => []]],
+                ['type' => 'FurnituraShopHero', 'defaults' => [
+                    'title' => 'Магазин фурнитуры',
+                ]],
+                ['type' => 'BrandAbout', 'defaults' => [
+                    'title' => 'О магазине',
+                    'description' => '',
+                ]],
+                ['type' => 'FurnituraCTA', 'defaults' => [
+                    'title' => 'Подберём фурнитуру под ваш проект',
+                    'description' => 'Поможем выбрать механизмы и комплектующие под размеры мебели и ваши задачи',
+                    'buttonText' => 'Получить консультацию',
+                ]],
+            ],
+
+            '/steklo-i-zerkala' => [
+                ['type' => 'GlassRequest', 'defaults' => [
+                    'title' => 'Стекло и Зеркала',
+                    'description' => 'Для мебели и интерьера. Расскажите, что вы задумали — поможем подобрать стекло или зеркало под ваш проект.',
+                    'formTitle' => 'Обсудим ваш проект',
+                    'buttonText' => 'Отправить заявку',
+                    'theme' => 'light',
                 ]],
             ],
 

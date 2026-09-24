@@ -128,6 +128,22 @@ class CrmTest extends TestCase
         $this->assertDatabaseCount('crm_deals', 1);
     }
 
+    public function test_glass_request_is_visible_in_incoming_and_scoped_to_its_site(): void
+    {
+        $id = (string) Str::ulid();
+        DB::table('service_requests')->insert([
+            'id' => $id, 'license_id' => $this->site, 'name' => 'TEST стекло',
+            'phone' => '+79990000000', 'service_type' => 'glass-mirrors',
+            'form_id' => 'promo1-glass-mirrors', 'message' => 'Зеркало 800 × 1800 мм',
+            'mail_status' => 'sent', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->getJson('/crm/sites/'.$this->site.'/incoming')->assertOk()->assertJsonFragment(['id' => $id, 'service_type' => 'glass-mirrors']);
+        $this->getJson('/crm/sites/'.$this->site.'/incoming/'.$id)->assertOk()->assertJsonPath('item.message', 'Зеркало 800 × 1800 мм');
+        $this->actingAs($this->owner, 'api');
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/incoming')->assertOk()->assertJsonMissing(['id' => $id]);
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/incoming/'.$id)->assertNotFound();
+    }
+
     public function test_owner_reviews_and_role_survives_other_site(): void
     {
         $m = DB::table('crm_memberships')->first();
@@ -214,6 +230,22 @@ class CrmTest extends TestCase
         $this->postCrm('stages/'.$stage['id'].'/archive', ['version' => 1, 'replacement_id' => $this->stage('contact')])->assertOk();
         $this->assertDatabaseHas('crm_deals', ['id' => $d['id'], 'stage_id' => $this->stage('contact'), 'version' => 3]);
         $this->assertDatabaseHas('crm_events', ['entity_id' => $d['id'], 'action' => 'stage_transferred']);
-        $this->postCrm('stages/'.$this->stage('lead').'/archive',['version' => 1])->assertUnprocessable();
+        $this->postCrm('stages/'.$this->stage('lead').'/archive', ['version' => 1])->assertUnprocessable();
+    }
+
+    public function test_selector_payloads_are_small_scoped_and_deal_names_need_no_extra_directory(): void
+    {
+        $deal = $this->deal();
+        $response = $this->getJson('/crm/sites/'.$this->site.'/deals')->assertOk();
+        $response->assertJsonPath('items.data.0.client_name', 'Иван Петров');
+        $this->getJson('/crm/sites/'.$this->site.'/clients?options=1&per_page=30')->assertOk()
+            ->assertJsonCount(1, 'items')->assertJsonMissingPath('items.0.phone')
+            ->assertJsonMissingPath('items.total')->assertJsonPath('items.0.name', 'Иван Петров');
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/clients?options=1')->assertForbidden();
+        $this->getJson('/crm/sites/'.$this->site.'/clients?options=1&search=Несуществующий')->assertOk()->assertJsonCount(0, 'items');
+        $this->getJson('/crm/sites/'.$this->site.'/incoming?options=1')->assertUnprocessable();
+        $this->actingAs($this->owner, 'api');
+        $this->postCrm('templates', ['name' => 'Закрытый текст', 'kind' => 'contract', 'content' => ['type' => 'doc', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Не передавать в списке выбора']]]]]])->assertOk();
+        $this->getJson('/crm/sites/'.$this->site.'/templates?options=1')->assertOk()->assertJsonPath('items.0.name', 'Закрытый текст')->assertJsonMissingPath('items.0.content');
     }
 }

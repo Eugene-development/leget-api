@@ -18,6 +18,7 @@ final class ApplianceBrands
     public const RUBRICS = [
         'bytovaya-tehnika' => ['hero' => 'ByttehnikaBrandHero', 'tags' => 'appliance-type'],
         'santehnika' => ['hero' => 'SantehnikaBrandHero', 'tags' => 'plumbing-type'],
+        'osveshchenie' => ['hero' => 'OsveshchenieBrandHero', 'tags' => 'lighting-type'],
     ];
 
     public function definition(string $rubric): array

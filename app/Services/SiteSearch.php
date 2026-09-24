@@ -41,8 +41,11 @@ final class SiteSearch
                     continue;
                 }
                 $data = $component ? $component->data : ($definition['defaults'] ?? []);
-                if ($category && in_array($type, ['MebelCategoryHero', 'ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
+                if ($category && in_array($type, ['MebelCategoryHero', 'ByttehnikaBrandHero', 'SantehnikaBrandHero', 'OsveshchenieBrandHero', 'FurnituraShopHero'], true)) {
                     $data = array_merge($data, array_filter(['title' => $category->value, 'description' => $category->description], fn ($v) => $v !== null && $v !== ''));
+                }
+                if ($category && $category->rubric->slug === 'furnitura' && $type === 'BrandAbout') {
+                    $data['description'] = $category->full_description ?: $category->description ?: '';
                 }
                 if ($category?->has_brand_content && $type === 'BrandAbout') {
                     $data['description'] = $category->description;

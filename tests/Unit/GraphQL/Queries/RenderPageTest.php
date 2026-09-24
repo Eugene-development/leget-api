@@ -393,6 +393,50 @@ class RenderPageTest extends TestCase
         ($this->resolver)(null, ['slug' => '/santehnika/brand'], $context, $this->createResolveInfo());
     }
 
+    public function test_lighting_brand_sidebar_cards_and_public_page_use_the_same_directory(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'lighting-other.example.com', 'template_id' => 1]);
+        $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'osveshchenie', 'value' => 'Освещение']);
+        \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+            'slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9,
+        ]);
+        $shared = Category::create([
+            'key' => (string) Str::ulid(), 'rubric_id' => $rubric->id,
+            'slug' => 'maytoni', 'value' => 'Maytoni', 'description' => 'Светильники Maytoni',
+        ]);
+        $context = $this->brandContext($license);
+        $catalog = ($this->resolver)(null, ['slug' => '/osveshchenie'], $context, $this->createResolveInfo());
+        $components = collect($catalog['page']['componentsData'])->keyBy('type');
+        $this->assertSame(['maytoni'], collect($components['OsveshchenieSidebar']['data']['brands'])->pluck('slug')->all());
+        $this->assertSame(['maytoni'], collect($components['OsveshchenieBrands']['data']['brands'])->pluck('slug')->all());
+
+        $brand = ($this->resolver)(null, ['slug' => '/osveshchenie/maytoni'], $context, $this->createResolveInfo());
+        $hero = collect($brand['page']['componentsData'])->firstWhere('type', 'OsveshchenieBrandHero');
+        $this->assertSame('Maytoni', $hero['data']['title']);
+        $this->assertSame('maytoni', $hero['data']['brandSlug']);
+        $this->assertContains('/osveshchenie/maytoni', app(SiteSearch::class)->paths($license));
+
+        $query = 'mutation($license: ID!, $input: ApplianceBrandInput!) { upsertApplianceBrand(licenseId: $license, rubric: LIGHTING, input: $input) { id slug } }';
+        $this->actingAs($license->user, 'api');
+        $response = $this->postJson('/graphql', ['query' => $query, 'variables' => [
+            'license' => $license->id,
+            'input' => ['value' => 'Новый свет', 'description' => 'Описание бренда', 'logo' => $this->brandLogo($license), 'tag_ids' => []],
+        ]])->assertOk()->assertJsonMissingPath('errors');
+        $id = $response->json('data.upsertApplianceBrand.id');
+        $slug = $response->json('data.upsertApplianceBrand.slug');
+        $this->assertDatabaseHas('appliance_brands', ['id' => $id, 'rubric_slug' => 'osveshchenie']);
+        $autoTag = Tag::where('target_type', 'site_brand')->where('target_id', $id)->firstOrFail();
+        $this->assertSame('/osveshchenie/'.$slug, app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license)->first()['href']);
+        $this->assertContains('/osveshchenie/'.$slug, app(SiteSearch::class)->paths($license->fresh()));
+        $this->assertNotContains('/osveshchenie/'.$slug, app(SiteSearch::class)->paths($other));
+
+        app(ToggleCategory::class)(null, ['license_id' => $license->id, 'id' => $shared->id, 'is_enabled' => false], $context, $this->createResolveInfo());
+        $this->assertNotContains('/osveshchenie/maytoni', app(SiteSearch::class)->paths($license->fresh()));
+        $this->assertContains('/osveshchenie/maytoni', app(SiteSearch::class)->paths($other));
+    }
+
     public function test_brand_mutations_reject_cross_rubric_ids_and_tags(): void
     {
         $license = $this->createLicense();
@@ -1050,8 +1094,11 @@ class RenderPageTest extends TestCase
         $this->assertCount(13, array_filter($cards['brands'], fn ($brand) => $brand['is_enabled']));
     }
 
-    public function test_all_six_catalog_sidebars_have_site_scoped_visibility(): void
+    public function test_all_catalog_sidebars_have_site_scoped_visibility(): void
     {
+        \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+            'slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9,
+        ]);
         $first = $this->createLicense(['domain' => 'first.example.com', 'template_id' => 1]);
         $second = $this->createLicense(['domain' => 'second.example.com', 'template_id' => 1]);
         // Separate sites of the SAME owner must also remain independent.
@@ -1084,14 +1131,15 @@ class RenderPageTest extends TestCase
                 $sidebar = collect($result['page']['componentsData'])->firstWhere('type', $type);
                 $this->assertSame($entry->id, $sidebar['data'][$itemsKey][0]['id']);
                 $this->assertSame($site->id === $second->id, $sidebar['data'][$itemsKey][0]['is_enabled']);
-                if ($type === 'ByttehnikaSidebar') {
-                    $cards = collect($result['page']['componentsData'])->firstWhere('type', 'ByttehnikaBrands');
+                if (in_array($type, ['ByttehnikaSidebar', 'OsveshchenieSidebar'], true)) {
+                    $cardsType = $type === 'ByttehnikaSidebar' ? 'ByttehnikaBrands' : 'OsveshchenieBrands';
+                    $cards = collect($result['page']['componentsData'])->firstWhere('type', $cardsType);
                     $this->assertSame($sidebar['data']['brands'], $cards['data']['brands']);
                 }
             }
             $this->assertTrue($entry->fresh()->is_enabled);
         }
-        $this->assertCount(6, $first->fresh()->catalog_settings['categories']);
+        $this->assertCount(7, $first->fresh()->catalog_settings['categories']);
     }
 
     public function test_cached_brand_url_is_blocked_only_on_the_site_that_disabled_it(): void
@@ -1382,6 +1430,38 @@ class RenderPageTest extends TestCase
         $this->assertSame(1, $page['feed']['total']);
     }
 
+    public function test_favorites_is_an_editable_page_with_the_full_project_catalog(): void
+    {
+        $license = $this->createLicense([
+            'domain' => 'favorites.example.com',
+            'template_id' => 1,
+        ]);
+        $category = $this->createMebelCategory();
+        $this->createProject($category, [
+            'value' => 'Новая работа',
+            'slug' => 'novaya',
+            'created_at' => '2026-03-20 10:00:00',
+        ]);
+        $this->createProject($category, [
+            'value' => 'Прежняя работа',
+            'slug' => 'prezhnyaya',
+            'created_at' => '2026-03-10 10:00:00',
+        ]);
+        $article = $this->createCatalogComponent(1, '/favorites', 1, 'FavoritesPage', 1);
+
+        $result = ($this->resolver)(null, ['slug' => '/favorites'],
+            $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+        $block = collect($result['page']['componentsData'])->firstWhere('type', 'FavoritesPage');
+
+        $this->assertSame('/favorites', $result['page']['slug']);
+        $this->assertSame((string) $license->id, $result['page']['licenseId']);
+        $this->assertNotNull($result['site']['ownerId']);
+        $this->assertSame($article, $block['catalog']);
+        $this->assertSame('Избранное', $block['data']['title']);
+        $this->assertSame(['Новая работа', 'Прежняя работа'],
+            array_column($block['data']['projects'], 'value'));
+    }
+
     /** Портфолио пустое: шапке нечего показать, счётчик нулевой. */
     public function test_empty_portfolio_leaves_the_hero_without_a_project(): void
     {
@@ -1662,6 +1742,58 @@ class RenderPageTest extends TestCase
                 $this->assertSame('Page not found', $exception->getMessage());
             }
         }
+    }
+
+    public function test_furnitura_shops_have_cards_and_separate_description_pages(): void
+    {
+        $license = $this->createLicense(['domain' => 'furnitura.example.com', 'template_id' => 1]);
+        $rubric = Rubric::create([
+            'key' => (string) Str::ulid(),
+            'value' => 'Фурнитура',
+            'slug' => 'furnitura',
+        ]);
+        $entries = (require base_path('../leget-db/config/catalog.php'))['furnitura'];
+        foreach ($entries as $entry) {
+            Category::create(array_merge($entry, [
+                'key' => (string) Str::ulid(),
+                'rubric_id' => $rubric->id,
+            ]));
+        }
+
+        $render = fn (string $slug) => ($this->resolver)(
+            null,
+            ['slug' => $slug],
+            $this->createContext(['X-Forwarded-Host' => $license->domain]),
+            $this->createResolveInfo()
+        );
+
+        $listing = collect($render('/furnitura')['page']['componentsData']);
+        $cards = $listing->firstWhere('type', 'FurnituraShops')['data']['shops'];
+        $this->assertSame(['mdm', 'makmart', 'duslar'], array_column($cards, 'slug'));
+        $this->assertSame($cards, $listing->firstWhere('type', 'FurnituraSidebar')['data']['shops']);
+
+        foreach ($entries as $entry) {
+            $page = $render('/furnitura/'.$entry['slug']);
+            $components = collect($page['page']['componentsData']);
+            $this->assertSame(
+                ['FurnituraSidebar', 'FurnituraShopHero', 'BrandAbout', 'FurnituraCTA'],
+                $components->pluck('type')->take(4)->all()
+            );
+            $this->assertSame($entry['value'], $components->firstWhere('type', 'FurnituraShopHero')['data']['title']);
+            $this->assertSame($entry['full_description'], $components->firstWhere('type', 'BrandAbout')['data']['description']);
+            $this->assertSame($entry['seo_title'], $page['page']['seo']['title']);
+        }
+
+        $paths = app(\App\Services\PublicSitePages::class)->paths($license);
+        $this->assertContains('/furnitura/makmart', $paths);
+        $documents = app(SiteSearch::class)->documents($license);
+        $makmart = collect($documents)->firstWhere('url', '/furnitura/makmart');
+        $this->assertStringContainsString('Макмарт', $makmart['text']);
+
+        $license->catalog_settings = ['categories' => [Category::where('slug', 'mdm')->value('id') => false]];
+        $license->save();
+        $this->expectException(GraphQLException::class);
+        $render('/furnitura/mdm');
     }
 
     /** Бренд бытовой техники — категория рубрики «bytovaya-tehnika». */

@@ -32,6 +32,7 @@ final class BrandTags
         $group = match ($rubric) {
             'bytovaya-tehnika' => 'appliance-brand',
             'santehnika' => 'plumbing-brand',
+            'osveshchenie' => 'lighting-brand',
             'stoleshnica' => $brand instanceof CatalogBrand ? 'countertop-brand' : null,
             default => null,
         };

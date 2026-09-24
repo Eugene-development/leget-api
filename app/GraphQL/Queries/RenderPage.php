@@ -89,6 +89,7 @@ final class RenderPage
         $project = null;
         $brand = null;
         $material = null;
+        $shop = null;
         $templateSlug = $slug;
 
         // Check directory visibility even for an explicitly saved concrete URL.
@@ -107,7 +108,7 @@ final class RenderPage
             }
             if ($rubricSlug === 'mebel') {
                 $category = $entry;
-            } elseif ($rubricSlug === 'bytovaya-tehnika' || $rubricSlug === 'santehnika') {
+            } elseif (isset(ApplianceBrands::RUBRICS[$rubricSlug])) {
                 $brand = $entry;
             } elseif ($rubricSlug === 'stoleshnica') {
                 $material = $entry;
@@ -121,6 +122,11 @@ final class RenderPage
                     throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
                 }
                 $templateSlug = $brand ? '/stoleshnica/{material}/{brand}' : '/stoleshnica/{material}';
+            } elseif ($rubricSlug === 'furnitura') {
+                if (count($segments) !== 2) {
+                    throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+                }
+                $shop = $entry;
             }
         }
 
@@ -166,6 +172,16 @@ final class RenderPage
                 $templateSlug = '/santehnika/{brand}';
             }
         }
+        elseif (preg_match('#^/?osveshchenie/([^/]+)$#', $slug, $matches)) {
+            if ($brand) {
+                $templateSlug = '/osveshchenie/{brand}';
+            }
+        }
+        elseif (preg_match('#^/?furnitura/([^/]+)$#', $slug, $matches)) {
+            if ($shop) {
+                $templateSlug = '/furnitura/{shop}';
+            }
+        }
 
         if (! $page) {
             // Try to find the "template page" record in the DB for this dynamic route
@@ -193,11 +209,13 @@ final class RenderPage
 
         // ── Enrich components with dynamic data ──────────────────────────────
         $catalogItems = [];
-        $components = $components->map(function ($component) use ($category, $project, $brand, $material, $license, &$catalogItems) {
+        $components = $components->map(function ($component) use ($category, $project, $brand, $material, $shop, $license, &$catalogItems) {
             // Brand cards and the sidebar share one ordered directory + site overrides.
             $catalogType = match ($component->type) {
                 'ByttehnikaBrands' => 'ByttehnikaSidebar',
                 'SantehnikaBrands' => 'SantehnikaSidebar',
+                'OsveshchenieBrands' => 'OsveshchenieSidebar',
+                'FurnituraShops' => 'FurnituraSidebar',
                 'StoleshnicaBrands' => 'StoleshnicaSidebar',
                 default => $component->type,
             };
@@ -207,7 +225,7 @@ final class RenderPage
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], [
                     $itemsKey => $catalogItems[$rubricSlug],
-                    'activeSlug' => $material?->slug ?? $category?->slug ?? $brand?->slug,
+                    'activeSlug' => $material?->slug ?? $category?->slug ?? $brand?->slug ?? $shop?->slug,
                     'activeBrandSlug' => $material ? $brand?->slug : null,
                 ]);
                 if ($component->type === 'StoleshnicaBrands') {
@@ -244,6 +262,22 @@ final class RenderPage
                 ]);
             }
 
+            if ($shop && $component->type === 'FurnituraShopHero') {
+                $component = clone $component;
+                $component->data = array_merge($component->data ?? [], [
+                    'title' => $shop->value,
+                    'logo' => $shop->logo,
+                ]);
+            }
+
+            if ($shop && $component->type === 'BrandAbout') {
+                $component = clone $component;
+                $component->data = array_merge($component->data ?? [], [
+                    'description' => $shop->full_description ?: $shop->description ?: '',
+                    'managedBrand' => true,
+                ]);
+            }
+
             // Шапка страницы бренда: название и описание берём из справочника,
             // как MebelCategoryHero берёт их из своей категории. Пустое описание
             // в справочнике не затирает текст из defaults — иначе страница
@@ -252,7 +286,7 @@ final class RenderPage
             // Ветка одна на обе рубрики: у техники и сантехники бренд — строка
             // одной и той же таблицы, различает их только рубрика, поэтому
             // и обогащение шапки у них общее.
-            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
+            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero', 'OsveshchenieBrandHero'], true)) {
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], array_filter([
                     'title' => $brand->value,
@@ -262,7 +296,7 @@ final class RenderPage
                 ]);
             }
 
-            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero'], true)) {
+            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero', 'OsveshchenieBrandHero'], true)) {
                 $component = clone $component;
                 $extra = ['tags' => $brand->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id']))];
                 if ($brand->has_brand_content) {
@@ -410,16 +444,18 @@ final class RenderPage
             // ленте — чтобы отличить «проектов нет вовсе» от «все показаны
             // шапкой». Во втором случае лента не рисует ни списка, ни плашки
             // «Проектов пока нет» — та была бы прямой ложью.
-            if ($component->type === 'ProjectsHero' || $component->type === 'ProjectsFeed') {
+            // `/favorites` получает весь список: посетитель фильтрует его по
+            // своим ID в браузере, включая работу из шапки `/projects`.
+            if (in_array($component->type, ['ProjectsHero', 'ProjectsFeed', 'FavoritesPage'], true)) {
                 $projects = $this->getFeedProjects($license);
                 $component = clone $component;
 
-                $component->data = array_merge(
-                    $component->data ?? [],
-                    $component->type === 'ProjectsHero'
-                        ? ['latest' => $projects[0] ?? null, 'total' => count($projects)]
-                        : ['projects' => array_slice($projects, 1), 'total' => count($projects)],
-                );
+                $projectData = match ($component->type) {
+                    'ProjectsHero' => ['latest' => $projects[0] ?? null, 'total' => count($projects)],
+                    'ProjectsFeed' => ['projects' => array_slice($projects, 1), 'total' => count($projects)],
+                    'FavoritesPage' => ['projects' => $projects, 'total' => count($projects)],
+                };
+                $component->data = array_merge($component->data ?? [], $projectData);
             }
 
             return $component;
@@ -430,7 +466,7 @@ final class RenderPage
         // зарезервированной странице '__global__'. Дописываем их после компонентов
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
         $components = $components->concat($this->templateService->getGlobalComponents($license->id));
-        $seo = $this->resolveSeo($license, $page, $templateSlug, $category ?? $material, $project, $brand);
+        $seo = $this->resolveSeo($license, $page, $templateSlug, $category ?? $material, $project, $brand ?? $shop);
 
         // Каталожные метаданные едут с первым ответом, отдельно от контента тенанта.
         // Eager load исключает запрос на каждый блок. Для динамических страниц
@@ -600,6 +636,10 @@ final class RenderPage
                 'slug' => $cat->slug,
                 'is_enabled' => $this->catalogVisibility->enabled($cat, $license),
                 'sort_order' => $cat->sort_order,
+                ...($rubricSlug === 'furnitura' ? [
+                    'description' => $cat->description,
+                    'logo' => $cat->logo,
+                ] : []),
                 ...($rubricSlug === 'stoleshnica' ? ['brands' => $cat->brands->map(fn (CatalogBrand $brand) => [
                     'id' => $brand->id,
                     'value' => $brand->value,
