@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/*',
             'admin/*',
             'promo/*',
+            'crm/*',
             'notifications/*',
         ]);
     })

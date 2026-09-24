@@ -213,3 +213,32 @@ Route::prefix('notifications')
 */
 Route::post('/webhooks/yookassa', [YooKassaWebhookController::class, 'handle'])
     ->name('webhooks.yookassa');
+
+// CRM: bearer-only backend routes. Browser sessions terminate in leget-main.
+Route::prefix('crm')->middleware(['auth:api', 'throttle:120,1'])->group(function () {
+    $c = \App\Http\Controllers\Crm\CrmController::class;
+    $d = \App\Http\Controllers\Crm\CrmDocumentController::class;
+    Route::get('/context', [$c, 'context']);
+    Route::get('/unassigned', [$c, 'unassigned']);
+    Route::prefix('sites/{site}')->group(function () use ($c, $d) {
+        Route::get('/dashboard', [$c, 'dashboard']);
+        Route::post('/initialize', [$c, 'initialize']);
+        Route::get('/duplicates', [$c, 'duplicates']);
+        Route::get('/partners', [$c, 'partners']);
+        Route::post('/settings', [$c, 'settings']);
+        Route::post('/assign-request/{id}', [$c, 'assignRequest']);
+        Route::get('/document-fields', [$d, 'fields']);
+        Route::post('/templates', [$d, 'saveTemplate']);
+        Route::post('/templates/{id}', [$d, 'saveTemplate']);
+        Route::post('/templates/{id}/publish', [$d, 'publish']);
+        Route::get('/deals/{id}/preview', [$d, 'preview']);
+        Route::post('/deals/{id}/documents', [$d, 'generate'])->middleware('throttle:20,1');
+        Route::post('/deals/{id}/upload', [$d, 'upload'])->middleware('throttle:20,1');
+        Route::get('/documents/{id}/download', [$d, 'download']);
+        Route::get('/{resource}', [$c, 'index']);
+        Route::get('/{resource}/{id}', [$c, 'show']);
+        Route::post('/{resource}', [$c, 'save']);
+        Route::post('/{resource}/{id}', [$c, 'save']);
+        Route::post('/{resource}/{id}/{action}', [$c, 'action']);
+    });
+});
