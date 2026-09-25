@@ -9,6 +9,7 @@ use App\Models\MebelProject;
 use App\Models\Tag;
 use App\Services\BrandTags;
 use App\Support\MebelProjectImages;
+use App\Support\MebelProjectModel;
 use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -58,6 +59,7 @@ final class UpsertMebelProject
             'tag_ids.*' => ['required', 'string', 'distinct', 'exists:tags,id'],
             'image_urls' => ['sometimes', 'nullable', 'array', 'max:8'],
             'image_urls.*' => ['required', 'string', 'distinct', 'max:2048'],
+            'model_url' => ['sometimes', 'nullable', 'string', 'max:2048'],
         ], [
             'value.required' => 'Введите номер проекта.',
             'category_id.exists' => 'Выберите действующую категорию мебели.',
@@ -173,6 +175,15 @@ final class UpsertMebelProject
         // сортировки, ни выборки по ним нет. Ключи переписываются поштучно,
         // а не заменой всего `meta`, — там лежат и чужие произвольные атрибуты.
         $meta = $project->meta ?? [];
+
+        if (array_key_exists('model_url', $input)) {
+            // Omission preserves the model; null removes the association, never the shared object.
+            // New models are checked against the project's license, not every site owned by the user.
+            $meta['model_3d'] = $input['model_url'] === null ? null : app(MebelProjectModel::class)->prepare(
+                $input['model_url'],
+                $project->license_id ?? $license->id,
+            );
+        }
 
         if (array_key_exists('maker', $input)) {
             $meta['maker'] = $this->nullIfBlank($input['maker']);

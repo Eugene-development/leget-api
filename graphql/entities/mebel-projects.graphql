@@ -47,6 +47,8 @@ input UpsertMebelProjectInput {
     is_new: Boolean
     is_active: Boolean
     image_urls: [String!]
+    "GLB 2.0 or self-contained HTML from this site's mebel-models folder. Null removes it; omission preserves it."
+    model_url: String
 }
 
 "A furniture project (card in the catalog)."

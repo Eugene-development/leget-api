@@ -17,10 +17,9 @@ final class GenerateUploadUrl
      *
      * @param  mixed  $root
      * @param  array{filename: string, mimeType: string}  $args
+     * @return array{uploadUrl: string, objectUrl: string, expiresIn: int}
      *
      * @throws GraphQLException
-     *
-     * @return array{uploadUrl: string, objectUrl: string, expiresIn: int}
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
@@ -31,7 +30,7 @@ final class GenerateUploadUrl
         $pathInfo = pathinfo($originalFilename);
         $extension = $pathInfo['extension'] ?? 'jpg';
         $safeName = Str::slug($pathInfo['filename']);
-        $filename = !empty($safeName) ? "{$safeName}.{$extension}" : "file-".Str::random(8).".{$extension}";
+        $filename = ! empty($safeName) ? "{$safeName}.{$extension}" : 'file-'.Str::random(8).".{$extension}";
 
         // Validate mimeType matches valid MIME type pattern (type/subtype)
         if (! preg_match('/^[\w\-]+\/[\w\-\.\+]+$/', $mimeType)) {
@@ -48,7 +47,8 @@ final class GenerateUploadUrl
                 throw new GraphQLException("License with ID {$licenseIdArg} not found or access denied.", 'VALIDATION');
             }
         } else {
-            $license = $user->licenses()->first();
+            $domain = $context->request()->header('X-Forwarded-Host') ?? $context->request()->getHost();
+            $license = $user->licenses()->where('domain', $domain)->first() ?? $user->licenses()->first();
             if (! $license) {
                 throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
             }
@@ -57,7 +57,14 @@ final class GenerateUploadUrl
         $licenseId = $license->id;
         $hashedLicenseId = md5($licenseId);
         $folder = $args['folder'] ?? null;
-        $prefix = $folder ? trim($folder, '/') . '/' : '';
+        if ($folder === 'mebel-models') {
+            $extension = strtolower($extension);
+            if (! (($extension === 'glb' && $mimeType === 'model/gltf-binary')
+                || ($extension === 'html' && $mimeType === 'text/html'))) {
+                throw new GraphQLException('Для 3D-модели нужен файл GLB или HTML.', 'VALIDATION');
+            }
+        }
+        $prefix = $folder ? trim($folder, '/').'/' : '';
         $hash = Str::random(40);
         $objectKey = "{$prefix}{$hashedLicenseId}/{$hash}.{$extension}";
 

@@ -17,6 +17,7 @@ use App\Models\Rubric;
 use App\Models\Tag;
 use App\Models\TagGroup;
 use App\Models\User;
+use App\Support\MebelProjectModel;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
@@ -823,6 +824,153 @@ class ProjectPassportTest extends TestCase
         $unlicensed = User::create(['name' => 'No license', 'email' => 'no-license@example.com', 'password' => bcrypt('test-password')]);
         $this->expectException(GraphQLException::class);
         $this->deleteAs($project->id, $unlicensed);
+    }
+
+    public function test_model_upload_persists_preserves_replaces_and_removes_only_its_meta(): void
+    {
+        $project = $this->upsert(['value' => '3D kitchen', 'maker' => 'Workshop']);
+        $url = $this->uploadTestModel($project->license_id);
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'model_url' => $url]);
+        $this->assertNotSame($url, $project->meta['model_3d']['url']);
+        $this->assertSame('gzip', $project->meta['model_3d']['encoding']);
+        $this->assertLessThan($project->meta['model_3d']['size'], $project->meta['model_3d']['transfer_size']);
+        $deliveryKey = substr($project->meta['model_3d']['url'], strlen('https://storage.yandexcloud.net/leget-main/'));
+        $this->assertSame($this->glbFixture(), gzdecode(Storage::disk('yandex')->get($deliveryKey)));
+        $this->assertGreaterThan(0, $project->meta['model_3d']['size']);
+        $this->assertSame('Workshop', $project->meta['maker']);
+        $model = $project->meta['model_3d'];
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'description' => 'Changed']);
+        $this->assertSame($model, $project->meta['model_3d']);
+        $replacement = $this->uploadTestModel($project->license_id, $this->glbFixture(['extras' => ['revision' => 2]]), 'b');
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'model_url' => $replacement]);
+        $this->assertNotSame($model['url'], $project->meta['model_3d']['url']);
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'model_url' => null]);
+        $this->assertArrayNotHasKey('model_3d', $project->meta);
+        $this->assertSame('Workshop', $project->meta['maker']);
+    }
+
+    public function test_graphql_accepts_model_upload_and_returns_validated_metadata(): void
+    {
+        $project = $this->upsert(['value' => 'GraphQL 3D']);
+        $this->actingAs(User::where('email', 'owner@example.com')->first(), 'api');
+        $url = $this->uploadTestModel($project->license_id);
+        $query = 'mutation Save($input: UpsertMebelProjectInput!) { upsertMebelProject(input: $input) { id meta } }';
+        $input = ['id' => $project->id, 'value' => $project->value, 'category_id' => $project->category_id, 'model_url' => $url];
+        $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => $input]])
+            ->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.upsertMebelProject.meta.model_3d.encoding', 'gzip');
+        $input['model_url'] = null;
+        $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => $input]])
+            ->assertOk()->assertJsonMissingPath('errors')->assertJsonPath('data.upsertMebelProject.meta', null);
+    }
+
+    public function test_invalid_or_foreign_models_do_not_partially_save_project(): void
+    {
+        $project = $this->upsert(['value' => 'Original 3D']);
+        $url = $this->uploadTestModel($project->license_id);
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'model_url' => $url]);
+        $original = $project->meta;
+        foreach (['https://example.com/kitchen.glb', str_replace(md5($project->license_id), md5('foreign'), $url),
+            str_replace('.glb', '.png', $url), $url.'?x=1', $url.'/../file.glb'] as $invalid) {
+            try {
+                $this->upsert(['id' => $project->id, 'value' => 'Changed', 'model_url' => $invalid]);
+                $this->fail('Invalid model URL accepted');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('model_url', $e->errors());
+                $this->assertSame('Original 3D', $project->fresh()->value);
+                $this->assertSame($original, $project->fresh()->meta);
+            }
+        }
+        foreach (['not a model', str_repeat('x', MebelProjectModel::MAX_BYTES + 1),
+            $this->glbFixture(['uri' => 'https://example.com/texture.png']),
+            substr($this->glbFixture(), 0, -1)] as $content) {
+            $invalid = $this->uploadTestModel($project->license_id, $content);
+            try {
+                $this->upsert(['id' => $project->id, 'value' => 'Changed', 'model_url' => $invalid]);
+                $this->fail('Invalid model content accepted');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('model_url', $e->errors());
+                $this->assertSame('Original 3D', $project->fresh()->value);
+                $this->assertSame($original, $project->fresh()->meta);
+            }
+        }
+    }
+
+    private function glbFixture(array $extra = []): string
+    {
+        $json = json_encode(['asset' => ['version' => '2.0'], 'scenes' => [['nodes' => [0]]],
+            'nodes' => [['mesh' => 0]], 'meshes' => [['primitives' => [['attributes' => ['POSITION' => 0]]]]],
+            'buffers' => [['byteLength' => 12]], 'bufferViews' => [['buffer' => 0, 'byteLength' => 12]],
+            'accessors' => [['bufferView' => 0, 'componentType' => 5126, 'count' => 1, 'type' => 'VEC3']], ...$extra]);
+        $json = str_pad($json, (int) (ceil(strlen($json) / 4) * 4), ' ');
+
+        return 'glTF'.pack('VV', 2, 12 + 8 + strlen($json) + 8 + 12)
+            .pack('VV', strlen($json), 0x4E4F534A).$json.pack('VV', 12, 0x004E4942).str_repeat("\0", 12);
+    }
+
+    public function test_model_complexity_limits_and_failed_compression_storage_preserve_project(): void
+    {
+        $project = $this->upsert(['value' => 'Complexity']);
+        foreach ([
+            ['extensionsRequired' => ['KHR_draco_mesh_compression']],
+            ['accessors' => [['count' => 900003]]],
+            ['nodes' => array_fill(0, 501, ['mesh' => 0])],
+            ['bufferViews' => [['byteOffset' => 100, 'byteLength' => 12]]],
+        ] as $extra) {
+            $url = $this->uploadTestModel($project->license_id, $this->glbFixture($extra));
+            try {
+                $this->upsert(['id' => $project->id, 'value' => 'Changed', 'model_url' => $url]);
+                $this->fail('Invalid or oversized scene accepted');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('model_url', $e->errors());
+                $this->assertSame('Complexity', $project->fresh()->value);
+                $this->assertNull($project->fresh()->meta);
+            }
+        }
+        $url = $this->uploadTestModel($project->license_id);
+        $real = Storage::disk('yandex');
+        $disk = \Mockery::mock($real)->makePartial();
+        $disk->shouldReceive('put')->once()->andReturn(false);
+        Storage::set('yandex', $disk);
+        try {
+            $this->upsert(['id' => $project->id, 'value' => 'Changed', 'model_url' => $url]);
+            $this->fail('Failed delivery write accepted');
+        } catch (ValidationException) {
+            $this->assertSame('Complexity', $project->fresh()->value);
+            $this->assertNull($project->fresh()->meta);
+        }
+    }
+
+    public function test_html_model_is_stored_as_html_and_rejects_non_documents(): void
+    {
+        $project = $this->upsert(['value' => 'HTML kitchen']);
+        Storage::fake('yandex');
+        config(['filesystems.disks.yandex.endpoint' => 'https://storage.yandexcloud.net', 'filesystems.disks.yandex.bucket' => 'leget-main']);
+        $key = 'mebel-models/'.md5($project->license_id).'/'.str_repeat('h', 40).'.html';
+        $url = 'https://storage.yandexcloud.net/leget-main/'.$key;
+        Storage::disk('yandex')->put($key, '<!doctype html><html><body><canvas></canvas></body></html>');
+        $project = $this->upsert(['id' => $project->id, 'value' => $project->value, 'model_url' => $url]);
+        $this->assertSame('html', $project->meta['model_3d']['format']);
+        $this->assertSame($url, $project->meta['model_3d']['url']);
+        foreach ([str_repeat('x', 50), str_repeat('x', MebelProjectModel::MAX_HTML_BYTES + 1)] as $content) {
+            Storage::disk('yandex')->put($key, $content);
+            try {
+                $this->upsert(['id' => $project->id, 'value' => 'Changed', 'model_url' => $url]);
+                $this->fail('Invalid HTML accepted');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('model_url', $e->errors());
+                $this->assertSame('HTML kitchen', $project->fresh()->value);
+            }
+        }
+    }
+
+    private function uploadTestModel(string $licenseId, ?string $content = null, string $character = 'a'): string
+    {
+        Storage::fake('yandex');
+        config(['filesystems.disks.yandex.endpoint' => 'https://storage.yandexcloud.net', 'filesystems.disks.yandex.bucket' => 'leget-main']);
+        $key = 'mebel-models/'.md5($licenseId).'/'.str_repeat($character, 40).'.glb';
+        Storage::disk('yandex')->put($key, $content ?? $this->glbFixture());
+
+        return 'https://storage.yandexcloud.net/leget-main/'.$key;
     }
 
     private function deleteAs(string $id, ?User $user): MebelProject

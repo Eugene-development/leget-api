@@ -1003,7 +1003,6 @@ return [
                     ],
                 ]],
                 ['type' => 'OsveshchenieHero', 'defaults' => [
-                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/lighting_hero_20260924.png',
                     'title' => 'Освещение',
                     'description' => 'Подберём светильники для разных зон дома: общий, рабочий и акцентный свет. Поможем сочетать их с мебелью и интерьером.',
                     'buttonText' => 'Подобрать освещение',
@@ -1047,7 +1046,7 @@ return [
                     'title' => 'Фурнитура',
                     'description' => 'Каталог интернет-магазинов и поставщиков мебельной фурнитуры. Петли, направляющие, подъёмники и системы хранения от проверенных поставщиков.',
                     'primaryButton' => 'Подобрать фурнитуру',
-                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero_20260924.png',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero.png',
                 ]],
                 ['type' => 'FurnituraShops', 'defaults' => [
                     'title' => 'Магазины и поставщики',
