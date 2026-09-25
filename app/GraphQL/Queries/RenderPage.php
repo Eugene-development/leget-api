@@ -29,7 +29,7 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v15';
+    private const CACHE_VERSION = 'v16';
 
     public function __construct(
         private TemplateService $templateService,
@@ -347,6 +347,14 @@ final class RenderPage
                         ],
                         'category' => $category ? ['id' => $category->id, 'value' => $category->value, 'slug' => $category->slug] : null,
                         'categories' => $liveCategories->toArray(),
+                    ]);
+                }
+
+                if ($component->type === 'MebelProjectModel') {
+                    $component = clone $component;
+                    // Always use the current catalog model, never a snapshot saved with the block's copy.
+                    $component->data = array_merge($component->data ?? [], [
+                        'project' => ['id' => $project->id, 'value' => $project->value, 'meta' => $project->meta ?? []],
                     ]);
                 }
 

@@ -1462,6 +1462,24 @@ class RenderPageTest extends TestCase
             array_column($block['data']['projects'], 'value'));
     }
 
+    public function test_project_model_is_a_separate_editable_catalog_block_with_live_model_data(): void
+    {
+        $license = $this->createLicense(['domain' => 'model.example.com', 'template_id' => 1]);
+        $category = $this->createMebelCategory();
+        $model = ['url' => 'https://storage.yandexcloud.net/leget-main/mebel-models/test/model.glb'];
+        $project = $this->createProject($category, ['value' => '26-100', 'slug' => 'project', 'meta' => ['model_3d' => $model]]);
+        $article = $this->createCatalogComponent(1, '/mebel/{category}/{project}', 18, 'MebelProjectModel', 6);
+        $result = ($this->resolver)(null, ['slug' => '/mebel/kitchens/project'],
+            $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+        $blocks = collect($result['page']['componentsData'])->keyBy('type');
+        $this->assertArrayHasKey('MebelProjectHero', $blocks->all());
+        $this->assertSame($article, $blocks['MebelProjectModel']['catalog']);
+        $this->assertSame('Доступен просмотр 3D модели проекта', $blocks['MebelProjectModel']['data']['text']);
+        $this->assertSame('Посмотреть в 3D', $blocks['MebelProjectModel']['data']['buttonText']);
+        $this->assertSame($project->id, $blocks['MebelProjectModel']['data']['project']['id']);
+        $this->assertSame($model, $blocks['MebelProjectModel']['data']['project']['meta']['model_3d']);
+    }
+
     /** Портфолио пустое: шапке нечего показать, счётчик нулевой. */
     public function test_empty_portfolio_leaves_the_hero_without_a_project(): void
     {

@@ -526,6 +526,11 @@ return [
             '/mebel/{category}/{project}' => [
                 ['type' => 'MebelSidebar',    'defaults' => []],
                 ['type' => 'MebelProjectHero', 'defaults' => []],
+                ['type' => 'MebelProjectModel', 'defaults' => [
+                    'text' => 'Доступен просмотр 3D модели проекта',
+                    'buttonText' => 'Посмотреть в 3D',
+                    'theme' => 'light',
+                ]],
                 ['type' => 'MebelProjectDescription', 'defaults' => []],
                 ['type' => 'MebelProjectSimilar', 'defaults' => []],
                 ['type' => 'MebelCTA',       'defaults' => [
