@@ -12,8 +12,9 @@ final class MebelProjectImages
     public const MAX_BYTES = 10 * 1024 * 1024;
 
     /** Read only files uploaded into one of this owner's furniture folders. */
-    public function prepare(array $urls, array $licenseIds): array
+    public function prepare(array $urls, array $licenseIds, ?array $caption = null): array
     {
+        $caption = ProjectImageCaption::validate($caption);
         $prefix = rtrim(config('filesystems.disks.yandex.endpoint'), '/')
             .'/'.config('filesystems.disks.yandex.bucket').'/';
         $folders = array_map(fn ($id) => 'mebel/'.md5($id).'/', $licenseIds);
@@ -52,8 +53,26 @@ final class MebelProjectImages
                     || ! in_array($info['mime'], ['image/jpeg', 'image/png', 'image/webp'], true)) {
                     throw new \RuntimeException('Invalid image');
                 }
+                if ($caption !== null) {
+                    // Bound decoded memory before handing an untrusted image to GD.
+                    if ($info[0] * $info[1] > 16000000 || min($info[0], $info[1]) < 32) {
+                        throw new \RuntimeException('Caption image dimensions out of bounds');
+                    }
+                    $sourceHash = hash('sha256', $content);
+                    $content = app(ProjectImageCaption::class)->render($content, $caption);
+                    if (strlen($content) > self::MAX_BYTES) {
+                        throw new \RuntimeException('Caption image too large');
+                    }
+                    // Stable derivative of the original: retries never stamp an already stamped file.
+                    $key = dirname($key).'/'.substr(hash('sha256', $sourceHash.json_encode($caption).'caption-v1'), 0, 40).'.webp';
+                    if (! $disk->put($key, $content, ['ContentType' => 'image/webp'])) {
+                        throw new \RuntimeException('Caption image write failed');
+                    }
+                    $url = $prefix.$key;
+                    $info['mime'] = 'image/webp';
+                }
             } catch (\Throwable $e) {
-                throw ValidationException::withMessages(["image_urls.$index" => 'Не удалось проверить фотографию. Загрузите JPEG, PNG или WebP размером до 10 МБ.']);
+                throw ValidationException::withMessages(["image_urls.$index" => $caption !== null ? 'Не удалось нанести подпись. Используйте фото от 32 px до 16 Мп и до 10 МБ или повторите попытку.' : 'Не удалось проверить фотографию. Загрузите JPEG, PNG или WebP размером до 10 МБ.']);
             }
 
             $images[] = [

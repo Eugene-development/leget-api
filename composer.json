@@ -7,8 +7,10 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "ext-gd": "*",
         "aws/aws-sdk-php": "^3.379",
         "barryvdh/laravel-dompdf": "^3.1",
+        "intervention/image": "^3.11",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.0",

@@ -47,6 +47,8 @@ input UpsertMebelProjectInput {
     is_new: Boolean
     is_active: Boolean
     image_urls: [String!]
+    "Подпись наносится только на новые фотографии; сохранённые фото не меняются."
+    image_caption: ProjectImageCaptionInput
     "GLB 2.0 or self-contained HTML from this site's mebel-models folder. Null removes it; omission preserves it."
     model_url: String
 }
@@ -114,4 +116,14 @@ type MebelProject {
 
     createdAt: DateTime @rename(attribute: "created_at")
     updatedAt: DateTime @rename(attribute: "updated_at")
+}
+
+input ProjectImageCaptionInput {
+    text: String!
+    position: String!
+    font_size: Int!
+    opacity: Int!
+    color: String!
+    padding: Int!
+    bold: Boolean!
 }

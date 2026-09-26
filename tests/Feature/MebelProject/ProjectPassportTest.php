@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Intervention\Image\ImageManager;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 use Tests\TestCase;
 
@@ -979,6 +980,32 @@ class ProjectPassportTest extends TestCase
         $context->method('user')->willReturn($user);
 
         return app(DeleteMebelProject::class)(null, ['id' => $id], $context);
+    }
+
+    public function test_graphql_caption_saves_derivative_and_edit_keeps_it_unchanged(): void
+    {
+        $this->prepareImageSchema();
+        $this->upsert(['value' => 'Подготовка подписи']);
+        $content = (string) ImageManager::gd()->create(640, 480)->fill('#224466')->toPng();
+        $url = $this->uploadTestImage($content);
+        $this->actingAs(User::where('email', 'owner@example.com')->first(), 'api');
+        $caption = ['text' => 'Мастерская', 'position' => 'right', 'font_size' => 32, 'opacity' => 60, 'color' => '#ffffff', 'padding' => 24, 'bold' => true];
+        $query = 'mutation Save($input: UpsertMebelProjectInput!) { upsertMebelProject(input: $input) { id } }';
+        $input = ['category_id' => $this->category->id, 'value' => 'С подписью', 'image_urls' => [$url], 'image_caption' => $caption];
+        $response = $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => $input]]);
+        $response->assertOk()->assertJsonMissingPath('errors');
+        $project = MebelProject::findOrFail($response->json('data.upsertMebelProject.id'));
+        $image = $project->images->sole();
+        $this->assertNotSame($url, $image->path);
+        $this->assertSame('image/webp', $image->mime_type);
+        $updated = $this->upsert(['id' => $project->id, 'value' => 'С подписью', 'image_urls' => [$image->path], 'image_caption' => $caption]);
+        $this->assertSame($image->id, $updated->images->sole()->id);
+        $this->assertSame($image->hash, $updated->images->sole()->hash);
+        $input['value'] = 'Ошибка подписи';
+        $input['image_caption']['opacity'] = 101;
+        $invalid = $this->postJson('/graphql', ['query' => $query, 'variables' => ['input' => $input]]);
+        $invalid->assertOk()->assertJsonStructure(['errors']);
+        $this->assertDatabaseMissing('mebel_projects', ['value' => 'Ошибка подписи']);
     }
 
     private function prepareImageSchema(): void

@@ -10,6 +10,7 @@ use App\Models\Tag;
 use App\Services\BrandTags;
 use App\Support\MebelProjectImages;
 use App\Support\MebelProjectModel;
+use App\Support\ProjectImageCaption;
 use App\Support\RussianSlug;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -67,6 +68,8 @@ final class UpsertMebelProject
             'old_price.min' => 'Старая цена не может быть отрицательной.',
             'image_urls.max' => 'Можно добавить не больше восьми фотографий.',
         ])->validate();
+
+        $caption = ProjectImageCaption::validate($input['image_caption'] ?? null);
 
         $user = $context->user();
         $request = $context->request();
@@ -225,11 +228,11 @@ final class UpsertMebelProject
         $existingImages = isset($input['image_urls']) && $project->exists
             ? $project->images()->get()->keyBy('path')
             : collect();
+        $newUrls = isset($input['image_urls'])
+            ? array_values(array_filter($input['image_urls'], fn ($url) => ! $existingImages->has($url)))
+            : [];
         $newImages = isset($input['image_urls'])
-            ? collect(app(MebelProjectImages::class)->prepare(
-                array_values(array_filter($input['image_urls'], fn ($url) => ! $existingImages->has($url))),
-                $licenseIds,
-            ))->keyBy('path')
+            ? collect(array_combine($newUrls, app(MebelProjectImages::class)->prepare($newUrls, $licenseIds, $caption)))
             : null;
         try {
             DB::transaction(function () use ($project, $input, $existingImages, $newImages) {

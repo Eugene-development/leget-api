@@ -3,15 +3,18 @@ FROM composer:2.8 AS composer-build
 
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts --ignore-platform-req=ext-gd
 
 FROM php:8.4-fpm-alpine AS production
 
 # Install system dependencies
 RUN apk add --no-cache \
     su-exec \
-    tzdata \
-    && docker-php-ext-install pdo pdo_mysql bcmath
+    tzdata freetype libjpeg-turbo libpng libwebp \
+    && apk add --no-cache --virtual .image-build-deps freetype-dev libjpeg-turbo-dev libpng-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install pdo pdo_mysql bcmath gd exif \
+    && apk del .image-build-deps
 
 # Копируем скрипт в образ
 COPY entrypoint.sh /entrypoint.sh
