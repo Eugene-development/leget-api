@@ -29,7 +29,8 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    private const CACHE_VERSION = 'v16';
+    // UniversityProgram is now a separate block; old cached arrays omit it.
+    private const CACHE_VERSION = 'v17';
 
     public function __construct(
         private TemplateService $templateService,

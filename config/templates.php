@@ -99,6 +99,13 @@ return [
                     ],
                 ],
                 [
+                    'type' => 'UniversityProgram',
+                    'defaults' => [
+                        'title' => 'Ваша программа обучения',
+                        'description' => 'Выберите дисциплину. Пройдите курсы в своём темпе.',
+                    ],
+                ],
+                [
                     'type' => 'UniversityJournal',
                     'defaults' => [
                         'title' => 'Немного знаний. Уже другой взгляд.',
