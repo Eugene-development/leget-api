@@ -559,20 +559,28 @@ final class RenderPage
      * Своего запроса это не стоит на горячем пути: ответ renderPage кэшируется
      * целиком, а любая правка блока сбрасывает кэш по тегу лицензии.
      *
-     * @return array<int, array{id: ?string, title: ?string, badge: ?string, enabled: bool}>|null
+     * @return array{primary: ?array, extra: ?array}
      */
-    private function getActionCards(License $license): ?array
+    private function getActionCards(License $license): array
     {
         $page = Page::where('license_id', $license->id)
             ->where('slug', '/actions')
             ->first();
 
         if (! $page) {
-            return null;
+            return ['primary' => null, 'extra' => null];
         }
 
+        return [
+            'primary' => $this->getActionCardsForType($page, 'ActionsCards'),
+            'extra' => $this->getActionCardsForType($page, 'ActionsCardsExtra'),
+        ];
+    }
+
+    private function getActionCardsForType(Page $page, string $type): ?array
+    {
         $component = PageComponent::where('page_id', $page->id)
-            ->where('type', 'ActionsCards')
+            ->where('type', $type)
             ->first();
 
         if (! $component) {
