@@ -29,8 +29,8 @@ final class RenderPage
      * version in the key prevents old arrays from violating new non-null
      * GraphQL fields after a zero-downtime deploy.
      */
-    // UniversityProgram is now a separate block; old cached arrays omit it.
-    private const CACHE_VERSION = 'v17';
+    // UniversityProgram is a separate block; actionCards now contains both action groups.
+    private const CACHE_VERSION = 'v18';
 
     public function __construct(
         private TemplateService $templateService,
@@ -544,13 +544,13 @@ final class RenderPage
     }
 
     /**
-     * Карточки акций страницы `/actions` для полосы акций (layout/PromoStrip).
+     * Карточки обоих блоков страницы `/actions` для полосы акций (layout/PromoStrip).
      *
      * Отдаём ТОЛЬКО сохранённое тенантом и только те поля, которые полосе нужны:
-     * `icon` — SVG-путь, `description` — абзац текста, и восемь таких карточек
+     * `icon` — SVG-путь, `description` — абзац текста, и все эти карточки
      * ехали бы в ответ на каждой странице сайта ради двух строк в полосе.
      *
-     * Три разных ответа, и различать их обязательно (разбор — в actionCards.ts):
+     * Для каждого блока есть три разных ответа (разбор — в actionCards.ts):
      *   null — блок не сохранён (страница новая, тенант её не правил): фронт
      *          показывает те же дефолты, что рисует сама страница;
      *   []   — блок выключен целиком или сохранён пустым: акций нет, полоса пуста;

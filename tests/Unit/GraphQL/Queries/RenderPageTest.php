@@ -267,6 +267,39 @@ class RenderPageTest extends TestCase
         ], $attributes));
     }
 
+    public function test_promo_strip_receives_both_action_groups_and_respects_disabled_extra_block(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/actions']);
+
+        $primary = PageComponent::create([
+            'page_id' => $page->id,
+            'license_id' => $license->id,
+            'type' => 'ActionsCards',
+            'data' => ['cards' => [['id' => 'gift', 'title' => 'Техника в подарок', 'badge' => 'Подарок']]],
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $extra = PageComponent::create([
+            'page_id' => $page->id,
+            'license_id' => $license->id,
+            'type' => 'ActionsCardsExtra',
+            'data' => ['cards' => [['id' => 'repeat', 'title' => 'Особое предложение', 'badge' => 'Для постоянных клиентов']]],
+            'is_active' => true,
+            'sort_order' => 2,
+        ]);
+
+        $readCards = fn () => (new \ReflectionMethod(RenderPage::class, 'getActionCards'))
+            ->invoke($this->resolver, $license);
+
+        $this->assertSame('Техника в подарок', $readCards()['primary'][0]['title']);
+        $this->assertSame('Особое предложение', $readCards()['extra'][0]['title']);
+
+        $extra->update(['is_active' => false]);
+        $this->assertSame([], $readCards()['extra']);
+        $this->assertCount(1, $readCards()['primary']);
+    }
+
     public function test_brand_tags_are_links_scoped_to_site_and_preserved_after_delete(): void
     {
         config(['lighthouse.schema_cache.enable' => false]);
