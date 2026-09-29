@@ -123,6 +123,13 @@ class AdminPartnerTest extends TestCase
         return $profile->fresh(['user']);
     }
 
+    public function test_student_only_gets_partner_as_second_role(): void
+    {
+        $profile = $this->application('student-partner@test.local', PartnerStatus::Pending, Role::Student);
+        $this->actingAs($this->superadmin(), 'api')->postJson('/admin/partners/'.$profile->id.'/approve')->assertOk();
+        $this->assertSame(['partner', 'student'], $profile->user->fresh()->roleNames());
+    }
+
     private function superadmin(): User
     {
         return $this->user('boss@example.test', Role::Superadmin);

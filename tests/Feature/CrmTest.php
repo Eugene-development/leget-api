@@ -97,6 +97,44 @@ class CrmTest extends TestCase
         $this->assertSame(Role::Client, $client->fresh()->role);
     }
 
+    public function test_student_can_be_assigned_manager_without_losing_education(): void
+    {
+        $student = User::create(['name' => 'Студент', 'email' => 'student-manager@test.local', 'password' => 'old-password']);
+        $student->forceFill(['role' => Role::Student])->save();
+        $password = $student->password;
+        $this->actingAs($this->owner, 'api');
+        $this->postCrm('members/assign', ['mode' => 'existing', 'email' => $student->email])->assertOk();
+        $this->assertSame(['manager', 'student'], $student->fresh()->roleNames());
+        $this->assertSame($password, $student->fresh()->password);
+        $this->actingAs($student->fresh(), 'api')->getJson('/crm/sites/'.$this->site.'/dashboard')->assertOk();
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/dashboard')->assertForbidden();
+        $member = DB::table('crm_memberships')->where('user_id', $student->id)->first();
+        $this->actingAs($this->owner, 'api');
+        $this->postCrm('members/'.$member->id.'/revoke', ['version' => 1, 'reason' => 'Завершено назначение'])->assertOk();
+        $this->assertSame(['manager', 'student'], $student->fresh()->roleNames());
+    }
+
+    public function test_client_student_needs_explicit_confirmation_but_staff_is_not_overwritten(): void
+    {
+        $student = User::create(['name' => 'Клиент и студент', 'email' => 'dual@test.local', 'password' => 'old-password']);
+        $student->forceFill(['role' => Role::Client, 'university_enrolled_at' => now()->subYear()])->save();
+        $enrolledAt = $student->university_enrolled_at;
+        $this->actingAs($this->owner, 'api');
+        $body = ['mode' => 'existing', 'email' => $student->email];
+        $this->postCrm('members/assign', $body)->assertConflict()->assertJsonPath('code', 'role_replacement_confirmation_required');
+        $this->assertSame(Role::Client, $student->fresh()->role);
+        $this->assertDatabaseMissing('crm_memberships', ['user_id' => $student->id]);
+        $this->postCrm('members/assign', $body + ['confirm_client_replacement' => true])->assertOk();
+        $this->assertSame(['manager', 'student'], $student->fresh()->roleNames());
+        $this->assertEquals($enrolledAt, $student->fresh()->university_enrolled_at);
+        $this->assertFalse($student->fresh()->hasAbility('promo.client'));
+        foreach ([Role::Admin, Role::Curator, Role::Partner, Role::Superadmin] as $role) {
+            $student->forceFill(['role' => $role])->save();
+            $this->postCrm('members/assign', $body + ['confirm_client_replacement' => true])->assertUnprocessable();
+            $this->assertSame($role, $student->fresh()->role);
+        }
+    }
+
     private function postCrm(string $path, array $body = [], ?string $site = null)
     {
         return $this->postJson('/crm/sites/'.($site ?? $this->site).'/'.$path, $body + ['request_key' => (string) Str::uuid()]);

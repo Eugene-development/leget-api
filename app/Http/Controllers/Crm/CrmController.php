@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Crm\CrmAccess;
 use App\Services\Crm\CrmDefaults;
 use App\Services\Crm\CrmStore;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,7 @@ final class CrmController extends Controller
         $r->merge(['email' => strtolower(trim((string) $r->input('email')))]);
         $v = $r->validate([
             'mode' => 'required|in:new,existing', 'email' => 'required|email|max:255',
+            'confirm_client_replacement' => 'sometimes|boolean',
             'name' => 'required_if:mode,new|nullable|string|max:255',
             'password' => 'required_if:mode,new|nullable|string|min:12|max:128|confirmed',
         ]);
@@ -62,7 +64,16 @@ final class CrmController extends Controller
                 $user = new User;
                 $user->forceFill(['name' => $v['name'], 'email' => $v['email'], 'password' => Hash::make($v['password']), 'role' => Role::Manager])->save();
             } else {
-                abort_unless($user && $user->role === Role::Manager, 422, 'Укажите email существующего менеджера. Клиентские аккаунты не преобразуются.');
+                $studentClient = $user && $user->role === Role::Client && $user->hasAbility('university.study');
+                abort_unless($user && (in_array($user->role, [Role::Student, Role::Manager], true) || $studentClient), 422,
+                    'Укажите аккаунт менеджера или студента. Другие служебные роли не заменяются.');
+                if ($studentClient && ! $r->boolean('confirm_client_replacement')) {
+                    throw new HttpResponseException(response()->json([
+                        'success' => false, 'code' => 'role_replacement_confirmation_required',
+                        'message' => 'Подтвердите замену роли Клиент на Менеджер. Учебный доступ сохранится.',
+                    ], 409));
+                }
+                $user->setPrimaryRole(Role::Manager)->save();
             }
             $existing = $this->store->query('crm_memberships', $site)->where('user_id', $user->id)->lockForUpdate()->first();
             $values = ['status' => 'approved', 'reviewed_by' => $r->user()->id, 'reviewed_at' => now(), 'review_note' => 'Назначен администратором сайта'];

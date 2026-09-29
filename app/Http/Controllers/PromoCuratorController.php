@@ -94,7 +94,7 @@ final class PromoCuratorController extends Controller
         ]);
 
         $clients = User::query()
-            ->whereIn('role', [Role::Client->value, Role::Student->value])
+            ->where('role', Role::Client->value)
             ->whereDoesntHave('promoCodes')
             ->with('attribution')
             ->latest('created_at')

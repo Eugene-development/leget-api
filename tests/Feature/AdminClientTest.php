@@ -108,6 +108,13 @@ class AdminClientTest extends TestCase
         $this->assertSame(Role::Superadmin, $this->superadminUser()->fresh()->role);
     }
 
+    public function test_student_only_gets_curator_as_second_role(): void
+    {
+        $student = $this->user('student-curator@test.local', 'Студент', Role::Student);
+        $this->actingAs($this->superadminUser(), 'api')->postJson('/admin/clients/'.$student->id.'/curator', ['reason' => 'Назначение сотрудника'])->assertOk();
+        $this->assertSame(['curator', 'student'], $student->fresh()->roleNames());
+    }
+
     private function superadminUser(): User
     {
         return $this->user('admin@example.test', 'Админ', Role::Superadmin);
