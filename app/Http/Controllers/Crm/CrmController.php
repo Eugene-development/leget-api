@@ -13,6 +13,7 @@ use App\Services\Crm\CrmStore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 final class CrmController extends Controller
 {
@@ -40,6 +41,38 @@ final class CrmController extends Controller
             'current_site' => $current, 'role' => $user->role?->value ?? 'client',
             'applications' => DB::table('crm_memberships')->where('user_id', $user->id)->get(['id', 'license_id', 'status', 'review_note', 'version']),
         ]);
+    }
+
+    /** Only the owner of this license or a superadmin can provision a manager. */
+    public function assignManager(Request $r, string $site)
+    {
+        $this->access->site($r->user(), $site, true);
+        $r->merge(['email' => strtolower(trim((string) $r->input('email')))]);
+        $v = $r->validate([
+            'mode' => 'required|in:new,existing', 'email' => 'required|email|max:255',
+            'name' => 'required_if:mode,new|nullable|string|max:255',
+            'password' => 'required_if:mode,new|nullable|string|min:12|max:128|confirmed',
+        ]);
+
+        return $this->store->mutate($r, $site, function () use ($r, $site, $v) {
+            $this->access->site($r->user()->fresh(), $site, true);
+            $user = User::whereRaw('LOWER(email) = ?', [$v['email']])->lockForUpdate()->first();
+            if ($v['mode'] === 'new') {
+                abort_if($user, 409, 'Этот email уже занят. Для сотрудника используйте отдельный рабочий аккаунт.');
+                $user = new User;
+                $user->forceFill(['name' => $v['name'], 'email' => $v['email'], 'password' => Hash::make($v['password']), 'role' => Role::Manager])->save();
+            } else {
+                abort_unless($user && $user->role === Role::Manager, 422, 'Укажите email существующего менеджера. Клиентские аккаунты не преобразуются.');
+            }
+            $existing = $this->store->query('crm_memberships', $site)->where('user_id', $user->id)->lockForUpdate()->first();
+            $values = ['status' => 'approved', 'reviewed_by' => $r->user()->id, 'reviewed_at' => now(), 'review_note' => 'Назначен администратором сайта'];
+            $member = $existing
+                ? $this->store->update('crm_memberships', $existing, $existing->version, $values)
+                : $this->store->insert('crm_memberships', $site, $values + ['user_id' => $user->id]);
+            $this->store->event($r, $site, 'members', $member->id, 'manager_assigned', ['user_id' => $user->id]);
+
+            return ['success' => true, 'item' => $this->store->present($member) + ['user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email]]];
+        });
     }
 
     public function dashboard(Request $r, string $site)
@@ -370,13 +403,12 @@ final class CrmController extends Controller
             } elseif ($resource === 'members' && in_array($action, ['approve', 'reject', 'revoke'])) {
                 // User lock serializes approvals on different sites and protects the global role.
                 $user = User::whereKey($row->user_id)->lockForUpdate()->firstOrFail();
-                abort_unless(in_array($user->role, [Role::Client, Role::Manager]), 409, 'Существующую роль пользователя нельзя заменить на менеджера.');
+                abort_unless($action !== 'approve' || $user->role === Role::Manager, 409, 'Существующую роль пользователя нельзя заменить на менеджера.');
                 $input = $r->validate(['reason' => ($action === 'approve' ? 'nullable' : 'required').'|string|max:2000']);
                 $data = ['status' => match ($action) {
                     'approve' => 'approved', 'reject' => 'rejected', default => 'revoked'
                 }, 'reviewed_by' => $r->user()->id, 'reviewed_at' => now(), 'review_note' => $input['reason'] ?? null];
-                $otherApproved = DB::table('crm_memberships')->where('user_id', $user->id)->where('id', '!=', $id)->where('status', 'approved')->lockForUpdate()->get()->isNotEmpty();
-                $user->forceFill(['role' => $action === 'approve' || $otherApproved ? Role::Manager : Role::Client])->save();
+                // Revocation only removes this site's access; the work account remains a manager.
             } elseif ($resource === 'stages' && $action === 'archive') {
                 abort_if($row->system_key !== null, 422, 'Системный этап можно переименовать или переместить, но нельзя архивировать.');
                 $input = $r->validate(['replacement_id' => 'nullable|string|size:26']);

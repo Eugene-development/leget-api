@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\PartnerStatus;
 use App\Enums\Role;
 use App\Models\PartnerProfile;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -54,22 +55,26 @@ final class AdminPartnerController extends Controller
 
     public function approve(Request $request, string $id)
     {
+        $validated = $request->validate(['note' => 'sometimes|nullable|string|max:2000']);
         $profile = $this->applications()->find($id);
 
         if (! $profile instanceof PartnerProfile) {
             return $this->missing();
         }
 
-        DB::transaction(function () use ($profile, $request): void {
+        DB::transaction(function () use ($profile, $request, $validated): void {
+            $user = User::whereKey($profile->user_id)->lockForUpdate()->firstOrFail();
+            $profile = PartnerProfile::whereKey($profile->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($user->role, [Role::Client, Role::Student, Role::Partner], true), 409, 'Роль пользователя изменилась. Нельзя заменить роль сотрудника или администратора.');
             $profile->forceFill([
                 'status' => PartnerStatus::Approved,
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
-                'review_note' => null,
+                'review_note' => $validated['note'] ?? null,
             ])->save();
 
             // Роль — вторая половина того же решения, поэтому в той же транзакции.
-            $profile->user->forceFill(['role' => Role::Partner->value])->save();
+            $user->forceFill(['role' => Role::Partner, 'university_enrolled_at' => $user->university_enrolled_at ?? ($user->role === Role::Student ? now() : null)])->save();
         });
 
         return response()->json([
@@ -91,6 +96,8 @@ final class AdminPartnerController extends Controller
         }
 
         DB::transaction(function () use ($profile, $request, $validated): void {
+            $user = User::whereKey($profile->user_id)->lockForUpdate()->firstOrFail();
+            $profile = PartnerProfile::whereKey($profile->id)->lockForUpdate()->firstOrFail();
             $wasApproved = $profile->status === PartnerStatus::Approved;
 
             $profile->forceFill([
@@ -102,8 +109,8 @@ final class AdminPartnerController extends Controller
 
             // Отзыв одобрения снимает и роль: иначе человек потерял бы статус
             // на бумаге, но сохранил Офис.
-            if ($wasApproved) {
-                $profile->user->forceFill(['role' => Role::Client->value])->save();
+            if ($wasApproved && $user->role === Role::Partner) {
+                $user->forceFill(['role' => Role::Client])->save();
             }
         });
 

@@ -94,7 +94,7 @@ final class PromoCuratorController extends Controller
         ]);
 
         $clients = User::query()
-            ->where('role', Role::Client->value)
+            ->whereIn('role', [Role::Client->value, Role::Student->value])
             ->whereDoesntHave('promoCodes')
             ->with('attribution')
             ->latest('created_at')
@@ -177,7 +177,7 @@ final class PromoCuratorController extends Controller
 
         $client = User::query()->find($validated['client_id']);
 
-        if (! $client instanceof User || ($client->role ?? Role::Client) !== Role::Client) {
+        if (! $client instanceof User || ! $client->hasAbility('promo.client')) {
             return response()->json([
                 'success' => false,
                 'message' => 'Промокод выдаётся пользователю с ролью «Клиент».',

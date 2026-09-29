@@ -34,6 +34,7 @@ abstract class TestCase extends BaseTestCase
                 $table->string('name');
                 $table->string('email')->unique();
                 $table->string('role', 32)->default('client')->index();
+                $table->timestamp('university_enrolled_at')->nullable();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('phone')->nullable();

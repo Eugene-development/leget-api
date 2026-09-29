@@ -81,7 +81,7 @@ class AppServiceProvider extends ServiceProvider
     private function registerRoleGates(): void
     {
         foreach (Role::abilityNames() as $ability) {
-            Gate::define($ability, static fn (User $user): bool => ($user->role ?? Role::Client)->can($ability));
+            Gate::define($ability, static fn (User $user): bool => $user->hasAbility($ability));
         }
     }
 }

@@ -120,10 +120,33 @@ class User extends Authenticatable implements JWTSubject
      *
      * @return array<string, string>
      */
+    public function roleNames(): array
+    {
+        $role = $this->role ?? Role::Client;
+        $roles = $role === Role::Student ? ['client', 'student'] : [$role->value];
+        if ($this->university_enrolled_at !== null && ! in_array('student', $roles, true)) {
+            $roles[] = 'student';
+        }
+
+        return $roles;
+    }
+
+    public function hasAbility(string $ability): bool
+    {
+        foreach ($this->roleNames() as $role) {
+            if (Role::from($role)->can($ability)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
+            'university_enrolled_at' => 'datetime',
             'password' => 'hashed',
             // Каст в enum: неизвестное значение в колонке роняет гидрацию
             // ValueError'ом, а не тихо превращается в «роль, которой нет».

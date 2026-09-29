@@ -8,6 +8,8 @@ use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Список регистраций для страницы «Мои клиенты» в панели администратора.
@@ -19,6 +21,25 @@ use Illuminate\Http\Request;
  */
 final class AdminClientController extends Controller
 {
+    public function assignCurator(Request $request, int $id)
+    {
+        $input = $request->validate(['reason' => 'required|string|min:3|max:2000']);
+
+        return DB::transaction(function () use ($request, $id, $input) {
+            $actor = User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+            abort_unless($actor->hasAbility('users.curate'), 403);
+            $user = User::whereKey($id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($user->role, [Role::Client, Role::Student, Role::Curator], true), 409, 'Нельзя заменить роль сотрудника, партнёра или администратора сайта.');
+            if ($user->role !== Role::Curator) {
+                $before = $user->role->value;
+                $user->forceFill(['role' => Role::Curator, 'university_enrolled_at' => $user->university_enrolled_at ?? ($user->role === Role::Student ? now() : null)])->save();
+                Log::notice('LEGET: curator assigned', ['actor_id' => $actor->id, 'user_id' => $id, 'before' => $before, 'reason' => $input['reason']]);
+            }
+
+            return response()->json(['success' => true, 'role' => 'curator']);
+        }, 3);
+    }
+
     public function index(Request $request)
     {
         $validated = $request->validate([
@@ -45,6 +66,8 @@ final class AdminClientController extends Controller
             ->paginate($perPage)
             ->through(static fn (User $user): array => [
                 'id' => $user->id,
+                'role' => $user->role?->value ?? 'client',
+                'roles' => $user->roleNames(),
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,

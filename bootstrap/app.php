@@ -67,6 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('university:prune-uploads')->dailyAt('04:00')->withoutOverlapping();
         $schedule->command('app:daily-billing')
             ->dailyAt('06:30')
             ->timezone('Europe/Moscow')

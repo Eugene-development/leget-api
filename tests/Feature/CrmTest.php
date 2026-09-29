@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Crm\CrmDefaults;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -46,6 +47,54 @@ class CrmTest extends TestCase
         Storage::fake('crm-test');
         config(['crm.document_disk' => 'crm-test']);
         $this->actingAs($this->manager, 'api');
+    }
+
+    public function test_owner_can_create_manager_and_retry_without_duplicate_or_password_exposure(): void
+    {
+        $this->actingAs($this->owner, 'api');
+        $body = ['mode' => 'new', 'email' => 'New@Example.test', 'name' => 'Новый менеджер', 'password' => 'Separate-account-123', 'password_confirmation' => 'Separate-account-123', 'request_key' => (string) Str::uuid()];
+        $a = $this->postCrm('members/assign', $body)->assertOk();
+        $this->postCrm('members/assign', $body)->assertOk()->assertJsonPath('item.id', $a->json('item.id'));
+        $user = User::where('email', 'new@example.test')->firstOrFail();
+        $this->assertSame(Role::Manager, $user->role);
+        $this->assertTrue(Hash::check($body['password'], $user->password));
+        $this->assertStringNotContainsString($body['password'], $a->getContent());
+        $this->assertStringNotContainsString($body['password'], json_encode(DB::table('crm_operations')->get()));
+        $this->assertDatabaseHas('crm_memberships', ['user_id' => $user->id, 'license_id' => $this->site, 'status' => 'approved']);
+        $this->actingAs($user, 'api')->getJson('/crm/sites/'.$this->site.'/dashboard')->assertOk();
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/dashboard')->assertForbidden();
+    }
+
+    public function test_manager_assignment_requires_site_owner_or_superadmin_and_never_converts_client(): void
+    {
+        $body = ['mode' => 'existing', 'email' => $this->manager->email];
+        $this->postCrm('members/assign', $body)->assertForbidden();
+        $client = User::create(['name' => 'Клиент', 'email' => 'client@example.test', 'password' => 'secret']);
+        $this->actingAs($client, 'api');
+        $this->postCrm('members/assign', $body)->assertForbidden();
+        $client->forceFill(['role' => Role::Admin])->save();
+        $this->actingAs($client->fresh(), 'api');
+        $this->postCrm('members/assign', $body)->assertForbidden();
+        $client->forceFill(['role' => Role::Client])->save();
+        $this->actingAs($this->owner, 'api');
+        $this->postCrm('members/assign', ['mode' => 'existing', 'email' => $client->email])->assertUnprocessable();
+        $this->postCrm('members/assign', ['mode' => 'new', 'email' => $client->email, 'name' => 'Сотрудник', 'password' => 'Separate-account-123', 'password_confirmation' => 'Separate-account-123'])->assertConflict();
+        $this->assertSame(Role::Client, $client->fresh()->role);
+        $this->owner->forceFill(['role' => Role::Superadmin])->save();
+        $this->actingAs($this->owner->fresh(), 'api');
+        $this->postCrm('members/assign', $body, $this->foreignSite)->assertOk();
+        $this->assertDatabaseHas('crm_memberships', ['user_id' => $this->manager->id, 'license_id' => $this->foreignSite, 'status' => 'approved']);
+    }
+
+    public function test_old_client_access_requests_can_be_closed_but_not_approved(): void
+    {
+        $client = User::create(['name' => 'Старая заявка', 'email' => 'old-client@example.test', 'password' => 'secret']);
+        $id = (string) Str::ulid();
+        DB::table('crm_memberships')->insert(['id' => $id, 'license_id' => $this->site, 'user_id' => $client->id, 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($this->owner, 'api');
+        $this->postCrm('members/'.$id.'/approve', ['version' => 1])->assertConflict();
+        $this->postCrm('members/'.$id.'/reject', ['version' => 1, 'reason' => 'Теперь назначаем рабочие аккаунты'])->assertOk();
+        $this->assertSame(Role::Client, $client->fresh()->role);
     }
 
     private function postCrm(string $path, array $body = [], ?string $site = null)
@@ -154,7 +203,7 @@ class CrmTest extends TestCase
         $this->assertSame(Role::Manager, $this->manager->fresh()->role);
         $other = DB::table('crm_memberships')->where('license_id', $this->foreignSite)->first();
         $this->postCrm('members/'.$other->id.'/revoke', ['version' => 1, 'reason' => 'Завершение работы'], $this->foreignSite)->assertOk();
-        $this->assertSame(Role::Client, $this->manager->fresh()->role);
+        $this->assertSame(Role::Manager, $this->manager->fresh()->role);
     }
 
     public function test_documents_encrypted_versioned_safe_and_scoped(): void

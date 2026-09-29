@@ -39,8 +39,9 @@ class AdminPartnerTest extends TestCase
         $profile = $this->application('anna@example.test');
 
         $this->actingAs($this->superadmin(), 'api')
-            ->postJson("/admin/partners/{$profile->id}/approve")
+            ->postJson("/admin/partners/{$profile->id}/approve", ['note' => 'Проверено сотрудником'])
             ->assertOk()
+            ->assertJsonPath('application.review_note', 'Проверено сотрудником')
             ->assertJsonPath('application.status', PartnerStatus::Approved->value)
             ->assertJsonPath('application.applicant.role', Role::Partner->value);
 

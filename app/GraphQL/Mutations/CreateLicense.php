@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Mutations;
 
+use App\Enums\Role;
 use App\Exceptions\GraphQLException;
 use App\Models\License;
 use App\Models\Page;
@@ -44,7 +45,13 @@ final class CreateLicense
         $user = $context->user();
 
         return DB::transaction(function () use ($user, $templateId, $template, $args) {
-            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $owner = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if (in_array($owner->role, [null, Role::Client, Role::Student], true)) {
+                $owner->forceFill(['role' => Role::Admin, 'university_enrolled_at' => $owner->university_enrolled_at ?? ($owner->role === Role::Student ? now() : null)])->save();
+            }
+            if (! in_array($owner->role, [Role::Admin, Role::Superadmin], true)) {
+                throw new GraphQLException('Создание сайта доступно аккаунту администратора сайта.', 'FORBIDDEN');
+            }
             $key = $args['creationKey'] ?? null;
             if ($key) {
                 $existing = License::where('user_id', $user->id)->where('creation_key', $key)->first();

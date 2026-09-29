@@ -42,9 +42,9 @@ return [
                 [
                     'type' => 'UniversityHero',
                     'defaults' => [
-                        'brandName' => 'Универ',
+                        'brandName' => 'Университет дизайна',
                         'brandCaption' => 'Университет о доме.',
-                        'title' => 'Хороший дом начинается с понимания.',
+                        'title' => 'Хороший дом начинается с понимания',
                         'description' => 'Разбираемся в дизайне, ремонте и обустройстве. Чтобы выбирать осознанно, задавать точные вопросы и создавать своё.',
                         'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/consultation_hero.png',
                         'imageAlt' => 'Девушка знакомится с устройством кухни вместе с дизайнером',

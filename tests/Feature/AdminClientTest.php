@@ -93,6 +93,21 @@ class AdminClientTest extends TestCase
         $this->getJson('/admin/clients')->assertUnauthorized();
     }
 
+    public function test_only_superadmin_can_assign_curator_and_staff_roles_are_protected(): void
+    {
+        $client = $this->user('future@example.test');
+        foreach ([Role::Client, Role::Admin, Role::Manager, Role::Partner, Role::Curator] as $role) {
+            $this->actingAs($this->user($role->value.'@test.local', 'Actor', $role), 'api')->postJson('/admin/clients/'.$client->id.'/curator', ['reason' => 'Назначение сотрудника'])->assertForbidden();
+        }
+        $this->actingAs($this->superadminUser(), 'api');
+        $this->postJson('/admin/clients/'.$client->id.'/curator', [])->assertUnprocessable();
+        $this->postJson('/admin/clients/'.$client->id.'/curator', ['reason' => 'Назначение сотрудника'])->assertOk();
+        $this->postJson('/admin/clients/'.$client->id.'/curator', ['reason' => 'Повтор назначения'])->assertOk();
+        $this->assertSame(Role::Curator, $client->fresh()->role);
+        $this->postJson('/admin/clients/'.$this->superadminUser()->id.'/curator', ['reason' => 'Нельзя понизить'])->assertConflict();
+        $this->assertSame(Role::Superadmin, $this->superadminUser()->fresh()->role);
+    }
+
     private function superadminUser(): User
     {
         return $this->user('admin@example.test', 'Админ', Role::Superadmin);

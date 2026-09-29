@@ -4,11 +4,15 @@ use App\Http\Controllers\AdminClientController;
 use App\Http\Controllers\AdminConversionController;
 use App\Http\Controllers\AdminPartnerController;
 use App\Http\Controllers\AdminPromoController;
+use App\Http\Controllers\AdminUniversityController;
 use App\Http\Controllers\AttributionController;
+use App\Http\Controllers\Crm\CrmController;
+use App\Http\Controllers\Crm\CrmDocumentController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PromoClientController;
 use App\Http\Controllers\PromoCuratorController;
 use App\Http\Controllers\PromoPartnerController;
+use App\Http\Controllers\UniversityMediaController;
 use App\Http\Controllers\UserNotificationController;
 use App\Http\Controllers\YooKassaWebhookController;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +77,7 @@ Route::prefix('admin')
             ->middleware(['can:conversions.view', 'throttle:20,1']);
 
         // Регистрации клиентов — страница «Мои клиенты» в панели leget-main.
+        Route::post('/clients/{id}/curator', [AdminClientController::class, 'assignCurator'])->middleware('can:users.curate');
         Route::get('/clients', [AdminClientController::class, 'index'])
             ->middleware('can:clients.view');
 
@@ -215,9 +220,11 @@ Route::post('/webhooks/yookassa', [YooKassaWebhookController::class, 'handle'])
     ->name('webhooks.yookassa');
 
 // CRM: bearer-only backend routes. Browser sessions terminate in leget-main.
+Route::post('/crm/sites/{site}/members/assign', [CrmController::class, 'assignManager'])->middleware(['auth:api', 'throttle:30,1']);
+
 Route::prefix('crm')->middleware(['auth:api', 'throttle:120,1'])->group(function () {
-    $c = \App\Http\Controllers\Crm\CrmController::class;
-    $d = \App\Http\Controllers\Crm\CrmDocumentController::class;
+    $c = CrmController::class;
+    $d = CrmDocumentController::class;
     Route::get('/context', [$c, 'context']);
     Route::get('/unassigned', [$c, 'unassigned']);
     Route::prefix('sites/{site}')->group(function () use ($c, $d) {
@@ -242,3 +249,18 @@ Route::prefix('crm')->middleware(['auth:api', 'throttle:120,1'])->group(function
         Route::post('/{resource}/{id}/{action}', [$c, 'action']);
     });
 });
+
+// University administration uses the existing admin JWT and capability gate.
+Route::prefix('admin/university')->middleware(['auth:api', 'can:university.manage', 'throttle:120,1'])->group(function () {
+    $c = AdminUniversityController::class;
+    $m = UniversityMediaController::class;
+    Route::post('/media', [$m, 'store']);
+    Route::get('/media/{id}', [$m, 'show']);
+    Route::post('/media/{id}/{action}', [$m, 'action']);
+    Route::get('/{kind}', [$c, 'index'])->whereIn('kind', ['courses', 'interviews', 'resources']);
+    Route::post('/{kind}', [$c, 'save'])->whereIn('kind', ['courses', 'interviews', 'resources']);
+    Route::post('/{kind}/{slug}', [$c, 'save'])->whereIn('kind', ['courses', 'interviews', 'resources']);
+    Route::post('/{kind}/{slug}/{action}', [$c, 'action'])->whereIn('kind', ['courses', 'interviews', 'resources']);
+});
+Route::get('/university/media/{id}', [UniversityMediaController::class, 'show'])
+    ->middleware(['auth:api', 'can:university.study', 'throttle:120,1']);
