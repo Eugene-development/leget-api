@@ -15,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 #[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'token_version'])]
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<UserFactory> */
@@ -36,7 +36,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function getJWTCustomClaims(): array
     {
-        return [];
+        return ['token_version' => (int) $this->token_version];
     }
 
     /**
@@ -158,6 +158,7 @@ class User extends Authenticatable implements JWTSubject
             'email_verified_at' => 'datetime',
             'university_enrolled_at' => 'datetime',
             'password' => 'hashed',
+            'token_version' => 'integer',
             // Каст в enum: неизвестное значение в колонке роняет гидрацию
             // ValueError'ом, а не тихо превращается в «роль, которой нет».
             // В #[Fillable] роли нет намеренно — иначе её можно было бы

@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin/*',
             'promo/*',
             'crm/*',
+            'growth/*',
             'notifications/*',
         ]);
     })
@@ -67,6 +68,8 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('growth:automation')->everyMinute()->withoutOverlapping();
+        $schedule->command('growth:metrika')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('university:prune-uploads')->dailyAt('04:00')->withoutOverlapping();
         $schedule->command('app:daily-billing')
             ->dailyAt('06:30')

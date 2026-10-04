@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\License;
 use App\Models\Page;
 use App\Models\PageComponent;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -25,6 +27,7 @@ class TemplateService
     public function getTemplate(int $templateId): ?array
     {
         $templates = config('templates', []);
+
         return $templates[$templateId] ?? null;
     }
 
@@ -99,7 +102,7 @@ class TemplateService
 
         return array_values(array_filter(
             $this->getAllowedTypes($templateId, $slug),
-            static fn(string $type): bool => ! in_array($type, $retired, true),
+            static fn (string $type): bool => ! in_array($type, $retired, true),
         ));
     }
 
@@ -107,11 +110,11 @@ class TemplateService
      * Return a merged list of components for a page.
      * Combines config/templates.php definitions with actual DB records.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     * @return Collection<int, PageComponent>
      */
-    public function getMergedPageComponents(string $licenseId, Page|string $pageOrId, ?string $templateSlug = null): \Illuminate\Database\Eloquent\Collection
+    public function getMergedPageComponents(string $licenseId, Page|string $pageOrId, ?string $templateSlug = null, ?array $overrides = null): Collection
     {
-        $license = \App\Models\License::findOrFail($licenseId);
+        $license = License::findOrFail($licenseId);
 
         if ($pageOrId instanceof Page) {
             $page = $pageOrId;
@@ -124,7 +127,7 @@ class TemplateService
         $slug = $templateSlug ?? ($page ? $page->slug : '');
         $definitions = $this->getPageComponents((int) $license->template_id, $slug);
 
-        return $this->mergeDefinitions($license, $page, $definitions);
+        return $this->mergeDefinitions($license, $page, $definitions, $overrides);
     }
 
     /**
@@ -137,20 +140,20 @@ class TemplateService
      * '__global__'. Если страница ещё не создана — компонент виртуальный
      * (exists=false). Для шаблонов без '__global__' возвращается пустая коллекция.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     * @return Collection<int, PageComponent>
      */
-    public function getGlobalComponents(string $licenseId): \Illuminate\Database\Eloquent\Collection
+    public function getGlobalComponents(string $licenseId, ?array $overrides = null): Collection
     {
-        $license = \App\Models\License::findOrFail($licenseId);
+        $license = License::findOrFail($licenseId);
         $definitions = $this->getPageComponents((int) $license->template_id, '__global__');
 
         if (empty($definitions)) {
-            return new \Illuminate\Database\Eloquent\Collection();
+            return new Collection;
         }
 
         $page = Page::where('license_id', $licenseId)->where('slug', '__global__')->first();
 
-        return $this->mergeDefinitions($license, $page, $definitions);
+        return $this->mergeDefinitions($license, $page, $definitions, $overrides);
     }
 
     /**
@@ -159,22 +162,33 @@ class TemplateService
      * (exists=false, не сохраняется в БД) с дефолтами.
      *
      * @param  list<array{type: string, defaults: array<string, mixed>}>  $definitions
-     * @return \Illuminate\Database\Eloquent\Collection<int, PageComponent>
+     * @return Collection<int, PageComponent>
      */
-    private function mergeDefinitions(\App\Models\License $license, ?Page $page, array $definitions): \Illuminate\Database\Eloquent\Collection
+    private function mergeDefinitions(License $license, ?Page $page, array $definitions, ?array $overrides = null): Collection
     {
-        $dbComponents = ($page && $page->exists)
+        $dbComponents = $overrides !== null
+            ? collect($overrides)->map(function (array $row) use ($license, $page) {
+                $component = new PageComponent($row);
+                $component->id = $row['id'];
+                $component->license_id = $license->id;
+                $component->page_id = $page?->id;
+                // The draft has a stable override ID for inline reset controls.
+                $component->exists = true;
+
+                return $component;
+            })->keyBy('type')
+            : (($page && $page->exists)
             ? PageComponent::where('page_id', $page->id)
                 ->where('license_id', $license->id)
                 ->get()
                 ->keyBy('type')
-            : collect();
+            : collect());
 
         if (empty($definitions)) {
-            return $this->applyComponentOrder(new \Illuminate\Database\Eloquent\Collection($dbComponents->sortBy('sort_order')->values()->all()), $page);
+            return $this->applyComponentOrder(new Collection($dbComponents->sortBy('sort_order')->values()->all()), $page);
         }
 
-        $result = new \Illuminate\Database\Eloquent\Collection();
+        $result = new Collection;
 
         foreach ($definitions as $index => $definition) {
             $type = $definition['type'];
@@ -187,12 +201,12 @@ class TemplateService
             } else {
                 // Create a virtual component (not persisted in DB)
                 $component = new PageComponent([
-                    'id'         => (string) Str::ulid(),
-                    'page_id'    => $page?->id,
+                    'id' => (string) Str::ulid(),
+                    'page_id' => $page?->id,
                     'license_id' => $license->id,
-                    'type'       => $type,
-                    'data'       => $definition['defaults'] ?? [],
-                    'is_active'  => true,
+                    'type' => $type,
+                    'data' => $definition['defaults'] ?? [],
+                    'is_active' => true,
                     'sort_order' => $index,
                 ]);
                 // Set exists to false to make sure it's treated as new if someone tries to save it
@@ -208,7 +222,7 @@ class TemplateService
     }
 
     /** Keep defaults lazy; ignore removed types and append newly introduced blocks. */
-    private function applyComponentOrder(\Illuminate\Database\Eloquent\Collection $components, ?Page $page): \Illuminate\Database\Eloquent\Collection
+    private function applyComponentOrder(Collection $components, ?Page $page): Collection
     {
         $order = $page?->component_order ?? [];
         if (empty($order)) {

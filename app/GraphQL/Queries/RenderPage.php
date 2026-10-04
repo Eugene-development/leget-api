@@ -14,7 +14,9 @@ use App\Models\Page;
 use App\Models\PageComponent;
 use App\Models\Rubric;
 use App\Services\ApplianceBrands;
+use App\Services\BrandTags;
 use App\Services\CatalogVisibility;
+use App\Services\PagePublicationService;
 use App\Services\SiteSearch;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -63,6 +65,13 @@ final class RenderPage
             throw new GraphQLException('Site is suspended', 'SITE_SUSPENDED');
         }
 
+        $publication = app(PagePublicationService::class);
+        try {
+            $draftSnapshot = $publication->forRender($request, $license);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
+            throw new GraphQLException('Предпросмотр не найден или срок ссылки истёк.', 'PAGE_PREVIEW_NOT_FOUND');
+        }
+
         // Use normalized slug everywhere
         $cacheKey = 'render:'.self::CACHE_VERSION.":{$license->id}:{$slug}"
             .$this->catalogVisibility->cacheSuffix($license);
@@ -71,10 +80,12 @@ final class RenderPage
 
         // Check cache first (use tagged cache if supported, plain cache otherwise)
         $cached = null;
-        try {
-            $cached = Cache::tags($cacheTags)->get($cacheKey);
-        } catch (\BadMethodCallException) {
-            $cached = Cache::get($cacheKey);
+        if ($draftSnapshot === null) {
+            try {
+                $cached = Cache::tags($cacheTags)->get($cacheKey);
+            } catch (\BadMethodCallException) {
+                $cached = Cache::get($cacheKey);
+            }
         }
 
         if ($cached !== null) {
@@ -172,13 +183,11 @@ final class RenderPage
             if ($brand) {
                 $templateSlug = '/santehnika/{brand}';
             }
-        }
-        elseif (preg_match('#^/?osveshchenie/([^/]+)$#', $slug, $matches)) {
+        } elseif (preg_match('#^/?osveshchenie/([^/]+)$#', $slug, $matches)) {
             if ($brand) {
                 $templateSlug = '/osveshchenie/{brand}';
             }
-        }
-        elseif (preg_match('#^/?furnitura/([^/]+)$#', $slug, $matches)) {
+        } elseif (preg_match('#^/?furnitura/([^/]+)$#', $slug, $matches)) {
             if ($shop) {
                 $templateSlug = '/furnitura/{shop}';
             }
@@ -205,8 +214,22 @@ final class RenderPage
             }
         }
 
-        // Use TemplateService to get merged components (handles virtual components too)
-        $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug);
+        if ($draftSnapshot !== null) {
+            // Capabilities are bound to the site and page, including concrete dynamic URLs.
+            if (! in_array($draftSnapshot['page']['slug'], [$slug, $page->slug], true)) {
+                throw new GraphQLException('Предпросмотр не найден.', 'PAGE_PREVIEW_NOT_FOUND');
+            }
+            $page = clone $page;
+            foreach (['seo_title', 'seo_description', 'seo_keywords', 'component_order'] as $field) {
+                $page->$field = $draftSnapshot['page'][$field] ?? null;
+            }
+            $license = clone $license;
+            $license->header_data = $draftSnapshot['layout']['header_data'];
+            $license->footer_data = $draftSnapshot['layout']['footer_data'];
+        }
+
+        // Explicit draft overrides still merge with current lazy template defaults.
+        $components = $this->templateService->getMergedPageComponents($license->id, $page, $templateSlug, $draftSnapshot['components'] ?? null);
 
         // ── Enrich components with dynamic data ──────────────────────────────
         $catalogItems = [];
@@ -338,7 +361,7 @@ final class RenderPage
                             'completed_at' => $project->completed_at?->format('Y-m-d'),
                             'object_address' => $project->object_address,
                             'meta' => $project->meta ?? [],
-                            'tags' => app(\App\Services\BrandTags::class)->present($project->tags, $license),
+                            'tags' => app(BrandTags::class)->present($project->tags, $license),
                             'price' => $project->price,
                             'old_price' => $project->old_price,
                             'is_new' => $project->is_new,
@@ -474,7 +497,7 @@ final class RenderPage
         // Глобальные компоненты (футер) — общие для всех страниц сайта; хранятся на
         // зарезервированной странице '__global__'. Дописываем их после компонентов
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
-        $components = $components->concat($this->templateService->getGlobalComponents($license->id));
+        $components = $components->concat($this->templateService->getGlobalComponents($license->id, $draftSnapshot['globalComponents'] ?? null));
         $seo = $this->resolveSeo($license, $page, $templateSlug, $category ?? $material, $project, $brand ?? $shop);
 
         // Каталожные метаданные едут с первым ответом, отдельно от контента тенанта.
@@ -513,7 +536,7 @@ final class RenderPage
                 // Акции — данные ОДНОЙ страницы, но нужны на каждой: полоса акций
                 // стоит в шапке над баннером. Поэтому список едет в `site`, рядом
                 // с шапкой и подвалом, а не в `page`.
-                'actionCards' => $this->getActionCards($license),
+                'actionCards' => $this->getActionCards($license, $draftSnapshot),
             ],
             'page' => [
                 'id' => (string) ($page->id ?: 'slug:'.($page->slug ?? $slug)),
@@ -532,7 +555,7 @@ final class RenderPage
         ];
 
         // Store in cache with configurable TTL (default 1 hour)
-        if ($ttl > 0) {
+        if ($ttl > 0 && $draftSnapshot === null) {
             try {
                 Cache::tags($cacheTags)->put($cacheKey, $response, $ttl);
             } catch (\BadMethodCallException) {
@@ -540,7 +563,7 @@ final class RenderPage
             }
         }
 
-        return $response;
+        return $draftSnapshot === null ? $response : $publication->publicPreview($response);
     }
 
     /**
@@ -561,8 +584,14 @@ final class RenderPage
      *
      * @return array{primary: ?array, extra: ?array}
      */
-    private function getActionCards(License $license): array
+    private function getActionCards(License $license, ?array $draftSnapshot = null): array
     {
+        if (($draftSnapshot['page']['slug'] ?? null) === '/actions') {
+            $rows = collect($draftSnapshot['components'])->keyBy('type');
+            return collect(['primary' => 'ActionsCards', 'extra' => 'ActionsCardsExtra'])
+                ->map(fn ($type) => $this->formatActionCards($rows->has($type) ? new PageComponent($rows->get($type)) : null))
+                ->all();
+        }
         $page = Page::where('license_id', $license->id)
             ->where('slug', '/actions')
             ->first();
@@ -583,6 +612,11 @@ final class RenderPage
             ->where('type', $type)
             ->first();
 
+        return $this->formatActionCards($component);
+    }
+
+    private function formatActionCards(?PageComponent $component): ?array
+    {
         if (! $component) {
             return null;
         }

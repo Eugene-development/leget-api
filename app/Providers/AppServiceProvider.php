@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Auth\VersionedJwtGuard;
 use App\Enums\Role;
 use App\Events\PromoDealClosed;
 use App\Events\PromoDealConfirmed;
@@ -16,6 +17,7 @@ use App\Models\CatalogBrand;
 use App\Models\Category;
 use App\Models\User;
 use App\Services\BrandTags;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -35,6 +37,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Auth::extend('versioned-jwt', function ($app, $name, array $config) {
+            $guard = new VersionedJwtGuard(
+                $app['tymon.jwt'],
+                $app['auth']->createUserProvider($config['provider']),
+                $app['request'],
+            );
+            $app->refresh('request', $guard, 'setRequest');
+
+            return $guard;
+        });
+
         foreach ([Category::class, CatalogBrand::class, ApplianceBrand::class] as $model) {
             $model::saved(fn ($brand) => app(BrandTags::class)->sync($brand));
             $model::deleted(fn () => BrandTags::changed());

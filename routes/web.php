@@ -18,6 +18,11 @@ use App\Http\Controllers\YooKassaWebhookController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
+require __DIR__.'/growth-orders.php';
+require __DIR__.'/growth-insights.php';
+require __DIR__.'/growth-selections.php';
+require __DIR__.'/growth-drafts.php';
+
 Route::get('/', function () {
     return view('welcome');
 });

@@ -37,6 +37,7 @@ abstract class TestCase extends BaseTestCase
                 $table->timestamp('university_enrolled_at')->nullable();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
+                $table->unsignedInteger('token_version')->default(0);
                 $table->string('phone')->nullable();
                 $table->string('region', 120)->nullable();
                 $table->rememberToken();

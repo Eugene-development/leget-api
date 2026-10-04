@@ -357,7 +357,7 @@ return [
                 ]],
             ],
             '/about' => [
-                ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О нас', 'lead' => 'Мы помогаем пройти путь от идеи до готового интерьера: подбираем материалы, считаем проект и ведём его до финальной сборки.', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
+                ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О проекте', 'lead' => 'Мы помогаем пройти путь от идеи до готового интерьера: подбираем материалы, считаем проект и ведём его до финальной сборки.', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
                 ['type' => 'Text',       'defaults' => ['content' => '<p>Мы делаем мебель под конкретное помещение и конкретных людей.</p><p>Сначала замер и разговор о том, как вы живёте и что храните, потом дизайн-проект, расчёт и подбор материалов под ваш бюджет.</p><p>Ведём проект до конца — согласуем детали, держим сроки и остаёмся на связи после сборки.</p>']],
                 ['type' => 'Statistics', 'defaults' => []],
                 ['type' => 'Mission',    'defaults' => [
@@ -1018,6 +1018,7 @@ return [
                     'title' => 'Освещение',
                     'description' => 'Подберём светильники для разных зон дома: общий, рабочий и акцентный свет. Поможем сочетать их с мебелью и интерьером.',
                     'buttonText' => 'Подобрать освещение',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/lighting_hero.png',
                 ]],
                 ['type' => 'OsveshchenieBrands', 'defaults' => [
                     'title' => 'Бренды освещения',
@@ -1058,7 +1059,7 @@ return [
                     'title' => 'Фурнитура',
                     'description' => 'Каталог интернет-магазинов и поставщиков мебельной фурнитуры. Петли, направляющие, подъёмники и системы хранения от проверенных поставщиков.',
                     'primaryButton' => 'Подобрать фурнитуру',
-                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_fittings_hero.png',
+                    'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furnitura-hero-realistic-20261002.webp',
                 ]],
                 ['type' => 'FurnituraShops', 'defaults' => [
                     'title' => 'Магазины и поставщики',
