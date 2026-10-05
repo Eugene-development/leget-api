@@ -470,6 +470,72 @@ class RenderPageTest extends TestCase
         $this->assertContains('/osveshchenie/maytoni', app(SiteSearch::class)->paths($other));
     }
 
+    public function test_doors_and_windows_share_the_brand_workflow_and_keep_sites_isolated(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $license = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['domain' => 'other-brands.example.com', 'template_id' => 1]);
+        $context = $this->brandContext($license);
+        $this->actingAs($license->user, 'api');
+        foreach (['dveri' => ['Dveri', 'DOORS', 'door'], 'okna' => ['Okna', 'WINDOWS', 'window']] as $rubricSlug => [$prefix, $enum, $group]) {
+            Rubric::create(['key' => (string) Str::ulid(), 'slug' => $rubricSlug, 'value' => $rubricSlug]);
+            \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+                ['slug' => $group.'-brand', 'name' => 'Бренд', 'sort_order' => 11],
+                ['slug' => $group.'-type', 'name' => 'Тип', 'sort_order' => 12],
+            ]);
+            try {
+                app(\App\GraphQL\Mutations\CreateTag::class)(null, ['input' => [
+                    'tag_group_id' => TagGroup::where('slug', $group.'-brand')->value('id'), 'name' => 'Ручной бренд',
+                ]], $context);
+                $this->fail('Brand tag created without a brand');
+            } catch (GraphQLException $exception) {
+                $this->assertSame('BRAND_TAG_AUTOMATIC', $exception->getErrorCode());
+            }
+            $empty = ($this->resolver)(null, ['slug' => '/'.$rubricSlug], $context, $this->createResolveInfo());
+            $this->assertSame([], collect($empty['page']['componentsData'])->firstWhere('type', $prefix.'Brands')['data']['brands']);
+            $shared = Category::create([
+                'key' => (string) Str::ulid(), 'rubric_id' => Rubric::where('slug', $rubricSlug)->value('id'),
+                'slug' => $rubricSlug.'-shared', 'value' => 'Общий бренд', 'description' => 'Краткое описание',
+                'full_description' => 'Полное описание',
+            ]);
+            Cache::flush();
+            $catalog = ($this->resolver)(null, ['slug' => '/'.$rubricSlug], $context, $this->createResolveInfo());
+            $components = collect($catalog['page']['componentsData'])->keyBy('type');
+            $this->assertSame($components[$prefix.'Sidebar']['data']['brands'], $components[$prefix.'Brands']['data']['brands']);
+            $brandPage = ($this->resolver)(null, ['slug' => '/'.$rubricSlug.'/'.$shared->slug], $context, $this->createResolveInfo());
+            $brandComponents = collect($brandPage['page']['componentsData'])->keyBy('type');
+            $this->assertSame('Общий бренд', $brandComponents[$prefix.'BrandHero']['data']['title']);
+            $this->assertSame('Краткое описание', $brandComponents[$prefix.'BrandHero']['data']['description']);
+            $this->assertSame('Полное описание', $brandComponents['BrandAbout']['data']['description']);
+
+            $query = 'mutation($license: ID!, $rubric: BrandRubric!, $input: ApplianceBrandInput!) { upsertApplianceBrand(licenseId: $license, rubric: $rubric, input: $input) { id slug } }';
+            $typeTag = Tag::create(['tag_group_id' => TagGroup::where('slug', $group.'-type')->value('id'), 'name' => 'Тип изделия', 'normalized_name' => 'тип изделия']);
+            $input = ['value' => 'Свой бренд '.$rubricSlug, 'description' => 'Описание собственного бренда', 'logo' => $this->brandLogo($license), 'tag_ids' => [$typeTag->id]];
+            $response = $this->postJson('/graphql', ['query' => $query, 'variables' => ['license' => $license->id, 'rubric' => $enum, 'input' => $input]])
+                ->assertOk()->assertJsonMissingPath('errors');
+            $id = $response->json('data.upsertApplianceBrand.id');
+            $slug = $response->json('data.upsertApplianceBrand.slug');
+            $autoTag = Tag::where('target_type', 'site_brand')->where('target_id', $id)->sole();
+            $this->assertSame('/'.$rubricSlug.'/'.$slug, app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
+            $this->assertNotContains('/'.$rubricSlug.'/'.$slug, app(SiteSearch::class)->paths($other));
+            $ownPage = ($this->resolver)(null, ['slug' => '/'.$rubricSlug.'/'.$slug], $context, $this->createResolveInfo());
+            $ownComponents = collect($ownPage['page']['componentsData'])->keyBy('type');
+            $this->assertSame('Описание собственного бренда', $ownComponents['BrandAbout']['data']['description']);
+            $this->assertSame('', $ownComponents[$prefix.'BrandHero']['data']['description']);
+            $this->assertSame($typeTag->id, $ownComponents[$prefix.'BrandHero']['data']['tags'][0]['id']);
+            $response = $this->postJson('/graphql', ['query' => $query, 'variables' => ['license' => $license->id, 'rubric' => $enum, 'input' => [...$input, 'id' => $id, 'value' => 'Переименованный бренд']]])
+                ->assertOk()->assertJsonMissingPath('errors');
+            $this->assertSame($slug, $response->json('data.upsertApplianceBrand.slug'));
+            $this->assertSame($autoTag->id, Tag::where('target_type', 'site_brand')->where('target_id', $id)->sole()->id);
+            app(ToggleCategory::class)(null, ['license_id' => $license->id, 'id' => $shared->id, 'is_enabled' => false], $context, $this->createResolveInfo());
+            $this->assertNotContains('/'.$rubricSlug.'/'.$shared->slug, app(SiteSearch::class)->paths($license->fresh()));
+            $this->assertContains('/'.$rubricSlug.'/'.$shared->slug, app(SiteSearch::class)->paths($other));
+            app(DeleteApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => $rubricSlug, 'id' => $id], $context);
+            $this->assertNull(app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
+            $this->assertNotContains('/'.$rubricSlug.'/'.$slug, app(SiteSearch::class)->paths($license->fresh()));
+        }
+    }
+
     public function test_brand_mutations_reject_cross_rubric_ids_and_tags(): void
     {
         $license = $this->createLicense();
@@ -1130,7 +1196,9 @@ class RenderPageTest extends TestCase
     public function test_all_catalog_sidebars_have_site_scoped_visibility(): void
     {
         \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
-            'slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9,
+            ['slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9],
+            ['slug' => 'door-brand', 'name' => 'Бренд дверей', 'sort_order' => 11],
+            ['slug' => 'window-brand', 'name' => 'Бренд окон', 'sort_order' => 13],
         ]);
         $first = $this->createLicense(['domain' => 'first.example.com', 'template_id' => 1]);
         $second = $this->createLicense(['domain' => 'second.example.com', 'template_id' => 1]);
@@ -1164,15 +1232,15 @@ class RenderPageTest extends TestCase
                 $sidebar = collect($result['page']['componentsData'])->firstWhere('type', $type);
                 $this->assertSame($entry->id, $sidebar['data'][$itemsKey][0]['id']);
                 $this->assertSame($site->id === $second->id, $sidebar['data'][$itemsKey][0]['is_enabled']);
-                if (in_array($type, ['ByttehnikaSidebar', 'OsveshchenieSidebar'], true)) {
-                    $cardsType = $type === 'ByttehnikaSidebar' ? 'ByttehnikaBrands' : 'OsveshchenieBrands';
+                if (isset(ApplianceBrands::RUBRICS[$rubricSlug])) {
+                    $cardsType = str_replace('Sidebar', 'Brands', $type);
                     $cards = collect($result['page']['componentsData'])->firstWhere('type', $cardsType);
                     $this->assertSame($sidebar['data']['brands'], $cards['data']['brands']);
                 }
             }
             $this->assertTrue($entry->fresh()->is_enabled);
         }
-        $this->assertCount(7, $first->fresh()->catalog_settings['categories']);
+        $this->assertCount(count(CatalogVisibility::SIDEBARS), $first->fresh()->catalog_settings['categories']);
     }
 
     public function test_cached_brand_url_is_blocked_only_on_the_site_that_disabled_it(): void

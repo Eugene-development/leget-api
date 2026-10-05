@@ -19,6 +19,8 @@ final class ApplianceBrands
         'bytovaya-tehnika' => ['hero' => 'ByttehnikaBrandHero', 'tags' => 'appliance-type'],
         'santehnika' => ['hero' => 'SantehnikaBrandHero', 'tags' => 'plumbing-type'],
         'osveshchenie' => ['hero' => 'OsveshchenieBrandHero', 'tags' => 'lighting-type'],
+        'okna' => ['hero' => 'OknaBrandHero', 'tags' => 'window-type'],
+        'dveri' => ['hero' => 'DveriBrandHero', 'tags' => 'door-type'],
     ];
 
     public function definition(string $rubric): array

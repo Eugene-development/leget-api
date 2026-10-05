@@ -18,6 +18,8 @@ final class CatalogVisibility
         'ByttehnikaSidebar' => ['bytovaya-tehnika', 'brands'],
         'SantehnikaSidebar' => ['santehnika', 'brands'],
         'OsveshchenieSidebar' => ['osveshchenie', 'brands'],
+        'OknaSidebar' => ['okna', 'brands'],
+        'DveriSidebar' => ['dveri', 'brands'],
         'FurnituraSidebar' => ['furnitura', 'shops'],
         'PliitkaSidebar' => ['plitka', 'brands'],
     ];

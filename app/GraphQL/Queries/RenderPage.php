@@ -32,7 +32,7 @@ final class RenderPage
      * GraphQL fields after a zero-downtime deploy.
      */
     // UniversityProgram is a separate block; actionCards now contains both action groups.
-    private const CACHE_VERSION = 'v18';
+    private const CACHE_VERSION = 'v19';
 
     public function __construct(
         private TemplateService $templateService,
@@ -166,27 +166,9 @@ final class RenderPage
                 $templateSlug = '/mebel/{category}';
             }
         }
-        // Pattern: bytovaya-tehnika/{brand_slug}
-        //
-        // Бренд — строка того же справочника, что категории мебели, поэтому
-        // рубрику проверяем явно: без этого /bytovaya-tehnika/kuhni отдал бы
-        // страницу бренда по категории мебели — slug в таблице уникален
-        // на все рубрики сразу.
-        elseif (preg_match('#^/?bytovaya-tehnika/([^/]+)$#', $slug, $matches)) {
-            if ($brand) {
-                $templateSlug = '/bytovaya-tehnika/{brand}';
-            }
-        }
-        // Pattern: santehnika/{brand_slug} — устроен так же, как бренд
-        // бытовой техники: та же таблица, различает рубрика.
-        elseif (preg_match('#^/?santehnika/([^/]+)$#', $slug, $matches)) {
-            if ($brand) {
-                $templateSlug = '/santehnika/{brand}';
-            }
-        } elseif (preg_match('#^/?osveshchenie/([^/]+)$#', $slug, $matches)) {
-            if ($brand) {
-                $templateSlug = '/osveshchenie/{brand}';
-            }
+        // All brand rubrics share the same directory and dynamic page contract.
+        elseif ($brand && isset(ApplianceBrands::RUBRICS[$rubricSlug]) && count($segments) === 2) {
+            $templateSlug = '/'.$rubricSlug.'/{brand}';
         } elseif (preg_match('#^/?furnitura/([^/]+)$#', $slug, $matches)) {
             if ($shop) {
                 $templateSlug = '/furnitura/{shop}';
@@ -239,6 +221,8 @@ final class RenderPage
                 'ByttehnikaBrands' => 'ByttehnikaSidebar',
                 'SantehnikaBrands' => 'SantehnikaSidebar',
                 'OsveshchenieBrands' => 'OsveshchenieSidebar',
+                'DveriBrands' => 'DveriSidebar',
+                'OknaBrands' => 'OknaSidebar',
                 'FurnituraShops' => 'FurnituraSidebar',
                 'StoleshnicaBrands' => 'StoleshnicaSidebar',
                 default => $component->type,
@@ -310,7 +294,7 @@ final class RenderPage
             // Ветка одна на обе рубрики: у техники и сантехники бренд — строка
             // одной и той же таблицы, различает их только рубрика, поэтому
             // и обогащение шапки у них общее.
-            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero', 'OsveshchenieBrandHero'], true)) {
+            if ($brand && in_array($component->type, array_column(ApplianceBrands::RUBRICS, 'hero'), true)) {
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], array_filter([
                     'title' => $brand->value,
@@ -320,7 +304,7 @@ final class RenderPage
                 ]);
             }
 
-            if ($brand && in_array($component->type, ['ByttehnikaBrandHero', 'SantehnikaBrandHero', 'OsveshchenieBrandHero'], true)) {
+            if ($brand && in_array($component->type, array_column(ApplianceBrands::RUBRICS, 'hero'), true)) {
                 $component = clone $component;
                 $extra = ['tags' => $brand->tags->map(fn ($tag) => $tag->only(['id', 'name', 'tag_group_id']))];
                 if ($brand->has_brand_content) {

@@ -33,6 +33,8 @@ final class BrandTags
             'bytovaya-tehnika' => 'appliance-brand',
             'santehnika' => 'plumbing-brand',
             'osveshchenie' => 'lighting-brand',
+            'okna' => 'window-brand',
+            'dveri' => 'door-brand',
             'stoleshnica' => $brand instanceof CatalogBrand ? 'countertop-brand' : null,
             default => null,
         };

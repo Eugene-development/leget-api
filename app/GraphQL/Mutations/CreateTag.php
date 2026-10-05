@@ -26,7 +26,7 @@ final class CreateTag
             'name' => ['required', 'string', 'max:120'],
         ])->validate();
 
-        if (\App\Models\TagGroup::whereKey($input['tag_group_id'])->whereIn('slug', ['appliance-brand', 'plumbing-brand', 'countertop-brand'])->exists()) {
+        if (\App\Models\TagGroup::whereKey($input['tag_group_id'])->whereIn('slug', ['appliance-brand', 'plumbing-brand', 'countertop-brand', 'door-brand', 'window-brand'])->exists()) {
             throw new GraphQLException('Создайте бренд в соответствующей рубрике — тег появится автоматически.', 'BRAND_TAG_AUTOMATIC');
         }
 
