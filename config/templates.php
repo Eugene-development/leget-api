@@ -1064,7 +1064,7 @@ return [
                         'title' => 'Двери',
                         'description' => 'Подберём двери под размеры, интерьер и бюджет. Поможем сравнить бренды и выбрать подходящее решение.',
                         'primaryButton' => 'Подобрать двери',
-                        'bgImage' => '',
+                        'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/leget-dveri-hero-20261005.webp',
                     ],
                 ],
                 [
@@ -1209,7 +1209,7 @@ return [
                         'title' => 'Окна',
                         'description' => 'Подберём окна под размеры, интерьер и бюджет. Поможем сравнить бренды и выбрать подходящее решение.',
                         'primaryButton' => 'Подобрать окна',
-                        'bgImage' => '',
+                        'bgImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/leget-okna-hero-20261005.webp',
                     ],
                 ],
                 [
