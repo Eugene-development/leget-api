@@ -17,6 +17,7 @@ use App\Models\Rubric;
 use App\Models\Tag;
 use App\Models\TagGroup;
 use App\Models\User;
+use App\Services\CatalogVisibility;
 use App\Support\MebelProjectModel;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Database\QueryException;
@@ -66,6 +67,7 @@ class ProjectPassportTest extends TestCase
                 $table->unsignedInteger('template_id')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->string('status')->default('active');
+                $table->json('catalog_settings')->nullable();
                 $table->timestamps();
             });
         }
@@ -160,6 +162,77 @@ class ProjectPassportTest extends TestCase
                 $this->assertCount(0, $project->fresh()->tags);
             }
         }
+    }
+
+    public function test_local_creation_is_shared_with_photos_and_tags_and_invalidates_every_sites_cache(): void
+    {
+        // Set up upload ownership before switching into local catalog-authoring mode.
+        $this->upsert(['value' => 'Существующий проект сайта']);
+        $this->prepareImageSchema();
+        $license = License::firstOrFail();
+        $other = License::create(['user_id' => $license->user_id, 'domain' => 'production.example.com']);
+        $license->catalog_settings = ['categories' => [$this->category->id => false], 'projects' => ['hidden-project' => false]];
+        $license->save();
+        $visibility = app(CatalogVisibility::class);
+        $before = [$visibility->cacheSuffix($license), $visibility->cacheSuffix($other)];
+        $url = $this->uploadTestImage();
+        $tag = $this->tag('Материал');
+        $this->app['env'] = 'local';
+
+        $project = $this->upsert(['value' => 'Общий из разработки', 'image_urls' => [$url], 'tag_ids' => [$tag->id]]);
+        $this->assertNull($project->license_id);
+        $this->assertSame($url, $project->images->sole()->path);
+        $this->assertSame([$tag->id], $project->tags->modelKeys());
+        $this->assertTrue(MebelProject::visibleOnSite($other->fresh())->whereKey($project->id)->exists());
+        $this->assertNotSame($before[0], $visibility->cacheSuffix($license->fresh()));
+        $this->assertNotSame($before[1], $visibility->cacheSuffix($other->fresh()));
+        $this->assertSame(false, $license->fresh()->catalog_settings['categories'][$this->category->id]);
+        $this->assertSame(false, $license->fresh()->catalog_settings['projects']['hidden-project']);
+        $revision = $other->fresh()->catalog_settings['shared_projects_revision'];
+        $this->assertSame($license->fresh()->catalog_settings['shared_projects_revision'], $revision);
+
+        // Cache stores may differ between development and production: the revision lives in the DB.
+        Cache::flush();
+        $beforeEdit = $visibility->cacheSuffix($other->fresh());
+        $updated = $this->upsert(['id' => $project->id, 'value' => 'Общий из разработки', 'short_description' => 'Новое описание']);
+        $this->assertNull($updated->license_id);
+        $this->assertNotSame($revision, $other->fresh()->catalog_settings['shared_projects_revision']);
+        $this->assertNotSame($beforeEdit, $visibility->cacheSuffix($other->fresh()));
+        $this->assertSame($project->images->sole()->id, $updated->images->sole()->id);
+        $this->assertSame([$tag->id], $updated->tags->modelKeys());
+    }
+
+    public function test_production_creation_stays_site_owned_even_with_spoofed_localhost_header(): void
+    {
+        $this->app['env'] = 'production';
+        foreach (['localhost', 'promo-1.localhost', '127.0.0.1', 'passport.example.com'] as $domain) {
+            $project = $this->upsert(['value' => 'Проект '.$domain], $domain);
+            $this->assertSame(License::firstOrFail()->id, $project->license_id);
+        }
+    }
+
+    public function test_local_edit_does_not_publish_an_existing_private_project(): void
+    {
+        $project = $this->upsert(['value' => 'Частный проект']);
+        $this->app['env'] = 'local';
+        $updated = $this->upsert(['id' => $project->id, 'value' => 'Частный проект', 'short_description' => 'Правка']);
+        $this->assertSame($project->license_id, $updated->license_id);
+    }
+
+    public function test_local_shared_creation_rejects_private_tags_without_partial_publication(): void
+    {
+        $private = $this->upsert(['value' => 'Частный проект']);
+        $tag = $this->tag('Частный тег');
+        $tag->forceFill(['license_id' => $private->license_id])->save();
+        $this->app['env'] = 'local';
+        try {
+            $this->upsert(['value' => 'Не публиковать', 'tag_ids' => [$tag->id]]);
+            $this->fail('Site-private tags must not enter the shared catalog');
+        } catch (ValidationException $error) {
+            $this->assertArrayHasKey('tag_ids', $error->errors());
+        }
+        $this->assertDatabaseMissing('mebel_projects', ['value' => 'Не публиковать']);
+        $this->assertNull(License::firstOrFail()->catalog_settings);
     }
 
     public function test_saves_passport_fields_on_create(): void
@@ -1029,7 +1102,7 @@ class ProjectPassportTest extends TestCase
         return Tag::create(['tag_group_id' => 1, 'name' => $name, 'normalized_name' => Str::lower($name)]);
     }
 
-    private function upsert(array $input): MebelProject
+    private function upsert(array $input, string $domain = 'passport.example.com'): MebelProject
     {
         $user = User::firstOrCreate(
             ['email' => 'owner@example.com'],
@@ -1042,7 +1115,7 @@ class ProjectPassportTest extends TestCase
         );
 
         $request = Request::create('/graphql', 'POST');
-        $request->headers->set('X-Forwarded-Host', 'passport.example.com');
+        $request->headers->set('X-Forwarded-Host', $domain);
 
         $context = $this->createMock(GraphQLContext::class);
         $context->method('request')->willReturn($request);

@@ -23,6 +23,7 @@ use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class RenderPage
 {
@@ -32,7 +33,7 @@ final class RenderPage
      * GraphQL fields after a zero-downtime deploy.
      */
     // UniversityProgram is a separate block; actionCards now contains both action groups.
-    private const CACHE_VERSION = 'v19';
+    private const CACHE_VERSION = 'v20';
 
     public function __construct(
         private TemplateService $templateService,
@@ -68,7 +69,7 @@ final class RenderPage
         $publication = app(PagePublicationService::class);
         try {
             $draftSnapshot = $publication->forRender($request, $license);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
+        } catch (HttpException $error) {
             throw new GraphQLException('Предпросмотр не найден или срок ссылки истёк.', 'PAGE_PREVIEW_NOT_FOUND');
         }
 
@@ -150,15 +151,14 @@ final class RenderPage
             $project = MebelProject::where('slug', $projectSlug)
                 ->where('category_id', $category->id)
                 ->where('is_active', true)
-                ->where(function ($q) use ($license) {
-                    $q->whereNull('license_id')->orWhere('license_id', $license->id);
-                })
+                ->visibleOnSite($license)
                 ->with(['tags', 'images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                 ->first();
 
-            if ($project) {
-                $templateSlug = '/mebel/{category}/{project}';
+            if (! $project) {
+                throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
             }
+            $templateSlug = '/mebel/{category}/{project}';
         }
         // Pattern: mebel/{category_slug}
         elseif (preg_match('#^/?mebel/([^/]+)$#', $slug, $matches)) {
@@ -334,6 +334,7 @@ final class RenderPage
                             'id' => $project->id,
                             'category_id' => $project->category_id,
                             'can_delete' => $project->license_id !== null,
+                            'can_hide' => $project->license_id === null,
                             'value' => $project->value,
                             'slug' => $project->slug,
                             'short_description' => $project->short_description,
@@ -379,9 +380,7 @@ final class RenderPage
                     $related = MebelProject::where('category_id', $project->category_id)
                         ->where('id', '!=', $project->id)
                         ->where('is_active', true)
-                        ->where(function ($q) use ($license) {
-                            $q->whereNull('license_id')->orWhere('license_id', $license->id);
-                        })
+                        ->visibleOnSite($license)
                         ->orderBy('id', 'desc')
                         ->limit(3)
                         ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
@@ -425,9 +424,7 @@ final class RenderPage
                     // Fetch projects for this category
                     $projects = MebelProject::where('category_id', $category->id)
                         ->where('is_active', true)
-                        ->where(function ($q) use ($license) {
-                            $q->whereNull('license_id')->orWhere('license_id', $license->id);
-                        })
+                        ->visibleOnSite($license)
                         ->orderBy('id', 'desc')
                         ->with(['images' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
                         ->get();
@@ -444,6 +441,7 @@ final class RenderPage
                             'images' => $p->images->map(fn ($img) => ['url' => $img->url, 'hash' => $img->hash]),
                         ]),
                         'categorySlug' => $category->slug,
+                        'categoryId' => $category->id,
                     ]);
                 }
             }
@@ -572,6 +570,7 @@ final class RenderPage
     {
         if (($draftSnapshot['page']['slug'] ?? null) === '/actions') {
             $rows = collect($draftSnapshot['components'])->keyBy('type');
+
             return collect(['primary' => 'ActionsCards', 'extra' => 'ActionsCardsExtra'])
                 ->map(fn ($type) => $this->formatActionCards($rows->has($type) ? new PageComponent($rows->get($type)) : null))
                 ->all();
@@ -743,9 +742,7 @@ final class RenderPage
         return MebelProject::query()
             ->whereIn('category_id', $categories->keys())
             ->where('is_active', true)
-            ->where(function ($q) use ($license) {
-                $q->whereNull('license_id')->orWhere('license_id', $license->id);
-            })
+            ->visibleOnSite($license)
             // Вторым ключом id, а не sort_order: у карточек, заведённых в одну
             // секунду, порядок иначе зависел бы от нумерации ВНУТРИ категории,
             // то есть соседние карточки ленты сравнивались бы по несравнимым

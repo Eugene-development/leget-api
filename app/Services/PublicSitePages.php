@@ -59,7 +59,7 @@ final class PublicSitePages
         }
         $furniture = $categories->where('rubric.slug', 'mebel')->keyBy('id');
         foreach (MebelProject::where('is_active', true)->whereIn('category_id', $furniture->keys())
-            ->where(fn ($q) => $q->whereNull('license_id')->orWhere('license_id', $license->id))
+            ->visibleOnSite($license)
             ->get() as $project) {
             $category = $furniture[$project->category_id];
             $sources['/mebel/'.$category->slug.'/'.$project->slug] = ['category' => $category, 'project' => $project];

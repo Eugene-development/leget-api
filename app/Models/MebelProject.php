@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CatalogVisibility;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -91,6 +92,16 @@ class MebelProject extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /** Public site catalog: own projects plus shared projects enabled on this site. */
+    public function scopeVisibleOnSite($query, License $license)
+    {
+        $hidden = app(CatalogVisibility::class)->hiddenProjectIds($license);
+
+        return $query->where(fn ($q) => $q
+            ->where('license_id', $license->id)
+            ->orWhere(fn ($shared) => $shared->whereNull('license_id')->whereNotIn('id', $hidden)));
     }
 
     /**

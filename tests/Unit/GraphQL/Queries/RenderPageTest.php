@@ -3,14 +3,18 @@
 namespace Tests\Unit\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\GraphQL\Mutations\CreateTag;
 use App\GraphQL\Mutations\DeleteApplianceBrand;
 use App\GraphQL\Mutations\DeleteTag;
 use App\GraphQL\Mutations\MovePageComponent;
+use App\GraphQL\Mutations\SetSharedProjectVisibility;
 use App\GraphQL\Mutations\ToggleCategory;
 use App\GraphQL\Mutations\UpdateTag;
 use App\GraphQL\Mutations\UpsertApplianceBrand;
+use App\GraphQL\Queries\HiddenSharedProjects;
 use App\GraphQL\Queries\RenderPage;
 use App\GraphQL\Queries\SearchSite;
+use App\Models\ApplianceBrand;
 use App\Models\CatalogBrand;
 use App\Models\Category;
 use App\Models\Component;
@@ -25,7 +29,9 @@ use App\Models\TagGroup;
 use App\Models\TemplatePage;
 use App\Models\User;
 use App\Services\ApplianceBrands;
+use App\Services\BrandTags;
 use App\Services\CatalogVisibility;
+use App\Services\PublicSitePages;
 use App\Services\SiteSearch;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -33,6 +39,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -311,14 +318,14 @@ class RenderPageTest extends TestCase
         $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubrics['bytovaya-tehnika']->id, 'slug' => 'bosch', 'value' => 'Bosch']);
         $material = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubrics['stoleshnica']->id, 'slug' => 'quartz', 'value' => 'Кварц']);
         $stone = CatalogBrand::create(['category_id' => $material->id, 'slug' => 'stone', 'value' => 'Stone']);
-        $site = \App\Models\ApplianceBrand::create(['license_id' => $license->id, 'rubric_slug' => 'santehnika', 'slug' => 'bosch', 'value' => 'Bosch']);
+        $site = ApplianceBrand::create(['license_id' => $license->id, 'rubric_slug' => 'santehnika', 'slug' => 'bosch', 'value' => 'Bosch']);
         $this->assertDatabaseCount('tags', 3);
         $siteTag = Tag::where('target_type', 'site_brand')->sole();
-        $present = app(\App\Services\BrandTags::class)->present(Tag::all(), $license)->keyBy('id');
+        $present = app(BrandTags::class)->present(Tag::all(), $license)->keyBy('id');
         $this->assertSame('/santehnika/bosch', $present[$siteTag->id]['href']);
         $this->assertContains('/bytovaya-tehnika/bosch', $present->pluck('href')->all());
         $this->assertContains('/stoleshnica/quartz/stone', $present->pluck('href')->all());
-        $this->assertCount(2, app(\App\Services\BrandTags::class)->present(Tag::all(), $other));
+        $this->assertCount(2, app(BrandTags::class)->present(Tag::all(), $other));
         $query = '{ tagGroups(rubric: "mebel") { slug tags { id name href managed } } siteMap }';
         $response = $this->withHeader('X-Forwarded-Host', $license->domain)->postJson('/graphql', ['query' => $query])->assertJsonMissingPath('errors');
         $this->assertCount(6, $response->json('data.tagGroups'));
@@ -339,14 +346,14 @@ class RenderPageTest extends TestCase
         $this->assertSame($siteTag->id, Tag::where('target_type', 'site_brand')->sole()->id);
         $this->assertSame('Новое название', $siteTag->fresh()->name);
         $site->delete();
-        $this->assertNull(app(\App\Services\BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
+        $this->assertNull(app(BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
         $this->assertCount(1, $project->fresh()->tags);
-        $this->assertNotContains('/santehnika/bosch', app(\App\Services\PublicSitePages::class)->paths($license));
+        $this->assertNotContains('/santehnika/bosch', app(PublicSitePages::class)->paths($license));
         $site->restore();
-        $this->assertSame('/santehnika/bosch', app(\App\Services\BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
+        $this->assertSame('/santehnika/bosch', app(BrandTags::class)->present($project->fresh()->tags, $license)->first()['href']);
         $license->catalog_settings = ['categories' => [$site->id => false, $material->id => false]];
         $license->save();
-        $paths = app(\App\Services\PublicSitePages::class)->paths($license);
+        $paths = app(PublicSitePages::class)->paths($license);
         $this->assertNotContains('/santehnika/bosch', $paths);
         $this->assertNotContains('/stoleshnica/quartz/stone', $paths);
         $this->assertNotContains('/favorites', $paths);
@@ -359,9 +366,9 @@ class RenderPageTest extends TestCase
         $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'bytovaya-tehnika', 'value' => 'Техника']);
         $shared = Category::create(['key' => (string) Str::ulid(), 'rubric_id' => $rubric->id, 'slug' => 'bosch', 'value' => 'Bosch']);
         $tag = Tag::where('target_type', 'category')->sole();
-        $override = \App\Models\ApplianceBrand::create(['license_id' => $license->id, 'source_category_id' => $shared->id, 'rubric_slug' => 'bytovaya-tehnika', 'slug' => 'bosch', 'value' => 'Bosch local']);
+        $override = ApplianceBrand::create(['license_id' => $license->id, 'source_category_id' => $shared->id, 'rubric_slug' => 'bytovaya-tehnika', 'slug' => 'bosch', 'value' => 'Bosch local']);
         $this->assertDatabaseCount('tags', 1);
-        $this->assertSame('Bosch local', app(\App\Services\BrandTags::class)->present(collect([$tag]), $license)->first()['name']);
+        $this->assertSame('Bosch local', app(BrandTags::class)->present(collect([$tag]), $license)->first()['name']);
         foreach ([UpdateTag::class, DeleteTag::class] as $mutation) {
             try {
                 app($mutation)(null, $mutation === UpdateTag::class ? ['input' => ['id' => $tag->id, 'name' => 'Broken']] : ['id' => $tag->id], $this->brandContext($license));
@@ -371,7 +378,7 @@ class RenderPageTest extends TestCase
             }
         }
         $override->delete();
-        $this->assertNull(app(\App\Services\BrandTags::class)->present(collect([$tag]), $license)->first()['href']);
+        $this->assertNull(app(BrandTags::class)->present(collect([$tag]), $license)->first()['href']);
     }
 
     public function test_same_countertop_brand_name_can_link_to_different_materials(): void
@@ -383,7 +390,7 @@ class RenderPageTest extends TestCase
             CatalogBrand::create(['category_id' => $category->id, 'slug' => 'brand', 'value' => 'Brand']);
         }
         $this->assertDatabaseCount('tags', 2);
-        $this->assertSame(['/stoleshnica/quartz/brand', '/stoleshnica/acrylic/brand'], app(\App\Services\BrandTags::class)->present(Tag::all(), $license)->pluck('href')->all());
+        $this->assertSame(['/stoleshnica/quartz/brand', '/stoleshnica/acrylic/brand'], app(BrandTags::class)->present(Tag::all(), $license)->pluck('href')->all());
     }
 
     public function test_plumbing_brand_graphql_crud_tags_and_public_pages(): void
@@ -432,7 +439,7 @@ class RenderPageTest extends TestCase
         $license = $this->createLicense(['template_id' => 1]);
         $other = $this->createLicense(['domain' => 'lighting-other.example.com', 'template_id' => 1]);
         $rubric = Rubric::create(['key' => (string) Str::ulid(), 'slug' => 'osveshchenie', 'value' => 'Освещение']);
-        \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+        DB::table('tag_groups')->insertOrIgnore([
             'slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9,
         ]);
         $shared = Category::create([
@@ -461,7 +468,7 @@ class RenderPageTest extends TestCase
         $slug = $response->json('data.upsertApplianceBrand.slug');
         $this->assertDatabaseHas('appliance_brands', ['id' => $id, 'rubric_slug' => 'osveshchenie']);
         $autoTag = Tag::where('target_type', 'site_brand')->where('target_id', $id)->firstOrFail();
-        $this->assertSame('/osveshchenie/'.$slug, app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license)->first()['href']);
+        $this->assertSame('/osveshchenie/'.$slug, app(BrandTags::class)->present(collect([$autoTag]), $license)->first()['href']);
         $this->assertContains('/osveshchenie/'.$slug, app(SiteSearch::class)->paths($license->fresh()));
         $this->assertNotContains('/osveshchenie/'.$slug, app(SiteSearch::class)->paths($other));
 
@@ -479,12 +486,12 @@ class RenderPageTest extends TestCase
         $this->actingAs($license->user, 'api');
         foreach (['dveri' => ['Dveri', 'DOORS', 'door'], 'okna' => ['Okna', 'WINDOWS', 'window']] as $rubricSlug => [$prefix, $enum, $group]) {
             Rubric::create(['key' => (string) Str::ulid(), 'slug' => $rubricSlug, 'value' => $rubricSlug]);
-            \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+            DB::table('tag_groups')->insertOrIgnore([
                 ['slug' => $group.'-brand', 'name' => 'Бренд', 'sort_order' => 11],
                 ['slug' => $group.'-type', 'name' => 'Тип', 'sort_order' => 12],
             ]);
             try {
-                app(\App\GraphQL\Mutations\CreateTag::class)(null, ['input' => [
+                app(CreateTag::class)(null, ['input' => [
                     'tag_group_id' => TagGroup::where('slug', $group.'-brand')->value('id'), 'name' => 'Ручной бренд',
                 ]], $context);
                 $this->fail('Brand tag created without a brand');
@@ -516,7 +523,7 @@ class RenderPageTest extends TestCase
             $id = $response->json('data.upsertApplianceBrand.id');
             $slug = $response->json('data.upsertApplianceBrand.slug');
             $autoTag = Tag::where('target_type', 'site_brand')->where('target_id', $id)->sole();
-            $this->assertSame('/'.$rubricSlug.'/'.$slug, app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
+            $this->assertSame('/'.$rubricSlug.'/'.$slug, app(BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
             $this->assertNotContains('/'.$rubricSlug.'/'.$slug, app(SiteSearch::class)->paths($other));
             $ownPage = ($this->resolver)(null, ['slug' => '/'.$rubricSlug.'/'.$slug], $context, $this->createResolveInfo());
             $ownComponents = collect($ownPage['page']['componentsData'])->keyBy('type');
@@ -531,7 +538,7 @@ class RenderPageTest extends TestCase
             $this->assertNotContains('/'.$rubricSlug.'/'.$shared->slug, app(SiteSearch::class)->paths($license->fresh()));
             $this->assertContains('/'.$rubricSlug.'/'.$shared->slug, app(SiteSearch::class)->paths($other));
             app(DeleteApplianceBrand::class)(null, ['licenseId' => $license->id, 'rubric' => $rubricSlug, 'id' => $id], $context);
-            $this->assertNull(app(\App\Services\BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
+            $this->assertNull(app(BrandTags::class)->present(collect([$autoTag]), $license->fresh())->first()['href']);
             $this->assertNotContains('/'.$rubricSlug.'/'.$slug, app(SiteSearch::class)->paths($license->fresh()));
         }
     }
@@ -1195,7 +1202,7 @@ class RenderPageTest extends TestCase
 
     public function test_all_catalog_sidebars_have_site_scoped_visibility(): void
     {
-        \Illuminate\Support\Facades\DB::table('tag_groups')->insertOrIgnore([
+        DB::table('tag_groups')->insertOrIgnore([
             ['slug' => 'lighting-brand', 'name' => 'Бренд освещения', 'sort_order' => 9],
             ['slug' => 'door-brand', 'name' => 'Бренд дверей', 'sort_order' => 11],
             ['slug' => 'window-brand', 'name' => 'Бренд окон', 'sort_order' => 13],
@@ -1441,6 +1448,104 @@ class RenderPageTest extends TestCase
      * Страница `/projects` делится надвое: последняя работа уходит в шапку,
      * все остальные — в ленту. Порядок задаёт дата СОЗДАНИЯ карточки.
      */
+    public function test_shared_project_visibility_is_site_scoped_reversible_and_updates_cached_surfaces(): void
+    {
+        $first = $this->createLicense(['template_id' => 1]);
+        $second = $this->createLicense(['template_id' => 1, 'domain' => 'second.example.com']);
+        $second->user_id = $first->user_id;
+        $second->save();
+        $category = $this->createMebelCategory();
+        $shared = $this->createProject($category, ['value' => 'Уникальная кухня', 'slug' => 'shared']);
+        $own = $this->createProject($category, ['value' => 'Своя кухня', 'slug' => 'own', 'license_id' => $first->id]);
+        $sharedAttributes = $shared->fresh()->getAttributes();
+        $first->catalog_settings = ['categories' => [$category->id => true], 'other' => ['preserve' => true]];
+        $first->save();
+        // A saved page must not bypass the visibility gate.
+        Page::create(['license_id' => $first->id, 'slug' => '/mebel/kitchens/shared']);
+        $owner = $this->createContext();
+        $owner->method('user')->willReturn($first->user);
+        $mutation = app(SetSharedProjectVisibility::class);
+        $hidden = app(HiddenSharedProjects::class);
+        Cache::put('unrelated-site-cache', 'preserve');
+
+        // Prime the public caches, hide twice (lost response retry), then restore twice.
+        foreach ([true, false, false, true, true] as $visible) {
+            $mutation(null, ['id' => $shared->id, 'licenseId' => $first->id, 'isVisible' => $visible], $owner);
+            $this->assertSame($sharedAttributes, $shared->fresh()->getAttributes());
+            $this->assertSame(true, $first->fresh()->catalog_settings['categories'][$category->id]);
+            $this->assertSame(['preserve' => true], $first->fresh()->catalog_settings['other']);
+            $this->assertSame('preserve', Cache::get('unrelated-site-cache'));
+            $this->assertCount($visible ? 0 : 1, $hidden(null, ['licenseId' => $first->id, 'categoryId' => $category->id], $owner));
+            $this->assertCount(0, $hidden(null, ['licenseId' => $second->id, 'categoryId' => $category->id], $owner));
+
+            foreach ([$first, $second] as $site) {
+                $expected = $visible || $site->id === $second->id;
+                $context = $this->createContext(['Host' => $site->domain]);
+                $render = fn ($path) => ($this->resolver)(null, ['slug' => $path], $context, $this->createResolveInfo());
+                $grid = collect($render('/mebel/kitchens')['page']['componentsData'])->firstWhere('type', 'MebelProjectsGrid')['data'];
+                $this->assertSame($category->id, $grid['categoryId']);
+                $this->assertSame($expected, collect($grid['projects'])->contains('id', $shared->id));
+                $favorites = collect($render('/favorites')['page']['componentsData'])->firstWhere('type', 'FavoritesPage')['data']['projects'];
+                $this->assertSame($expected, collect($favorites)->contains('id', $shared->id));
+                $feed = $this->renderProjectsPage($site, $site->domain);
+                $feedIds = array_merge(array_column($feed['feed']['projects'], 'id'), [$feed['hero']['latest']['id'] ?? null]);
+                $this->assertSame($expected, in_array($shared->id, $feedIds, true));
+                $this->assertSame($expected, in_array('/mebel/kitchens/shared', app(PublicSitePages::class)->paths($site->fresh()), true));
+                $search = app(SearchSite::class)(null, ['query' => 'Уникальная'], $context, $this->createResolveInfo());
+                $this->assertSame($expected, in_array('/mebel/kitchens/shared', array_column($search['items'], 'url'), true));
+                if ($expected) {
+                    $hero = collect($render('/mebel/kitchens/shared')['page']['componentsData'])->firstWhere('type', 'MebelProjectHero');
+                    $this->assertTrue($hero['data']['project']['can_hide']);
+                    $this->assertFalse($hero['data']['project']['can_delete']);
+                } else {
+                    try {
+                        $render('/mebel/kitchens/shared');
+                        $this->fail('Hidden project route must return not found, including saved pages');
+                    } catch (GraphQLException $error) {
+                        $this->assertSame('Page not found', $error->getMessage());
+                    }
+                }
+            }
+            $ownPage = ($this->resolver)(null, ['slug' => '/mebel/kitchens/own'], $this->createContext(['Host' => $first->domain]), $this->createResolveInfo());
+            $similar = collect($ownPage['page']['componentsData'])->firstWhere('type', 'MebelProjectSimilar')['data']['projects'];
+            $this->assertSame($visible, collect($similar)->contains('id', $shared->id));
+        }
+    }
+
+    public function test_shared_visibility_graphql_requires_owner_and_rejects_non_shared_or_invalid_projects(): void
+    {
+        config(['lighthouse.schema_cache.enable' => false]);
+        $site = $this->createLicense(['template_id' => 1]);
+        $other = $this->createLicense(['template_id' => 1, 'domain' => 'other.example.com']);
+        $category = $this->createMebelCategory();
+        $shared = $this->createProject($category, ['value' => 'Общая', 'slug' => 'shared']);
+        $own = $this->createProject($category, ['value' => 'Своя', 'slug' => 'own', 'license_id' => $site->id]);
+        $foreign = $this->createProject($category, ['value' => 'Чужая', 'slug' => 'foreign', 'license_id' => $other->id]);
+        $inactive = $this->createProject($category, ['value' => 'Неактивная', 'slug' => 'inactive', 'is_active' => false]);
+        $deleted = $this->createProject($category, ['value' => 'Удалённая', 'slug' => 'deleted']);
+        $deleted->delete();
+        $query = 'mutation Visibility($id: ID!, $licenseId: ID!, $isVisible: Boolean!) { setSharedProjectVisibility(id: $id, licenseId: $licenseId, isVisible: $isVisible) { id isVisible } }';
+        $variables = ['id' => $shared->id, 'licenseId' => $site->id, 'isVisible' => false];
+        $list = ['query' => 'query Hidden($licenseId: ID!, $categoryId: ID!) { hiddenSharedProjects(licenseId: $licenseId, categoryId: $categoryId) { id value } }',
+            'variables' => ['licenseId' => $site->id, 'categoryId' => $category->id]];
+        $this->postJson('/graphql', compact('query', 'variables'))->assertJsonStructure(['errors']);
+        $this->postJson('/graphql', $list)->assertJsonStructure(['errors']);
+        $this->actingAs($other->user, 'api');
+        $this->postJson('/graphql', compact('query', 'variables'))->assertJsonStructure(['errors']);
+        $this->postJson('/graphql', $list)->assertJsonStructure(['errors']);
+        $this->assertNull($site->fresh()->catalog_settings);
+        $this->actingAs($site->user, 'api');
+        foreach ([$own->id, $foreign->id, $inactive->id, $deleted->id, (string) Str::ulid(), 'invalid'] as $id) {
+            $this->postJson('/graphql', ['query' => $query, 'variables' => array_merge($variables, ['id' => $id])])->assertJsonStructure(['errors']);
+            $this->assertNull($site->fresh()->catalog_settings);
+        }
+        $this->postJson('/graphql', compact('query', 'variables'))->assertJsonMissingPath('errors')
+            ->assertJsonPath('data.setSharedProjectVisibility.id', $shared->id)->assertJsonPath('data.setSharedProjectVisibility.isVisible', false);
+        $this->postJson('/graphql', $list)->assertJsonMissingPath('errors')->assertJsonPath('data.hiddenSharedProjects.0.id', $shared->id);
+        $list['variables']['categoryId'] = (string) Str::ulid();
+        $this->postJson('/graphql', $list)->assertJsonMissingPath('errors')->assertJsonPath('data.hiddenSharedProjects', []);
+    }
+
     public function test_latest_project_goes_to_hero_and_the_rest_to_the_feed(): void
     {
         $license = $this->createLicense([
@@ -1903,7 +2008,7 @@ class RenderPageTest extends TestCase
             $this->assertSame($entry['seo_title'], $page['page']['seo']['title']);
         }
 
-        $paths = app(\App\Services\PublicSitePages::class)->paths($license);
+        $paths = app(PublicSitePages::class)->paths($license);
         $this->assertContains('/furnitura/makmart', $paths);
         $documents = app(SiteSearch::class)->documents($license);
         $makmart = collect($documents)->firstWhere('url', '/furnitura/makmart');

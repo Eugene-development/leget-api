@@ -8,6 +8,7 @@ use App\Exceptions\GraphQLException;
 use App\Models\MebelProject;
 use App\Models\Tag;
 use App\Services\BrandTags;
+use App\Services\CatalogVisibility;
 use App\Support\MebelProjectImages;
 use App\Support\MebelProjectModel;
 use App\Support\ProjectImageCaption;
@@ -108,7 +109,9 @@ final class UpsertMebelProject
             // Не меняем license_id — иначе проект потеряется для других доменов.
         } else {
             $project = new MebelProject;
-            $project->license_id = $license->id;
+            // The server environment is trusted; a client-supplied localhost header is not.
+            // Development is where the platform's shared furniture catalog is authored.
+            $project->license_id = app()->environment('local') ? null : $license->id;
 
             // Generate a slug if creating
             $baseSlug = substr(RussianSlug::make($input['value']), 0, 220) ?: 'project';
@@ -124,7 +127,7 @@ final class UpsertMebelProject
 
             // Set default sort order for new projects
             $project->sort_order = MebelProject::where('category_id', $input['category_id'])
-                ->whereIn('license_id', $licenseIds)
+                ->where('license_id', $project->license_id)
                 ->max('sort_order') + 1;
         }
 
@@ -258,6 +261,9 @@ final class UpsertMebelProject
                         }
                     }
                 }
+                if ($project->license_id === null) {
+                    app(CatalogVisibility::class)->sharedProjectsChanged();
+                }
             });
         } catch (UniqueConstraintViolationException $e) {
             // Индекс закрывает гонку между проверкой и одновременной записью.
@@ -268,12 +274,14 @@ final class UpsertMebelProject
             throw $e;
         }
 
-        // Clear cache for this site to reflect changes immediately
-        try {
-            Cache::tags(["license:{$license->id}"])->flush();
-        } catch (\BadMethodCallException $e) {
-            // Tagged cache not supported (file/database driver) — flush all cache
-            Cache::flush();
+        // Shared catalog changes already advanced every site's persisted cache revision.
+        if ($project->license_id !== null) {
+            try {
+                Cache::tags(["license:{$project->license_id}"])->flush();
+            } catch (\BadMethodCallException $e) {
+                // Tagged cache not supported (file/database driver) — flush all cache
+                Cache::flush();
+            }
         }
 
         return $project;

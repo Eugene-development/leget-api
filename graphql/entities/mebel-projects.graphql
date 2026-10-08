@@ -1,4 +1,8 @@
 extend type Query {
+    "Скрытые общие проекты категории. Только владелец указанного сайта."
+    hiddenSharedProjects(licenseId: ID!, categoryId: ID!): [MebelProject!]!
+        @guard @field(resolver: "App\\GraphQL\\Queries\\HiddenSharedProjects")
+
     "List mebel projects, optionally filtered by category (public)."
     mebelProjects(
         "Filter by active status."
@@ -13,6 +17,10 @@ extend type Query {
 }
 
 extend type Mutation {
+    "Скрыть или показать общий проект только на указанном сайте."
+    setSharedProjectVisibility(id: ID!, licenseId: ID!, isVisible: Boolean!): SharedProjectVisibility!
+        @guard @field(resolver: "App\\GraphQL\\Mutations\\SetSharedProjectVisibility")
+
     "Мягко удалить проект своей лицензии. Повторный запрос безопасен."
     deleteMebelProject(id: ID!): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteMebelProject")
 
@@ -20,6 +28,11 @@ extend type Mutation {
     upsertMebelProject(
         input: UpsertMebelProjectInput!
     ): MebelProject! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpsertMebelProject")
+}
+
+type SharedProjectVisibility {
+    id: ID!
+    isVisible: Boolean!
 }
 
 input UpsertMebelProjectInput {
