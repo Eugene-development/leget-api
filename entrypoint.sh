@@ -1,96 +1,24 @@
 #!/bin/sh
-
-set -e
-
-# Если контейнер запущен в режиме scheduler — очищаем кэш и запускаем цикл schedule:run
-if [ "$CONTAINER_ROLE" = "scheduler" ]; then
-    echo "⏰ Initializing Laravel Scheduler..."
-
-    # Создаем необходимые директории
-    mkdir -p /var/www/storage/logs
-    mkdir -p /var/www/storage/framework/sessions
-    mkdir -p /var/www/storage/framework/views
-    mkdir -p /var/www/storage/framework/cache
-    mkdir -p /var/www/bootstrap/cache
-
-    # Устанавливаем права
-    chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-    chmod -R 775 /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-
-    # ВАЖНО: очищаем старый кэш конфигурации из volume,
-    # иначе scheduler увидит устаревшую конфигурацию (старое расписание)
-    echo "🧹 Clearing config cache for scheduler..."
-    rm -rf /var/www/bootstrap/cache/*.php
-    php artisan config:clear 2>/dev/null || echo "⚠️  Config clear failed"
-    php artisan cache:clear 2>/dev/null || echo "⚠️  Cache clear failed"
-
-    echo "⏰ Starting scheduler loop (runs every 60s)..."
-    while true; do
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running schedule:run..."
-        php artisan schedule:run --verbose 2>&1
-        sleep 60
-    done
+set -eu
+cd /var/www
+# Production settings arrive through env_file and secrets; never generate keys here.
+: "${APP_KEY:?Set the permanent APP_KEY before starting the container}"
+if [ -s /run/secrets/jwt_secret ]; then
+    JWT_SECRET=$(tr -d '\r\n' < /run/secrets/jwt_secret)
+    export JWT_SECRET
 fi
+: "${JWT_SECRET:?Set the shared API/auth JWT secret}"
 
-echo "🚀 Starting Laravel application..."
-
-# Создаем необходимые директории
-echo "📁 Creating directories..."
-mkdir -p /var/www/storage/logs
-mkdir -p /var/www/storage/framework/sessions
-mkdir -p /var/www/storage/framework/views
-mkdir -p /var/www/storage/framework/cache
-mkdir -p /var/www/bootstrap/cache
-
-# Устанавливаем правильные права
-echo "🔒 Setting permissions..."
-# Используем www-data для совместимости с nginx
-chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-chmod -R 775 /var/www/storage /var/www/bootstrap/cache 2>/dev/null || true
-
-# Очищаем bootstrap cache принудительно
-echo "🧹 Clearing bootstrap cache..."
-rm -rf /var/www/bootstrap/cache/*
-
-# Переключаемся на пользователя www-data для выполнения artisan команд
-echo "🧹 Clearing Laravel cache..."
-su-exec www-data php artisan config:clear 2>/dev/null || echo "⚠️  Config clear failed, continuing..."
-su-exec www-data php artisan cache:clear 2>/dev/null || echo "⚠️  Cache clear failed, continuing..."
-su-exec www-data php artisan route:clear 2>/dev/null || echo "⚠️  Route clear failed, continuing..."
-su-exec www-data php artisan view:clear 2>/dev/null || echo "⚠️  View clear failed, continuing..."
-
-# Создаем .env файл если его нет
-if [ ! -f /var/www/.env ]; then
-    echo "📝 Creating .env file..."
-    su-exec www-data cp /var/www/.env.example /var/www/.env 2>/dev/null || echo "⚠️  No .env.example found"
+mkdir -p storage/logs storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache
+# Cache belongs to this container, never to a shared volume.
+rm -f bootstrap/cache/config.php
+# Compatibility for the old scheduler role; new Compose uses an explicit command.
+if [ "${CONTAINER_ROLE:-}" = scheduler ]; then
+    set -- php artisan schedule:work
 fi
-
-# Генерируем ключ приложения если его нет
-echo "🔑 Checking application key..."
-su-exec www-data php artisan key:generate --force 2>/dev/null || echo "⚠️  Key generation failed"
-
-# Генерируем JWT_SECRET для валидации JWT токенов
-echo "🔑 Setting JWT_SECRET..."
-if [ -f "/run/secrets/jwt_secret" ]; then
-    JWT_SECRET=$(cat /run/secrets/jwt_secret)
-    echo "✅ JWT_SECRET loaded from secret"
-else
-    JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
-    echo "✅ JWT_SECRET generated"
+if [ "$#" -eq 0 ]; then set -- php-fpm; fi
+if [ "$1" = php-fpm ]; then
+    exec "$@"
 fi
-export JWT_SECRET
-
-# Write JWT_SECRET to .env file so PHP-FPM can access it
-if [ -f "/var/www/.env" ]; then
-    # Remove existing JWT_SECRET line if present
-    sed -i '/^JWT_SECRET=/d' /var/www/.env
-    # Add new JWT_SECRET
-    echo "JWT_SECRET=${JWT_SECRET}" >> /var/www/.env
-    echo "✅ JWT_SECRET written to .env"
-fi
-
-echo "✅ Laravel initialization complete!"
-
-# Запуск php-fpm от root пользователя чтобы избежать проблем с логированием
-echo "🏃 Starting PHP-FPM..."
-exec php-fpm
+exec su-exec www-data "$@"
