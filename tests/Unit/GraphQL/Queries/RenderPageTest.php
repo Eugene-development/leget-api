@@ -11,6 +11,7 @@ use App\GraphQL\Mutations\SetSharedProjectVisibility;
 use App\GraphQL\Mutations\ToggleCategory;
 use App\GraphQL\Mutations\UpdateTag;
 use App\GraphQL\Mutations\UpsertApplianceBrand;
+use App\GraphQL\Mutations\UpsertPageComponent;
 use App\GraphQL\Queries\HiddenSharedProjects;
 use App\GraphQL\Queries\RenderPage;
 use App\GraphQL\Queries\SearchSite;
@@ -305,6 +306,74 @@ class RenderPageTest extends TestCase
         $extra->update(['is_active' => false]);
         $this->assertSame([], $readCards()['extra']);
         $this->assertCount(1, $readCards()['primary']);
+    }
+
+    public function test_company_actions_round_trip_without_changing_novostroy_cards(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('user')->willReturn($license->user);
+        $save = fn (string $type, array $data) => app(UpsertPageComponent::class)(null, [
+            'page_id' => 'slug:/actions', 'license_id' => $license->id, 'type' => $type, 'data' => $data,
+        ], $context, $this->createResolveInfo());
+        $primary = ['cards' => [['id' => 'own', 'title' => 'Новострой', 'icon' => 'M6 18 18 6']]];
+        $save('ActionsCards', $primary);
+        $companies = ['companies' => [
+            ['id' => 'one', 'name' => 'Компания 1', 'cards' => [['id' => 'offer', 'title' => 'Акция 1', 'icon' => 'M12 3 4 6v6']]],
+            ['id' => 'two', 'name' => 'Компания 2', 'cards' => [['id' => 'offer', 'title' => 'Акция 2', 'icon' => 'M4 4h16v16H4Z']]],
+        ]];
+        $row = $save('ActionsCardsExtra', $companies);
+        $this->assertSame($companies, $row->fresh()->data);
+        $companies['companies'][1]['cards'][0]['title'] = 'Изменённая акция';
+        $companies['companies'][1]['cards'][0]['icon'] = 'M3 3h7l11 11-7 7L3 10V3Z';
+        $companies['companies'][0]['enabled'] = false;
+        $companies['companies'] = array_reverse($companies['companies']);
+        $this->assertSame($companies, $save('ActionsCardsExtra', $companies)->fresh()->data);
+        $rendered = app(TemplateService::class)->getMergedPageComponents($license->id, (string) $row->page_id);
+        $this->assertSame($companies, $rendered->firstWhere('type', 'ActionsCardsExtra')->data);
+        $this->assertSame($primary, $rendered->firstWhere('type', 'ActionsCards')->data);
+        $save('ActionsCardsExtra', ['companies' => []]);
+        $this->assertSame(['companies' => []], $row->fresh()->data);
+        $this->assertSame(2, PageComponent::count());
+    }
+
+    public function test_company_actions_preserve_groups_in_strip_and_draft_without_large_card_fields(): void
+    {
+        $license = $this->createLicense(['template_id' => 1]);
+        $page = Page::create(['license_id' => $license->id, 'slug' => '/actions']);
+        $companies = [
+            ['id' => 'one', 'name' => 'Компания 1', 'cards' => [
+                ['id' => 'gift', 'title' => 'Подарок', 'badge' => 'Бесплатно', 'icon' => 'svg-path', 'description' => 'Long text'],
+                ['id' => 'hidden', 'title' => 'Выключена', 'enabled' => false],
+            ]],
+            ['id' => 'two', 'name' => 'Компания 2', 'enabled' => false, 'cards' => [['id' => 'gift', 'title' => 'Другая акция']]],
+            ['id' => 'empty', 'name' => 'Без акций', 'cards' => []],
+        ];
+        $component = PageComponent::create([
+            'page_id' => $page->id, 'license_id' => $license->id, 'type' => 'ActionsCardsExtra',
+            'data' => ['companies' => $companies, 'cards' => [['title' => 'Legacy']]],
+            'is_active' => true, 'sort_order' => 2,
+        ]);
+        $reader = new \ReflectionMethod(RenderPage::class, 'getActionCards');
+        $result = $reader->invoke($this->resolver, $license);
+        $this->assertNull($result['primary']);
+        $groups = $result['extra']['companies'];
+        $this->assertCount(3, $groups);
+        $this->assertSame(['one', 'two', 'empty'], array_column($groups, 'id'));
+        $this->assertFalse($groups[0]['cards'][1]['enabled']);
+        $this->assertFalse($groups[1]['enabled']);
+        $this->assertSame([], $groups[2]['cards']);
+        $this->assertArrayNotHasKey('icon', $groups[0]['cards'][0]);
+        $this->assertArrayNotHasKey('description', $groups[0]['cards'][0]);
+
+        $snapshot = ['page' => ['slug' => '/actions'], 'components' => [$component->toArray()]];
+        $this->assertSame($result, $reader->invoke($this->resolver, $license, $snapshot));
+        $snapshot['components'][0]['data'] = ['companies' => []];
+        $this->assertSame(['companies' => []], $reader->invoke($this->resolver, $license, $snapshot)['extra']);
+        $component->update(['data' => ['companies' => []]]);
+        $this->assertSame(['companies' => []], $reader->invoke($this->resolver, $license)['extra']);
+        $component->update(['is_active' => false]);
+        $this->assertSame([], $reader->invoke($this->resolver, $license)['extra']);
     }
 
     public function test_brand_tags_are_links_scoped_to_site_and_preserved_after_delete(): void

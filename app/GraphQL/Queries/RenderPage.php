@@ -608,12 +608,29 @@ final class RenderPage
             return [];
         }
 
+        if ($component->type === 'ActionsCardsExtra' && is_array($component->data['companies'] ?? null)) {
+            return ['companies' => array_values(array_map(
+                fn (array $company): array => [
+                    'id' => (string) ($company['id'] ?? ''),
+                    'name' => (string) ($company['name'] ?? ''),
+                    'enabled' => ($company['enabled'] ?? true) !== false,
+                    'cards' => $this->formatActionCardList(is_array($company['cards'] ?? null) ? $company['cards'] : []),
+                ],
+                array_filter($component->data['companies'], 'is_array')
+            ))];
+        }
+
         $cards = $component->data['cards'] ?? null;
 
         if (! is_array($cards)) {
             return null;
         }
 
+        return $this->formatActionCardList($cards);
+    }
+
+    private function formatActionCardList(array $cards): array
+    {
         return array_values(array_map(
             fn (array $card): array => [
                 'id' => isset($card['id']) ? (string) $card['id'] : null,
