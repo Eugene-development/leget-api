@@ -16,6 +16,23 @@ use App\Models\PromoCodeDeal;
 class PromoLifecycleTest extends PromoTestCase
 {
     /** Сквозной сценарий: он же критерий готовности из задачи. */
+    public function test_phone_only_code_can_complete_a_deal_but_cannot_be_used_twice(): void
+    {
+        $promo = $this->makePromo();
+        $promo->forceFill(['client_id' => null, 'created_by' => null,
+            'client_phone' => '+79990000000', 'discount_value' => '2.00'])->save();
+        $this->service()->activate($this->curator, $promo);
+        $deal = $this->service()->reportDeal($this->partner, $promo->fresh(),
+            $this->dealPayload(['discount_amount' => '2000.00']));
+        $this->service()->confirmAsAdmin($this->admin, $promo->fresh(), 'Клиент подтвердил по телефону');
+        $this->service()->close($this->admin, $promo->fresh());
+        $this->assertDatabaseCount('promo_code_deals', 1);
+        $this->assertSame($deal->id, $promo->fresh()->deal->id);
+        $this->expectException(PromoCodeException::class);
+        $this->service()->reportDeal($this->partner, $promo->fresh(),
+            $this->dealPayload(['order_number' => 'SECOND', 'discount_amount' => '2000.00']));
+    }
+
     public function test_promo_code_travels_the_whole_path_to_a_closed_deal(): void
     {
         $promo = $this->makePromo();

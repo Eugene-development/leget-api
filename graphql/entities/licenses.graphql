@@ -29,6 +29,11 @@ extend type Mutation {
     cancelLicense(
         id: ID!
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\CancelLicense")
+
+    "Restore an owned cancelled license. Resumes scheduled billing without charging the cancelled interval."
+    restoreLicense(
+        id: ID!
+    ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\RestoreLicense")
 }
 
 type License {

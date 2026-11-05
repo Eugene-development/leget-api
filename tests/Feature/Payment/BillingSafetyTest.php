@@ -6,6 +6,7 @@ use App\Console\Commands\CancelInvoice;
 use App\Console\Commands\PayInvoice;
 use App\GraphQL\Mutations\CancelLicense;
 use App\GraphQL\Mutations\CreateLicense;
+use App\GraphQL\Mutations\RestoreLicense;
 use App\Models\Invoice;
 use App\Models\License;
 use App\Models\Payment;
@@ -82,6 +83,8 @@ class BillingSafetyTest extends OnlineTopUpTest
 
     private function migration(): object
     {
+        require_once base_path('../leget-db/app/Support/PostSnapshotData.php');
+
         return require base_path('../leget-db/database/migrations/2026_09_21_210000_harden_subscription_billing.php');
     }
 
@@ -180,6 +183,152 @@ class BillingSafetyTest extends OnlineTopUpTest
         } finally {
             License::flushEventListeners();
         }
+    }
+
+    public function test_restoration_resumes_billing_without_charging_cancelled_days(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        DB::table('tenants')->insert(['user_id' => $user->id, 'domain' => $license->domain, 'status' => 'active', 'is_active' => true]);
+        (new CancelLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+        Carbon::setTestNow(Carbon::parse('2026-09-25 07:00:00', 'Europe/Moscow'));
+        $query = 'mutation($id: ID!) { restoreLicense(id: $id) { id status isActive } }';
+        $this->actingAs($user, 'api')->postJson('/graphql', ['query' => $query, 'variables' => ['id' => $license->id]])
+            ->assertJsonMissingPath('errors')->assertJsonPath('data.restoreLicense.status', 'active')
+            ->assertJsonPath('data.restoreLicense.isActive', true);
+        $this->assertSame('2026-09-26', $license->fresh()->next_billing_date);
+        $this->assertDatabaseHas('tenants', ['domain' => $license->domain, 'status' => 'active', 'is_active' => true]);
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+        Carbon::setTestNow(Carbon::parse('2026-09-26 06:30:00', 'Europe/Moscow'));
+        // Retrying after the next scheduled debit must not push it to tomorrow.
+        (new RestoreLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame(1, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame(['2026-09-21', '2026-09-26'], Transaction::orderBy('billing_date')->pluck('billing_date')->all());
+        $this->assertSame('700.00', $wallet->fresh()->balance);
+    }
+
+    public function test_restoration_keeps_remaining_trial_without_granting_another(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        $license->update([
+            'billing_started_at' => Carbon::parse('2026-09-23 18:00:00', 'Europe/Moscow'),
+            'next_billing_date' => '2026-09-24',
+        ]);
+        (new CancelLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+        $restored = (new RestoreLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame('2026-09-24', $restored->next_billing_date);
+        $this->assertTrue($restored->billing_started_at->equalTo($license->fresh()->billing_started_at));
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame('1000.00', $wallet->fresh()->balance);
+    }
+
+    public function test_restoration_before_daily_boundary_and_same_day_retry_do_not_double_charge(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        Carbon::setTestNow(Carbon::parse('2026-09-21 06:00:00', 'Europe/Moscow'));
+        $cancel = new CancelLicense;
+        $restore = new RestoreLicense;
+        $cancel(null, ['id' => $license->id], $this->context($user), $this->info());
+        $restore(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame('2026-09-21', $license->fresh()->next_billing_date);
+        Carbon::setTestNow(Carbon::parse('2026-09-21 06:30:00', 'Europe/Moscow'));
+        $this->assertSame(1, (new BillingService)->processDailyDebits()['charged']);
+        $cancel(null, ['id' => $license->id], $this->context($user), $this->info());
+        $restore(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame('850.00', $wallet->fresh()->balance);
+    }
+
+    public function test_restoration_requires_authentication_and_ownership(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        $license->update(['status' => 'cancelled', 'is_active' => false]);
+        $request = ['query' => 'mutation($id: ID!) { restoreLicense(id: $id) { id } }', 'variables' => ['id' => $license->id]];
+        $this->postJson('/graphql', $request)->assertJsonStructure(['errors']);
+        $this->actingAs(User::factory()->create(), 'api')->postJson('/graphql', $request)->assertJsonStructure(['errors']);
+        $this->assertSame('cancelled', $license->fresh()->status);
+        $this->assertSame('1000.00', $wallet->fresh()->balance);
+    }
+
+    public function test_restoration_cannot_bypass_suspension_and_rolls_back_on_failure(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        $license->update(['status' => 'suspended', 'is_active' => false]);
+        try {
+            (new RestoreLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+            $this->fail('Expected suspension rejection');
+        } catch (\App\Exceptions\GraphQLException) {
+        }
+        $this->assertSame('suspended', $license->fresh()->status);
+        $license->update(['status' => 'cancelled']);
+        Schema::drop('tenants');
+        try {
+            (new RestoreLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+            $this->fail('Expected storage failure');
+        } catch (\Illuminate\Database\QueryException) {
+        }
+        $this->assertSame('cancelled', $license->fresh()->status);
+        $this->assertFalse($license->fresh()->is_active);
+        $this->assertSame('2026-09-21', $license->fresh()->next_billing_date);
+    }
+
+    public function test_license_removal_stops_only_its_billing_and_preserves_history(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        $other = $license->replicate();
+        $other->domain = 'other.test';
+        $other->save();
+        DB::table('tenants')->insert([
+            'user_id' => $user->id, 'domain' => $license->domain,
+            'status' => 'active', 'is_active' => true,
+        ]);
+
+        $cancel = new CancelLicense;
+        $removed = $cancel(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame('cancelled', $removed->status);
+        $this->assertFalse($removed->is_active);
+        $this->assertDatabaseHas('tenants', ['domain' => $license->domain, 'is_active' => false, 'status' => 'cancelled']);
+        $this->assertSame('850.00', $wallet->fresh()->balance);
+        $this->assertSame(1, Transaction::where('license_id', $license->id)->count());
+
+        Carbon::setTestNow(Carbon::parse('2026-09-22 07:00:00', 'Europe/Moscow'));
+        $cancel(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->assertSame(2, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame(1, Transaction::where('license_id', $license->id)->count());
+        $this->assertSame('550.00', $wallet->fresh()->balance);
+        $this->assertTrue($other->fresh()->is_active);
+    }
+
+    public function test_another_user_cannot_remove_license_or_trigger_settlement(): void
+    {
+        [$owner, $wallet, $license] = $this->fixture();
+        $other = User::factory()->create();
+        try {
+            (new CancelLicense)(null, ['id' => $license->id], $this->context($other), $this->info());
+            $this->fail('Expected ownership rejection');
+        } catch (\App\Exceptions\GraphQLException $e) {
+            $this->assertSame('This action is unauthorized.', $e->getMessage());
+        }
+        $this->assertTrue($license->fresh()->is_active);
+        $this->assertSame('active', $license->fresh()->status);
+        $this->assertSame('1000.00', $wallet->fresh()->balance);
+        $this->assertSame(0, Transaction::count());
+    }
+
+    public function test_failed_removal_rolls_back_settlement_and_license_state(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        // Fail after settlement, while the same transaction is disabling the site.
+        Schema::drop('tenants');
+        try {
+            (new CancelLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+            $this->fail('Expected tenant storage failure');
+        } catch (\Illuminate\Database\QueryException) {
+        }
+        $this->assertSame('active', $license->fresh()->status);
+        $this->assertTrue($license->fresh()->is_active);
+        $this->assertSame('1000.00', $wallet->fresh()->balance);
+        $this->assertSame(0, Transaction::count());
     }
 
     public function test_failed_site_creation_rolls_back_license_and_pages(): void

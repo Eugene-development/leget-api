@@ -89,7 +89,7 @@ final class PromoCodePresenter
     public function forPartner(PromoCode $promo): array
     {
         return $this->base($promo) + [
-            'client' => $promo->client === null ? null : [
+            'client' => $promo->client === null ? ($promo->client_phone ? ['name' => 'Клиент', 'phone' => $promo->client_phone] : null) : [
                 'name' => $promo->client->name,
                 'phone' => $promo->client->phone,
             ],
@@ -113,7 +113,7 @@ final class PromoCodePresenter
     public function forCurator(PromoCode $promo): array
     {
         return $this->base($promo) + [
-            'client' => $promo->client === null ? null : [
+            'client' => $promo->client === null ? ($promo->client_phone ? ['name' => 'Клиент', 'phone' => $promo->client_phone] : null) : [
                 'id' => $promo->client->id,
                 'name' => $promo->client->name,
                 'email' => $promo->client->email,

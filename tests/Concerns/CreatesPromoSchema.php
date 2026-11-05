@@ -68,7 +68,10 @@ trait CreatesPromoSchema
             Schema::create('promo_codes', function (Blueprint $table): void {
                 $table->char('id', 26)->primary();
                 $table->string('code', 32)->unique();
-                $table->unsignedBigInteger('client_id');
+                $table->unsignedBigInteger('client_id')->nullable();
+                $table->string('client_phone', 30)->nullable();
+                $table->string('phone_issuance_key', 64)->nullable()->unique();
+                $table->char('service_request_id', 26)->nullable()->unique();
                 $table->unsignedBigInteger('curator_id')->nullable();
                 $table->unsignedBigInteger('partner_id')->nullable();
                 $table->char('attribution_id', 26)->nullable();
@@ -83,7 +86,7 @@ trait CreatesPromoSchema
                 $table->timestamp('starts_at')->nullable();
                 $table->timestamp('expires_at')->nullable();
                 $table->string('status', 24)->default('created');
-                $table->unsignedBigInteger('created_by');
+                $table->unsignedBigInteger('created_by')->nullable();
                 $table->timestamp('activated_at')->nullable();
                 $table->unsignedBigInteger('activated_by')->nullable();
                 $table->timestamp('presented_at')->nullable();

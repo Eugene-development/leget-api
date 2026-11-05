@@ -34,6 +34,9 @@ final class PromoNotifier
     public function dealReported(PromoCodeDeal $deal): void
     {
         $promo = $deal->promoCode;
+        if ($promo->client_id === null) {
+            return; // Phone-only codes are confirmed by the platform with a recorded reason.
+        }
 
         // Подтверждает сделку клиент — уведомление адресовано ему, и только ему:
         // куратор и партнёр видят состояние в своём списке без напоминания.
