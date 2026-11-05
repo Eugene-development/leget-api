@@ -61,7 +61,8 @@ class PruneComponentCatalog extends Command
             ]);
 
         $phantoms = $rows->filter(function ($row) use ($variantMap): bool {
-            $max = (int) ($variantMap[(int) $row->template_id][$row->type] ?? 1);
+            $types = $variantMap[(int) $row->template_id] ?? [];
+            $max = (int) ($types[$row->page_slug . ':' . $row->type] ?? $types[$row->type] ?? 1);
 
             return (int) $row->version > $max;
         })->values();

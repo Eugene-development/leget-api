@@ -36,6 +36,7 @@ class PagePublicationTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->char('id', 26)->primary();
             $table->unsignedBigInteger('user_id');
             $table->string('domain');

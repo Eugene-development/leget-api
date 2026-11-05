@@ -41,6 +41,9 @@ final class CancelLicense
             if ($license->status === 'cancelled') {
                 return $license;
             }
+            if ($license->status !== 'active' || ! $license->is_active) {
+                throw new GraphQLException('Заморозить можно только активную лицензию.', 'VALIDATION');
+            }
             app(BillingService::class)->settleLockedLicense($license);
             // Отменяем лицензию
             $license->update([

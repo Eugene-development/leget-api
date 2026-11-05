@@ -83,7 +83,7 @@ class SeedComponentCatalog extends Command
 
                     // Ключ — пара «шаблон + тип»: одноимённые блоки разных шаблонов
                     // независимы, и версии Promo-1 не должны утекать соседям.
-                    $max = (int) ($variantMap[$templateId][$type] ?? 1);
+                    $max = (int) ($variantMap[$templateId][$slug . ':' . $type] ?? $variantMap[$templateId][$type] ?? 1);
                     $legacyVersions = $legacyMap[$templateId][$type] ?? [];
 
                     for ($version = 1; $version <= $max; $version++) {
@@ -139,7 +139,7 @@ class SeedComponentCatalog extends Command
                         continue;
                     }
 
-                    $max = (int) ($variantMap[$templateId][$type] ?? 1);
+                    $max = (int) ($variantMap[$templateId][$slug . ':' . $type] ?? $variantMap[$templateId][$type] ?? 1);
                     $legacyVersions = $legacyMap[$templateId][$type] ?? [];
 
                     $hasActive = false;

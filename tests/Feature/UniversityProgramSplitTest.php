@@ -15,6 +15,7 @@ class UniversityProgramSplitTest extends TestCase
     public function test_split_preserves_custom_order_and_leaves_unrelated_pages_untouched(): void
     {
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->string('id')->primary();
             $table->integer('template_id');
         });

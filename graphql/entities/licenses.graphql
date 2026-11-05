@@ -3,7 +3,7 @@ extend type Query {
     myLicenses: [License!]! @guard @field(resolver: "App\\GraphQL\\Queries\\MyLicenses")
 
     "Get a license by ID (site settings). Requires authentication."
-    license(id: ID! @eq): License! @guard @find
+    license(id: ID!): License! @guard @field(resolver: "App\\GraphQL\\Queries\\LicenseSettings")
 }
 
 extend type Mutation {
@@ -34,6 +34,10 @@ extend type Mutation {
     restoreLicense(
         id: ID!
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\RestoreLicense")
+
+    "Soft-delete an owned license, stop billing and hide it from the customer."
+    deleteLicense(id: ID!): LicenseDeletionResult! @guard @field(resolver: "App\\GraphQL\\Mutations\\DeleteLicense")
+
 }
 
 type License {
@@ -53,4 +57,10 @@ type License {
     createdAt: DateTime @rename(attribute: "created_at")
     updatedAt: DateTime @rename(attribute: "updated_at")
     pages: [Page!]! @hasMany
+}
+
+
+type LicenseDeletionResult {
+    id: ID!
+    deleted: Boolean!
 }

@@ -45,6 +45,7 @@ class UpsertSemanticsTest extends TestCase
 
         if (! Schema::hasTable('licenses')) {
             Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
                 $table->string('id', 26)->primary();
                 $table->foreignId('user_id')->constrained()->onDelete('cascade');
                 $table->string('domain')->unique();

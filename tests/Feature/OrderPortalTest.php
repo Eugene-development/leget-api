@@ -29,6 +29,7 @@ class OrderPortalTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $t) {
+            $t->softDeletes();
             $t->ulid('id')->primary();
             $t->unsignedBigInteger('user_id');
             $t->string('domain');

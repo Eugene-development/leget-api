@@ -27,6 +27,7 @@ final class ToggleCategoryTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->ulid('id')->primary();
             $table->unsignedBigInteger('user_id');
             $table->string('domain');

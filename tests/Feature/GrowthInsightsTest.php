@@ -31,6 +31,7 @@ class GrowthInsightsTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $t) {
+            $t->softDeletes();
             $t->ulid('id')->primary();
             $t->string('domain');
             $t->unsignedBigInteger('user_id');

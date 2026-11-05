@@ -1484,17 +1484,17 @@ return [
                 ['type' => 'NewsCTA',  'defaults' => ['eyebrow' => 'Хотите узнавать первыми?', 'heading' => 'Посетите наши салоны', 'description' => 'Наши дизайнеры всегда в курсе последних новинок и акций.', 'ctaText' => 'Найти ближайший салон', 'ctaLink' => '/showrooms']],
             ],
             '/styles' => [
-                ['type' => 'Hero',       'defaults' => ['label' => 'Коллекции', 'heading' => 'Стили кухонь', 'description' => 'Откройте для себя наше портфолио. От строгой классики до минимализма — найдите идеальное решение, отражающее ваш индивидуальный вкус.']],
+                ['type' => 'Hero',       'defaults' => ['label' => 'Коллекции', 'heading' => 'Стили кухонь', 'description' => 'Откройте для себя наше портфолио. От строгой классики до минимализма — найдите идеальное решение, отражающее ваш индивидуальный вкус.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/styles-hero-20261105.webp']],
                 ['type' => 'StylesGrid', 'defaults' => []],
                 ['type' => 'StylesCTA',  'defaults' => ['heading' => 'Поможем с выбором', 'description' => 'Запишитесь на встречу с нашим дизайнером. Мы подберем идеальный стиль, материалы и фурнитуру, учитывая архитектуру вашего пространства.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
             ],
             '/facades' => [
-                ['type' => 'Hero',           'defaults' => ['label' => 'Материалы', 'title' => 'Фасад это лицо вашей мебели', 'description' => 'Фасады задают характер вашего домашнего интерьера. От натурального массива до технологичного акрила: мы предлагаем материалы, которые сочетают в себе безупречную эстетику, функциональность и долговечность.']],
+                ['type' => 'Hero',           'defaults' => ['label' => 'Материалы', 'title' => 'Фасад это лицо вашей мебели', 'description' => 'Фасады задают характер вашего домашнего интерьера. От натурального массива до технологичного акрила: мы предлагаем материалы, которые сочетают в себе безупречную эстетику, функциональность и долговечность.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/facades-hero-20261105.webp']],
                 ['type' => 'FacadesCatalog', 'defaults' => []],
                 ['type' => 'FacadesCTA',     'defaults' => ['eyebrow' => 'Образцы', 'heading' => 'Посмотрите вживую', 'description' => 'Посетите салон фабрики, чтобы прикоснуться к образцам.', 'ctaText' => 'Запись в салон', 'ctaLink' => '/contact']],
             ],
             '/furniture' => [
-                ['type' => 'Hero',           'defaults' => ['label' => 'Функциональность', 'title' => 'Безупречное движение', 'description' => 'Мебель премиум-класса требует фурнитуры соответствующего уровня. Мы предлагаем решения от ведущих европейских брендов, которые сделают каждое движение фасада или ящика плавным и комфортным.']],
+                ['type' => 'Hero',           'defaults' => ['label' => 'Функциональность', 'title' => 'Безупречное движение', 'description' => 'Мебель премиум-класса требует фурнитуры соответствующего уровня. Мы предлагаем решения от ведущих европейских брендов, которые сделают каждое движение фасада или ящика плавным и комфортным.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/furniture-hero-20261105.webp']],
                 ['type' => 'FurnitureIntro', 'defaults' => ['eyebrow' => 'Качество в деталях', 'heading' => 'Надежность, которую вы чувствуете каждый день', 'description' => 'Фурнитура — это невидимое сердце любой мебели. От нее зависит, насколько плавно будут открываться дверцы, как тихо будут закрываться ящики и сколько лет мебель прослужит без единого скрипа.']],
                 ['type' => 'BrandsSection',  'defaults' => []],
                 ['type' => 'FurnitureCTA',   'defaults' => ['eyebrow' => 'Консультация', 'heading' => 'Поможем выбрать лучшую систему для вашей мебели', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
@@ -1512,7 +1512,7 @@ return [
                 ['type' => 'ActionsCTA',    'defaults' => ['eyebrow' => 'Не упустите момент', 'title' => 'Запишитесь на бесплатную консультацию', 'description' => 'Наш дизайнер поможет выбрать подходящую акцию, разработает проект и рассчитает точную стоимость с учётом скидок', 'ctaText' => 'Записаться на консультацию', 'ctaLink' => '/contact', 'phone' => '']],
             ],
             '/kitchens' => [
-                ['type' => 'Hero',            'defaults' => ['title' => 'Создание вашей идеальной кухни', 'description' => 'От детального проектирования до бережной сборки — каждый этап контролируется нашими специалистами', 'ctaText' => 'Спроектировать кухню', 'ctaLink' => '/contact']],
+                ['type' => 'Hero',            'defaults' => ['title' => 'Создание вашей идеальной кухни', 'description' => 'От детального проектирования до бережной сборки — каждый этап контролируется нашими специалистами', 'ctaText' => 'Спроектировать кухню', 'ctaLink' => '/contact', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchens-hero-20261105.webp']],
                 ['type' => 'KitchensGallery', 'defaults' => ['label' => 'Галерея', 'heading' => 'Наши гарнитуры', 'description' => 'Ознакомьтесь с вариантами решений для вашей кухни.']],
                 ['type' => 'ProductionCycle', 'defaults' => [
                     'label' => 'Этапы',
@@ -1526,14 +1526,14 @@ return [
                 ['type' => 'KitchensCTA',     'defaults' => ['heading' => 'Хотите заказать кухню?', 'description' => 'Запишитесь в наши салоны для бесплатной консультации с дизайнером.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
             ],
             '/wardrobes' => [
-                ['type' => 'Hero',             'defaults' => ['label' => 'Системы хранения', 'title' => 'Идеальный порядок в каждой детали', 'description' => 'Мы создаем уникальные встроенные и корпусные шкафы, которые становятся органичным продолжением вашей квартиры.', 'ctaText' => 'Спроектировать шкаф', 'ctaLink' => '/contact']],
+                ['type' => 'Hero',             'defaults' => ['label' => 'Системы хранения', 'title' => 'Идеальный порядок в каждой детали', 'description' => 'Мы создаем уникальные встроенные и корпусные шкафы, которые становятся органичным продолжением вашей квартиры.', 'ctaText' => 'Спроектировать шкаф', 'ctaLink' => '/contact', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/wardrobes-hero-20261105.webp']],
                 ['type' => 'WardrobesGallery', 'defaults' => ['label' => 'Галерея', 'heading' => 'Наши шкафы и гардеробные']],
                 ['type' => 'WardrobeFeatures', 'defaults' => ['heading' => 'Безупречное качество от замера до установки']],
                 ['type' => 'WardrobeTypes',    'defaults' => ['label' => 'Варианты решений', 'heading' => 'Виды систем']],
                 ['type' => 'WardrobesCTA',     'defaults' => ['heading' => 'Закажите расчет стоимости', 'ctaText' => 'Запись в салон', 'ctaLink' => '/contact']],
             ],
             '/showrooms' => [
-                ['type' => 'Hero',         'defaults' => ['label' => 'Где купить', 'title' => 'Наши салоны', 'description' => 'Посетите один из наших фирменных салонов. Оцените качество материалов вживую.', 'ctaText' => 'Посмотреть карту', 'ctaLink' => '#network-section']],
+                ['type' => 'Hero',         'defaults' => ['label' => 'Где купить', 'title' => 'Наши салоны', 'description' => 'Посетите один из наших фирменных салонов. Оцените качество материалов вживую.', 'ctaText' => 'Посмотреть карту', 'ctaLink' => '#network-section', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/showrooms-hero-20261105.webp']],
                 ['type' => 'ShowroomsMap', 'defaults' => []],
                 ['type' => 'ShowroomsCTA', 'defaults' => ['heading' => 'Нет времени на поездку в салон?', 'description' => 'Закажите выезд дизайнера на дом абсолютно бесплатно.', 'ctaText' => 'Вызвать дизайнера', 'ctaLink' => '/contact']],
             ],
@@ -1544,7 +1544,7 @@ return [
                 ['type' => 'CareersForm',      'defaults' => ['label' => 'Открытое резюме', 'heading' => 'Отправьте ваше резюме', 'description' => 'Отправьте открытое резюме — мы сохраняем его в базе и свяжемся, когда появится подходящая позиция.', 'email' => 'info@zov.top', 'phone' => '+7 915 400-00-20']],
             ],
             '/designers' => [
-                ['type' => 'Hero',              'defaults' => ['label' => 'Партнёрская программа', 'title' => 'Для дизайнеров и студий', 'description' => 'Станьте партнёром фабрики — и предлагайте клиентам премиальную мебель с эксклюзивными условиями.']],
+                ['type' => 'Hero',              'defaults' => ['label' => 'Партнёрская программа', 'title' => 'Для дизайнеров и студий', 'description' => 'Станьте партнёром фабрики — и предлагайте клиентам премиальную мебель с эксклюзивными условиями.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/designers-hero-realistic-20261105.webp']],
                 ['type' => 'DesignersBenefits', 'defaults' => ['label' => 'Что вы получаете', 'heading' => 'Преимущества партнёрства']],
                 ['type' => 'DesignersTracks',   'defaults' => ['label' => 'Выберите формат', 'heading' => 'Программы сотрудничества']],
                 ['type' => 'DesignersSteps',    'defaults' => ['label' => 'Просто и быстро', 'heading' => 'Как стать партнёром']],

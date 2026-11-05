@@ -32,6 +32,7 @@ class JwtTokenVersionTest extends TestCase
             ->middleware('auth:api');
 
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->ulid('id')->primary();
             $table->unsignedBigInteger('user_id');
         });

@@ -23,6 +23,7 @@ class UpdatePageSeoTest extends TestCase
         parent::setUp();
 
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->string('id', 26)->primary();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('domain')->unique();

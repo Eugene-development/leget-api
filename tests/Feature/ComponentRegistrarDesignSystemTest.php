@@ -65,6 +65,33 @@ final class ComponentRegistrarDesignSystemTest extends TestCase
         );
     }
 
+    public function test_page_scoped_variant_counts_do_not_leak_to_other_heroes(): void
+    {
+        config([
+            'templates' => [2 => ['pages' => [
+                '/actions' => [['type' => 'Hero']],
+                '/kitchens' => [['type' => 'Hero']],
+            ]]],
+            'component_variants' => [2 => ['/actions:Hero' => 4]],
+            'component_lifecycle' => [],
+        ]);
+        $this->registrar->ensurePage(2, '/actions')->update(['page_number' => 8]);
+
+        $this->artisan('component-catalog:seed')->assertSuccessful();
+
+        $actions = $this->registrar->ensureComponent(2, '/actions', 'Hero');
+        $kitchens = $this->registrar->ensureComponent(2, '/kitchens', 'Hero');
+        $this->assertSame([1, 2, 3, 4], $actions->variants()->orderBy('version')->pluck('version')->all());
+        $this->assertSame([1], $kitchens->variants()->pluck('version')->all());
+        $this->assertSame('2.8.1.4', $actions->variants()->where('version', 4)->value('article'));
+        $this->artisan('component-catalog:prune')->assertSuccessful();
+
+        // A phantom on another page must still be detected and cannot hide behind /actions.
+        $this->registrar->ensureVariant($kitchens, 2);
+        $this->artisan('component-catalog:prune')->assertFailed();
+        $this->assertSame(4, $actions->variants()->count());
+    }
+
     public function test_assigning_real_system_removes_variant_from_base(): void
     {
         $component = $this->registrar->ensureComponent(1, '/', 'HeroMain');

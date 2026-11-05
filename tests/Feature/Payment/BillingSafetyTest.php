@@ -6,6 +6,7 @@ use App\Console\Commands\CancelInvoice;
 use App\Console\Commands\PayInvoice;
 use App\GraphQL\Mutations\CancelLicense;
 use App\GraphQL\Mutations\CreateLicense;
+use App\GraphQL\Mutations\DeleteLicense;
 use App\GraphQL\Mutations\RestoreLicense;
 use App\Models\Invoice;
 use App\Models\License;
@@ -73,6 +74,7 @@ class BillingSafetyTest extends OnlineTopUpTest
             $t->timestamps();
         });
         $this->migration()->up();
+        (require base_path('../leget-db/database/migrations/2026_11_05_100000_add_soft_deletes_to_licenses.php'))->up();
     }
 
     protected function tearDown(): void
@@ -183,6 +185,76 @@ class BillingSafetyTest extends OnlineTopUpTest
         } finally {
             License::flushEventListeners();
         }
+    }
+
+    public function test_soft_deletion_hides_license_preserves_data_and_cannot_be_unfrozen(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        DB::table('pages')->insert(['license_id' => $license->id, 'slug' => '/']);
+        $request = ['query' => 'mutation($id: ID!) { deleteLicense(id: $id) { id deleted } }', 'variables' => ['id' => $license->id]];
+        $this->actingAs($user, 'api')->postJson('/graphql', $request)
+            ->assertJsonMissingPath('errors')->assertJsonPath('data.deleteLicense.deleted', true);
+        $this->actingAs($user, 'api')->postJson('/graphql', $request)
+            ->assertJsonMissingPath('errors')->assertJsonPath('data.deleteLicense.deleted', true);
+        $this->assertNull(License::find($license->id));
+        $deleted = License::withTrashed()->findOrFail($license->id);
+        $this->assertTrue($deleted->trashed());
+        $this->assertFalse($deleted->is_active);
+        $this->assertDatabaseHas('pages', ['license_id' => $license->id]);
+        $this->assertSame(1, Transaction::where('license_id', $license->id)->count());
+        $this->actingAs($user, 'api')->postJson('/graphql', ['query' => '{ myLicenses { id } }'])
+            ->assertJsonMissingPath('errors')->assertJsonPath('data.myLicenses', []);
+        foreach (['restoreLicense', 'cancelLicense', 'updateLicense'] as $field) {
+            $this->actingAs($user, 'api')->postJson('/graphql', [
+                'query' => "mutation(\$id: ID!) { {$field}(id: \$id) { id } }", 'variables' => ['id' => $license->id],
+            ])->assertJsonStructure(['errors']);
+        }
+        $this->actingAs($user, 'api')->postJson('/graphql', [
+            'query' => 'query($id: ID!) { license(id: $id) { id } }', 'variables' => ['id' => $license->id],
+        ])->assertJsonStructure(['errors']);
+        Carbon::setTestNow(Carbon::parse('2026-10-01 07:00:00', 'Europe/Moscow'));
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+        $this->assertSame('850.00', $wallet->fresh()->balance);
+        // Support can recover the row into a frozen state, without starting billing.
+        $this->artisan('licenses:restore-deleted', ['id' => $license->id])->assertExitCode(0);
+        $this->assertSame('cancelled', License::findOrFail($license->id)->status);
+        $this->assertSame(0, (new BillingService)->processDailyDebits()['charged']);
+    }
+
+    public function test_frozen_license_remains_listed_and_can_be_deleted_without_extra_debits(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        (new CancelLicense)(null, ['id' => $license->id], $this->context($user), $this->info());
+        $this->actingAs($user, 'api')->postJson('/graphql', ['query' => '{ myLicenses { id status } }'])
+            ->assertJsonMissingPath('errors')->assertJsonPath('data.myLicenses.0.status', 'cancelled');
+        Carbon::setTestNow(Carbon::parse('2026-10-01 07:00:00', 'Europe/Moscow'));
+        (new DeleteLicense)(null, ['id' => $license->id], $this->context($user));
+        $this->assertSame('850.00', $wallet->fresh()->balance);
+        $this->assertSame(1, Transaction::count());
+    }
+
+    public function test_soft_deletion_rejects_foreign_user_and_rolls_back_on_storage_failure(): void
+    {
+        [$user, $wallet, $license] = $this->fixture();
+        $this->postJson('/graphql', [
+            'query' => 'mutation($id: ID!) { deleteLicense(id: $id) { id deleted } }',
+            'variables' => ['id' => $license->id],
+        ])->assertJsonStructure(['errors']);
+        try {
+            (new DeleteLicense)(null, ['id' => $license->id], $this->context(User::factory()->create()));
+            $this->fail('Expected ownership rejection');
+        } catch (\App\Exceptions\GraphQLException) {
+        }
+        Schema::drop('tenants');
+        try {
+            (new DeleteLicense)(null, ['id' => $license->id], $this->context($user));
+            $this->fail('Expected storage failure');
+        } catch (\Illuminate\Database\QueryException) {
+        }
+        $this->assertNotNull(License::find($license->id));
+        $this->assertSame('active', $license->fresh()->status);
+        $this->assertSame('1000.00', $wallet->fresh()->balance);
+        $this->assertSame(0, Transaction::count());
     }
 
     public function test_restoration_resumes_billing_without_charging_cancelled_days(): void

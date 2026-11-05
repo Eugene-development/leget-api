@@ -27,6 +27,7 @@ class CrmTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $t) {
+            $t->softDeletes();
             $t->ulid('id')->primary();
             $t->string('name')->default('Сайт');
             $t->string('domain');

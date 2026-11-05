@@ -28,6 +28,7 @@ class MovePageComponentTest extends TestCase
     {
         parent::setUp();
         Schema::create('licenses', function (Blueprint $table) {
+            $table->softDeletes();
             $table->string('id', 26)->primary();
             $table->unsignedBigInteger('user_id');
             $table->string('domain');
