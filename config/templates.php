@@ -1463,7 +1463,7 @@ return [
                 ['type' => 'CTA',        'defaults' => ['label' => 'Начните сейчас', 'heading' => 'Создадим кухню вашей мечты', 'description' => 'Запишитесь на бесплатную консультацию. Наш дизайнер поможет подобрать идеальное решение для вашего пространства.', 'buttonText' => 'Бесплатная консультация', 'buttonLink' => '/contact']],
             ],
             '/about' => [
-                ['type' => 'Hero',          'defaults' => ['label' => 'О фабрике', 'title' => 'От нашей фабрики для вашей семьи', 'description' => 'Наша фабрика располагает самой крупной сетью мебельных салонов. Предлагаем отличный сервис и доступные цены на мебель премиального качества.', 'ctaPrimary' => 'Найти ближайший салон', 'ctaPrimaryLink' => '/showrooms']],
+                ['type' => 'Hero',          'defaults' => ['image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/about-factory-craftsman.webp', 'label' => 'О фабрике', 'title' => 'От нашей фабрики для вашей семьи', 'description' => 'Наша фабрика располагает самой крупной сетью мебельных салонов. Предлагаем отличный сервис и доступные цены на мебель премиального качества.', 'ctaPrimary' => 'Найти ближайший салон', 'ctaPrimaryLink' => '/showrooms']],
                 ['type' => 'LeaderSection', 'defaults' => ['quote' => 'Мы вкладываем весь свой опыт и душу в создание мебели', 'name' => 'Зуховицкий О.В.', 'role' => 'Руководитель фабрики ЗОВ', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zovdir.png']],
                 ['type' => 'Mission',       'defaults' => ['label' => 'Наша миссия', 'heading' => 'Мы создаём мебель, которая дарит радость']],
                 ['type' => 'Factory',       'defaults' => [
@@ -1615,7 +1615,7 @@ return [
                 ['type' => 'Map',         'defaults' => ['address' => 'Москва, ул. Примерная, 1']],
             ],
             '/actions' => [
-                ['type' => 'Hero',          'defaults' => ['label' => 'Специальные предложения', 'title' => 'Скидки & акции', 'description' => '', 'ctaText' => 'Расчёт проекта за час', 'ctaLink' => '/contact', 'discountBadge' => '−30%', 'statCount' => '6+', 'statDiscount' => '−30%']],
+                ['type' => 'Hero',          'defaults' => ['label' => 'Специальные предложения', 'title' => 'Скидки & акции', 'description' => 'Выберите подходящее предложение на мебель для вашего дома. Поможем разобраться в условиях акций и рассчитать стоимость вашего проекта.', 'ctaText' => 'Расчёт проекта за час', 'ctaLink' => '/contact', 'discountBadge' => '−30%', 'statCount' => '6+', 'statDiscount' => '−30%']],
                 ['type' => 'ActionsTimer',  'defaults' => ['badge' => 'Главные акции сезона', 'heading' => 'Сезонные акции', 'description' => 'Успейте оформить заказ до окончания акции', 'ctaText' => 'Консультация по акциям', 'ctaLink' => '/contact', 'deadline' => '2026-12-31T00:00:00']],
                 ['type' => 'ActionsCards',  'defaults' => ['label' => 'Текущие предложения', 'heading' => 'Все акции', 'consultLink' => '/contact']],
                 ['type' => 'ActionsBanner', 'defaults' => ['eyebrow' => 'Специальное предложение', 'title' => 'Кухня мечты −30%', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-actions-banner-2-8-4-1-20261109.webp', 'description' => '', 'ctaText' => 'Консультация по акции', 'ctaLink' => '/contact']],
@@ -1659,7 +1659,7 @@ return [
                 ['type' => 'DesignersBenefits', 'defaults' => ['label' => 'Что вы получаете', 'heading' => 'Преимущества партнёрства']],
                 ['type' => 'DesignersTracks',   'defaults' => ['label' => 'Выберите формат', 'heading' => 'Программы сотрудничества']],
                 ['type' => 'DesignersSteps',    'defaults' => ['label' => 'Просто и быстро', 'heading' => 'Как стать партнёром']],
-                ['type' => 'DesignersForm',     'defaults' => ['label' => 'Начните сегодня', 'heading' => 'Оставьте заявку — мы позвоним первыми', 'description' => 'Расскажите о себе, и мы предложим наиболее подходящие условия сотрудничества.', 'email' => 'info@zov.top', 'phone' => '+7 915 400-00-20']],
+                ['type' => 'DesignersForm',     'defaults' => ['label' => 'Начните сегодня', 'heading' => 'Оставьте заявку — мы позвоним первыми', 'description' => 'Расскажите о себе, и мы предложим наиболее подходящие условия сотрудничества.', 'email' => 'info@mysite.com', 'phone' => '+7 000 000-00-00']],
             ],
             '/yandex-direct' => [
                 ['type' => 'Hero',        'defaults' => ['badge' => 'Специальное предложение', 'title' => 'Мебель на заказ по вашим размерам', 'subtitle' => 'Кухни, шкафы, гардеробные — от замера до установки за 14 дней. Рассрочка 0% и бесплатный дизайн-проект', 'primaryButton' => 'Рассчитать стоимость', 'primaryHref' => '/contact', 'secondaryButton' => 'Позвонить', 'secondaryHref' => 'tel:+70000000000']],
