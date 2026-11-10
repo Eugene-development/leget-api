@@ -14,6 +14,8 @@
  * The 'defaults' are copied into each client's page_components row on page
  * creation. Clients can later edit their own copy independently.
  */
+$privacyPolicy = ['type' => 'PrivacyPolicy', 'defaults' => require __DIR__.'/privacy_policy.php'];
+
 return [
 
     1 => [
@@ -25,6 +27,7 @@ return [
             'siteName' => 'Новострой',
         ],
         'pages' => [
+            '/privacy' => [$privacyPolicy],
             // Зарезервированная «глобальная» страница — контейнер для компонентов,
             // общих для всех страниц сайта (футер). Не маршрутизируется; RenderPage
             // дописывает её компоненты в componentsData каждой страницы.
@@ -1451,6 +1454,7 @@ return [
     2 => [
         'name' => 'Promo-2',
         'pages' => [
+            '/privacy' => [$privacyPolicy],
             '/' => [
                 ['type' => 'Hero',       'defaults' => ['label' => 'Белорусская фабрика мебели', 'title' => 'Мебель европейского качества по доступной цене', 'description' => 'Создаём кухонные гарнитуры, шкафы и гардеробы, которые сочетают безупречный дизайн, премиальные материалы и выверенную функциональность изделий', 'ctaPrimary' => 'Дизайнер на дом', 'ctaPrimaryLink' => '/contact', 'ctaSecondary' => 'Промокод на 10% скидку', 'ctaSecondaryLink' => '/actions']],
                 ['type' => 'Styles',     'defaults' => ['label' => 'Коллекции', 'heading' => 'Найдите свой стиль', 'allLinkText' => 'Все стили', 'allLink' => '/styles']],
@@ -1614,7 +1618,7 @@ return [
                 ['type' => 'Hero',          'defaults' => ['label' => 'Специальные предложения', 'title' => 'Скидки & акции', 'description' => '', 'ctaText' => 'Расчёт проекта за час', 'ctaLink' => '/contact', 'discountBadge' => '−30%', 'statCount' => '6+', 'statDiscount' => '−30%']],
                 ['type' => 'ActionsTimer',  'defaults' => ['badge' => 'Главные акции сезона', 'heading' => 'Сезонные акции', 'description' => 'Успейте оформить заказ до окончания акции', 'ctaText' => 'Консультация по акциям', 'ctaLink' => '/contact', 'deadline' => '2026-12-31T00:00:00']],
                 ['type' => 'ActionsCards',  'defaults' => ['label' => 'Текущие предложения', 'heading' => 'Все акции', 'consultLink' => '/contact']],
-                ['type' => 'ActionsBanner', 'defaults' => ['eyebrow' => 'Специальное предложение', 'title' => 'Кухня мечты −30%', 'description' => '', 'ctaText' => 'Консультация по акции', 'ctaLink' => '/contact']],
+                ['type' => 'ActionsBanner', 'defaults' => ['eyebrow' => 'Специальное предложение', 'title' => 'Кухня мечты −30%', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-actions-banner-2-8-4-1-20261109.webp', 'description' => '', 'ctaText' => 'Консультация по акции', 'ctaLink' => '/contact']],
                 ['type' => 'ActionsSteps',  'defaults' => ['label' => 'Просто', 'heading' => 'Как получить скидку', 'description' => 'Воспользоваться акцией легко — всего 3 шага до вашей новой мебели по выгодной цене']],
                 ['type' => 'ActionsCTA',    'defaults' => ['eyebrow' => 'Не упустите момент', 'title' => 'Запишитесь на бесплатную консультацию', 'description' => 'Наш дизайнер поможет выбрать подходящую акцию, разработает проект и рассчитает точную стоимость с учётом скидок', 'ctaText' => 'Записаться на консультацию', 'ctaLink' => '/contact', 'phone' => '']],
             ],
@@ -1627,7 +1631,7 @@ return [
                     'description' => 'Отточенный годами процесс создания премиальной мебели.',
                     'designImage' => 'https://storage.yandexcloud.net/zovtop/foto/technoljergbmeogkmbktgg.jpg',
                     'productionImage' => 'https://storage.yandexcloud.net/zovtop/foto/proizvodlkfegbmrgbm.jpg',
-                    'assemblyImage' => '',
+                    'assemblyImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-assembly-2-9-3-1-20261109.webp',
                 ]],
                 ['type' => 'KitchenStyles',   'defaults' => ['heading' => 'Варианты стилистических решений', 'description' => 'Мы адаптируем индивидуальный проект под любой стиль.']],
                 ['type' => 'KitchensCTA',     'defaults' => ['heading' => 'Хотите заказать кухню?', 'description' => 'Запишитесь в наши салоны для бесплатной консультации с дизайнером.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
@@ -1672,6 +1676,7 @@ return [
     3 => [
         'name' => 'Promo-3',
         'pages' => [
+            '/privacy' => [$privacyPolicy],
             '/' => [
                 ['type' => 'Hero',        'defaults' => ['tag' => 'Коллекция 2026', 'title' => 'Искусство плитки в каждой детали', 'subtitle' => 'Качественная плитка из разных материалов от ведущих мировых производителей.', 'ctaPrimary' => 'Промокод на скидку 10%', 'ctaPrimaryLink' => '/contacts', 'ctaSecondary' => 'Курьер с образцом', 'ctaSecondaryLink' => '/contacts']],
                 ['type' => 'Categories',  'defaults' => ['label' => 'Категории', 'heading' => 'Подберите идеальную плитку', 'allLinkText' => 'Весь каталог', 'allLink' => '/collections']],

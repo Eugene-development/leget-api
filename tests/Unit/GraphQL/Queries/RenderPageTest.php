@@ -896,6 +896,53 @@ class RenderPageTest extends TestCase
         }
     }
 
+    public function test_privacy_policy_is_available_for_all_templates_and_keeps_company_data_isolated(): void
+    {
+        foreach ([1, 2, 3] as $templateId) {
+            $first = $this->createLicense(['template_id' => $templateId, 'domain' => "first-{$templateId}.example.com"]);
+            $second = $this->createLicense(['template_id' => $templateId, 'domain' => "second-{$templateId}.example.com"]);
+            $firstContext = $this->createContext(['X-Forwarded-Host' => $first->domain]);
+            $firstContext->method('user')->willReturn(User::findOrFail($first->user_id));
+            $secondContext = $this->createContext(['X-Forwarded-Host' => $second->domain]);
+            $secondContext->method('user')->willReturn(User::findOrFail($second->user_id));
+
+            $before = ($this->resolver)(null, ['slug' => '/privacy'], $firstContext, $this->createResolveInfo());
+            $initial = collect($before['page']['componentsData'])->firstWhere('type', 'PrivacyPolicy');
+            $this->assertNotNull($initial);
+            $this->assertSame('', $initial['data']['operatorName']);
+            $this->assertSame(0, PageComponent::where('license_id', $first->id)->where('type', 'PrivacyPolicy')->count());
+
+            $values = array_merge($initial['data'], ['operatorName' => "Компания {$templateId}", 'email' => "privacy-{$templateId}@example.com", 'retentionDetails' => 'До завершения рассмотрения обращения']);
+            (app(UpsertPageComponent::class))(null, [
+                'page_id' => 'slug:/privacy', 'license_id' => $first->id,
+                'type' => 'PrivacyPolicy', 'data' => $values,
+            ], $firstContext, $this->createResolveInfo());
+
+            $saved = ($this->resolver)(null, ['slug' => '/privacy'], $firstContext, $this->createResolveInfo());
+            $own = collect($saved['page']['componentsData'])->firstWhere('type', 'PrivacyPolicy');
+            $this->assertSame($values['operatorName'], $own['data']['operatorName']);
+            $this->assertSame($values['email'], $own['data']['email']);
+            $this->assertSame($values['retentionDetails'], $own['data']['retentionDetails']);
+            $this->assertArrayHasKey('crossBorderDetails', $own['data']);
+
+            $other = ($this->resolver)(null, ['slug' => '/privacy'], $secondContext, $this->createResolveInfo());
+            $untouched = collect($other['page']['componentsData'])->firstWhere('type', 'PrivacyPolicy');
+            $this->assertSame('', $untouched['data']['operatorName']);
+            $this->assertSame('', $untouched['data']['email']);
+
+            try {
+                (app(UpsertPageComponent::class))(null, [
+                    'page_id' => 'slug:/privacy', 'license_id' => $first->id,
+                    'type' => 'PrivacyPolicy', 'data' => ['operatorName' => 'Чужая компания'],
+                ], $secondContext, $this->createResolveInfo());
+                $this->fail('Another site owner must not edit this policy.');
+            } catch (GraphQLException $error) {
+                $this->assertSame('AUTHORIZATION', $error->getErrorCode());
+            }
+            $this->assertSame($values['operatorName'], PageComponent::where('license_id', $first->id)->where('type', 'PrivacyPolicy')->firstOrFail()->data['operatorName']);
+        }
+    }
+
     public function test_returns_correct_response_structure(): void
     {
         $license = $this->createLicense([
