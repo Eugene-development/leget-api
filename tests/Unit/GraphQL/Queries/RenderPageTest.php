@@ -258,6 +258,44 @@ class RenderPageTest extends TestCase
         return $this->createMock(ResolveInfo::class);
     }
 
+    public function test_promo2_kitchens_use_live_catalog_and_never_saved_component_items(): void
+    {
+        $this->assertPromo2GalleryUsesCatalog('KitchensGallery', '/kitchens', 'kuhni');
+    }
+
+    public function test_promo2_wardrobes_use_live_catalog_and_never_saved_component_items(): void
+    {
+        $this->assertPromo2GalleryUsesCatalog('WardrobesGallery', '/wardrobes', 'shkafy');
+    }
+
+    private function assertPromo2GalleryUsesCatalog(string $componentType, string $slug, string $categorySlug): void
+    {
+        Schema::table('mebel_projects', fn (Blueprint $table) => $table->integer('sort_order')->default(0));
+        $license = $this->createLicense(['template_id' => 2]);
+        $category = $this->createMebelCategory(['slug' => $categorySlug]);
+        $page = Page::create(['license_id' => $license->id, 'slug' => $slug]);
+        PageComponent::create(['license_id' => $license->id, 'page_id' => $page->id, 'type' => $componentType,
+            'data' => ['heading' => 'Наши кухни', 'items' => [['title' => 'Устаревший массив']]]]);
+        $own = $this->createProject($category, ['license_id' => $license->id, 'value' => 'Кухня из БД', 'slug' => 'own']);
+        $own->images()->create(['key' => (string) Str::ulid(), 'path' => 'https://example.com/own.webp', 'sort_order' => 1]);
+        $this->createProject($category, ['license_id' => null, 'value' => 'Общая кухня', 'slug' => 'shared']);
+        $context = $this->createContext(['X-Forwarded-Host' => $license->domain]);
+        $render = fn () => collect(($this->resolver)(null, ['slug' => $slug], $context, $this->createResolveInfo())['page']['componentsData'])->firstWhere('type', $componentType)['data'];
+        $data = $render();
+        $this->assertSame('Наши кухни', $data['heading']);
+        $this->assertCount(1, $data['items']);
+        $this->assertSame($own->id, $data['items'][0]['id']);
+        $this->assertSame('Кухня из БД', $data['items'][0]['title']);
+        $own->update(['is_active' => false]);
+        Cache::flush();
+        $this->assertSame([], $render()['items']);
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('user')->willReturn($license->user);
+        $saved = app(UpsertPageComponent::class)(null, ['page_id' => $page->id, 'license_id' => $license->id,
+            'type' => $componentType, 'data' => ['heading' => 'Новый заголовок', 'items' => $data['items']]], $context, $this->createResolveInfo());
+        $this->assertSame(['heading' => 'Новый заголовок'], $saved->data);
+    }
+
     private function createLicense(array $attributes = []): License
     {
         $user = User::create([

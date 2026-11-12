@@ -85,6 +85,9 @@ final class PagePublicationService
                 ] : $snapshot[$scope][$index];
                 $row['data'] = $operation['data'];
                 unset($row['data']['_componentId']);
+                if ((int) $license->template_id === 2 && in_array($operation['type'], ['KitchensGallery', 'WardrobesGallery'], true)) {
+                    unset($row['data']['items']);
+                }
                 if ($index === false) {
                     $snapshot[$scope][] = $row;
                 } else {

@@ -33,7 +33,7 @@ final class RenderPage
      * GraphQL fields after a zero-downtime deploy.
      */
     // UniversityProgram is a separate block; actionCards now contains both action groups.
-    private const CACHE_VERSION = 'v20';
+    private const CACHE_VERSION = 'v22';
 
     public function __construct(
         private TemplateService $templateService,
@@ -322,6 +322,16 @@ final class RenderPage
             if ($brand && $brand->has_brand_content && $component->type === 'BrandAbout') {
                 $component = clone $component;
                 $component->data = array_merge($component->data ?? [], ['description' => $brand->description, 'managedBrand' => true]);
+            }
+
+            if ((int) $license->template_id === 2 && in_array($component->type, ['KitchensGallery', 'WardrobesGallery'], true)) {
+                $component = clone $component;
+                // Products always come from live catalog rows, including on a page draft.
+                $component->data = array_merge($component->data ?? [], [
+                    'items' => app(\App\Services\Promo2Products::class)->items(
+                        $license, $component->type === 'KitchensGallery' ? 'kitchen' : 'wardrobe',
+                    ),
+                ]);
             }
 
             // Enrich project-specific components

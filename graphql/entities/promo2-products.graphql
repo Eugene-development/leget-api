@@ -1,0 +1,54 @@
+extend type Query {
+    "Товары выбранного раздела сайта Promo-2, включая скрытые. Только владелец."
+    promo2Products(licenseId: ID!, kind: Promo2ProductKind!): [Promo2Product!]!
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@listing")
+    kitchenProducts(licenseId: ID!): [Promo2Product!]!
+        @deprecated(reason: "Use promo2Products with kind: KITCHEN.")
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@listing")
+}
+
+extend type Mutation {
+    savePromo2Product(licenseId: ID!, kind: Promo2ProductKind!, input: Promo2ProductInput!): Promo2Product!
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@save")
+    deletePromo2Product(licenseId: ID!, kind: Promo2ProductKind!, id: ID!): ID!
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@delete")
+    saveKitchenProduct(licenseId: ID!, input: KitchenProductInput!): Promo2Product!
+        @deprecated(reason: "Use savePromo2Product with kind: KITCHEN.")
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@save")
+    deleteKitchenProduct(licenseId: ID!, id: ID!): ID!
+        @deprecated(reason: "Use deletePromo2Product with kind: KITCHEN.")
+        @guard @field(resolver: "App\\GraphQL\\Promo2Products@delete")
+}
+
+enum Promo2ProductKind {
+    KITCHEN @enum(value: "kitchen")
+    WARDROBE @enum(value: "wardrobe")
+}
+
+type Promo2Product {
+    id: ID!
+    title: String!
+    description: String!
+    image: String!
+    isActive: Boolean!
+    sortOrder: Int!
+}
+
+input Promo2ProductInput {
+    id: ID
+    title: String!
+    description: String!
+    image: String!
+    isActive: Boolean!
+    sortOrder: Int!
+}
+
+# Keep existing kitchen clients working during a rolling deployment.
+input KitchenProductInput {
+    id: ID
+    title: String!
+    description: String!
+    image: String!
+    isActive: Boolean!
+    sortOrder: Int!
+}

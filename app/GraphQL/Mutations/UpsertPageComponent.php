@@ -80,7 +80,12 @@ final class UpsertPageComponent
             );
         }
 
-        $component->data = $args['data'];
+        $data = $args['data'];
+        if ((int) $license->template_id === 2 && in_array($args['type'], ['KitchensGallery', 'WardrobesGallery'], true) && is_array($data)) {
+            // Enriched products must never be saved as a stale component snapshot.
+            unset($data['items']);
+        }
+        $component->data = $data;
         $component->license_id = $license->id;
         $component->is_active = true;
         $component->save();
