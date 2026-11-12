@@ -1785,6 +1785,40 @@ class RenderPageTest extends TestCase
             array_column($block['data']['projects'], 'value'));
     }
 
+    public function test_promo2_favorites_blocks_render_save_and_remain_isolated_by_license(): void
+    {
+        $license = $this->createLicense(['domain' => 'promo2-favorites.example.com', 'template_id' => 2]);
+        $other = $this->createLicense(['domain' => 'other-favorites.example.com', 'template_id' => 2]);
+        $heroCatalog = $this->createCatalogComponent(2, '/favorites', 16, 'FavoritesHero', 1);
+        $galleryCatalog = $this->createCatalogComponent(2, '/favorites', 16, 'FavoritesGallery', 2);
+        $render = fn (License $site) => ($this->resolver)(null, ['slug' => '/favorites'],
+            $this->createContext(['X-Forwarded-Host' => $site->domain]), $this->createResolveInfo());
+
+        $initial = $render($license);
+        $blocks = collect($initial['page']['componentsData'])->keyBy('type');
+        $this->assertSame(['FavoritesHero', 'FavoritesGallery'], $blocks->keys()->all());
+        $this->assertSame('Избранное', $blocks['FavoritesHero']['data']['heading']);
+        $this->assertSame($heroCatalog, $blocks['FavoritesHero']['catalog']);
+        $this->assertSame($galleryCatalog, $blocks['FavoritesGallery']['catalog']);
+        $this->assertArrayNotHasKey('items', $blocks['FavoritesGallery']['data']);
+
+        $context = $this->createContext();
+        $context->method('user')->willReturn($license->user);
+        foreach (['FavoritesHero' => 'Мои идеи', 'FavoritesGallery' => 'Выбранная мебель'] as $type => $heading) {
+            app(UpsertPageComponent::class)(null, [
+                'page_id' => $initial['page']['id'], 'license_id' => $license->id,
+                'type' => $type, 'data' => ['heading' => $heading],
+            ], $context, $this->createResolveInfo());
+        }
+        $saved = collect($render($license)['page']['componentsData'])->keyBy('type');
+        $this->assertSame('Мои идеи', $saved['FavoritesHero']['data']['heading']);
+        $this->assertSame('Выбранная мебель', $saved['FavoritesGallery']['data']['heading']);
+        $untouched = collect($render($other)['page']['componentsData'])->keyBy('type');
+        $this->assertSame('Избранное', $untouched['FavoritesHero']['data']['heading']);
+        $this->assertSame('Ваш выбор', $untouched['FavoritesGallery']['data']['heading']);
+        $this->assertSame(0, PageComponent::where('license_id', $other->id)->count());
+    }
+
     public function test_project_model_is_a_separate_editable_catalog_block_with_live_model_data(): void
     {
         $license = $this->createLicense(['domain' => 'model.example.com', 'template_id' => 1]);
