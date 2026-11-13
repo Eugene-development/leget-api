@@ -296,6 +296,32 @@ class RenderPageTest extends TestCase
         $this->assertSame(['heading' => 'Новый заголовок'], $saved->data);
     }
 
+    public function test_promo2_equipment_renders_defaults_and_saves_nested_content_per_site(): void
+    {
+        $license = $this->createLicense(['template_id' => 2, 'domain' => 'equipment.example.com']);
+        $other = $this->createLicense(['template_id' => 2, 'domain' => 'equipment-other.example.com']);
+        $read = fn (License $site) => ($this->resolver)(null, ['slug' => '/equipment'],
+            $this->createContext(['X-Forwarded-Host' => $site->domain]), $this->createResolveInfo());
+        $initial = $read($license);
+        $types = array_column($initial['page']['componentsData'], 'type');
+        $this->assertSame(['EquipmentHero', 'EquipmentAppliances', 'EquipmentWorktops',
+            'EquipmentPlumbing', 'EquipmentLighting', 'EquipmentStorage', 'EquipmentCTA'], $types);
+        $this->assertSame(0, PageComponent::where('license_id', $license->id)->count());
+        $context = $this->createMock(GraphQLContext::class);
+        $context->method('user')->willReturn($license->user);
+        $defaults = config('templates')[2]['pages']['/equipment'][2]['defaults'];
+        $defaults['items'][1]['title'] = 'Акрил по нашему проекту';
+        $defaults['items'][0]['description'] = '';
+        app(UpsertPageComponent::class)(null, ['page_id' => 'slug:/equipment',
+            'license_id' => $license->id, 'type' => 'EquipmentWorktops', 'data' => $defaults],
+            $context, $this->createResolveInfo());
+        $blocks = collect($read($license)['page']['componentsData'])->keyBy('type');
+        $this->assertSame($defaults['items'], $blocks['EquipmentWorktops']['data']['items']);
+        $otherBlocks = collect($read($other)['page']['componentsData'])->keyBy('type');
+        $this->assertSame('Акрил', $otherBlocks['EquipmentWorktops']['data']['items'][1]['title']);
+        $this->assertSame(1, PageComponent::where('license_id', $license->id)->count());
+    }
+
     private function createLicense(array $attributes = []): License
     {
         $user = User::create([
