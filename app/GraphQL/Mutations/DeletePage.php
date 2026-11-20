@@ -7,6 +7,7 @@ namespace App\GraphQL\Mutations;
 use App\Exceptions\GraphQLException;
 use App\Models\License;
 use App\Models\Page;
+use App\Services\SitePromotions;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
@@ -36,6 +37,15 @@ final class DeletePage
         // Verify ownership
         if ($context->user()->id !== $license->user_id) {
             throw new GraphQLException('This action is unauthorized.', 'AUTHORIZATION');
+        }
+
+        $promotions = app(SitePromotions::class);
+        if ($promotions->supports($license, $page->slug)) {
+            return $promotions->change($license, $page->slug, null, $context->user()->id, function () use ($page) {
+                $page->delete();
+
+                return $page;
+            });
         }
 
         $page->delete();

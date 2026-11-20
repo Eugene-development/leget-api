@@ -16,6 +16,8 @@
  */
 $privacyPolicy = ['type' => 'PrivacyPolicy', 'defaults' => require __DIR__.'/privacy_policy.php'];
 
+$promotionCards = json_decode(file_get_contents(__DIR__.'/site-promotion-cards.json'), true, flags: JSON_THROW_ON_ERROR);
+
 return [
 
     1 => [
@@ -379,8 +381,8 @@ return [
             ],
             '/actions' => [
                 ['type' => 'Hero',              'defaults' => ['eyebrow' => 'Выгодные предложения', 'title' => 'Акции, скидки и подарки', 'subtitle' => 'Получите актуальные акции наших партнёров и узнайте о подарках и скидках на проекты и услуги']],
-                ['type' => 'ActionsCards',      'defaults' => []],
-                ['type' => 'ActionsCardsExtra', 'defaults' => []],
+                ['type' => 'ActionsCards',      'defaults' => ['cards' => $promotionCards['primary']]],
+                ['type' => 'ActionsCardsExtra', 'defaults' => ['companies' => [['id' => 'legacy', 'name' => 'Акции компаний', 'cards' => $promotionCards['extra']]]]],
                 ['type' => 'ActionsBanner',     'defaults' => ['imageUrl' => '', 'imageAlt' => 'Акция']],
                 ['type' => 'ActionsCTA',        'defaults' => ['title' => 'Хотите узнать больше об акциях?', 'subtitle' => 'Свяжитесь с нами и мы расскажем обо всех актуальных предложениях', 'buttonText' => 'Связаться с нами', 'phone' => '']],
             ],
@@ -1523,6 +1525,7 @@ return [
                 ['type' => 'EquipmentLighting', 'defaults' => [
                     'heading' => 'Освещение',
                     'description' => 'Свет делает мебель удобнее и подчёркивает её линии. Продумываем подсветку вместе с проектом, чтобы провода, профили и выключатели заняли своё место.',
+                    'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/equipment-lighting-20261117.webp',
                     'items' => [
                         [
                             'title' => 'Свет рабочей зоны',
@@ -1587,6 +1590,7 @@ return [
             '/' => [
                 ['type' => 'Hero',       'defaults' => ['label' => 'Белорусская фабрика мебели', 'title' => 'Мебель европейского качества по доступной цене', 'description' => 'Создаём кухонные гарнитуры, шкафы и гардеробы, которые сочетают безупречный дизайн, премиальные материалы и выверенную функциональность изделий', 'ctaPrimary' => 'Выездной дизайнер', 'ctaPrimaryLink' => '/contact', 'ctaSecondary' => 'Запись в салон', 'ctaSecondaryLink' => '/actions']],
                 ['type' => 'Styles',     'defaults' => ['label' => 'Коллекции', 'heading' => 'Найдите свой стиль', 'allLinkText' => 'Все стили', 'allLink' => '/styles']],
+                ['type' => 'Video',      'defaults' => ['src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zov.mp4']],
                 ['type' => 'Advantages', 'defaults' => ['label' => 'Преимущества', 'heading' => 'Почему выбирают нас', 'description' => 'Мы объединяем многолетний опыт, передовые технологии и внимание к деталям для создания мебели, которая превосходит ожидания.']],
                 ['type' => 'Details',    'defaults' => ['label' => 'Мебельная фабрика', 'heading' => 'Мебель для жизни', 'description' => 'Мебель — это сочетание безупречного дизайна, функциональности и долговечности. Мы используем только качественные материалы и фурнитуру от ведущих мировых производителей.']],
                 ['type' => 'CTA',        'defaults' => ['label' => 'Начните сейчас', 'heading' => 'Создадим кухню вашей мечты', 'description' => 'Запишитесь на бесплатную консультацию. Наш дизайнер поможет подобрать идеальное решение для вашего пространства.', 'buttonText' => 'Бесплатная консультация', 'buttonLink' => '/contact']],
@@ -1607,7 +1611,6 @@ return [
                         'https://storage.yandexcloud.net/zovtop/foto/fabr-5kjfndvjkdfgknkgj.jpg',
                     ],
                 ]],
-                ['type' => 'Video',         'defaults' => ['src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zov.mp4']],
                 ['type' => 'Principles',    'defaults' => ['label' => 'Наши ценности', 'heading' => 'Принципы компании']],
                 ['type' => 'AboutCTA',      'defaults' => ['eyebrow' => 'Бесплатная услуга', 'heading' => 'Закажите дизайн-проект', 'description' => 'Запишитесь на бесплатную консультацию. Наш дизайнер поможет подобрать идеальное решение.', 'ctaText' => 'Заказать дизайн-проект', 'ctaLink' => '/contact']],
             ],
@@ -1746,7 +1749,7 @@ return [
             '/actions' => [
                 ['type' => 'Hero',          'defaults' => ['label' => 'Специальные предложения', 'title' => 'Скидки & акции', 'description' => 'Выберите подходящее предложение на мебель для вашего дома. Поможем разобраться в условиях акций и рассчитать стоимость вашего проекта.', 'ctaText' => 'Расчёт проекта за час', 'ctaLink' => '/contact', 'discountBadge' => '−30%', 'statCount' => '6+', 'statDiscount' => '−30%']],
                 ['type' => 'ActionsTimer',  'defaults' => ['badge' => 'Главные акции сезона', 'heading' => 'Сезонные акции', 'description' => 'Успейте оформить заказ до окончания акции', 'ctaText' => 'Консультация по акциям', 'ctaLink' => '/contact', 'deadline' => '2026-12-31T00:00:00']],
-                ['type' => 'ActionsCards',  'defaults' => ['label' => 'Текущие предложения', 'heading' => 'Все акции', 'consultLink' => '/contact']],
+                ['type' => 'ActionsCards',  'defaults' => ['label' => 'Текущие предложения', 'heading' => 'Все акции', 'consultLink' => '/contact', 'cards' => $promotionCards['promo2']]],
                 ['type' => 'ActionsBanner', 'defaults' => ['eyebrow' => 'Специальное предложение', 'title' => 'Кухня мечты −30%', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-actions-banner-2-8-4-1-20261109.webp', 'description' => '', 'ctaText' => 'Консультация по акции', 'ctaLink' => '/contact']],
                 ['type' => 'ActionsSteps',  'defaults' => ['label' => 'Просто', 'heading' => 'Как получить скидку', 'description' => 'Воспользоваться акцией легко — всего 3 шага до вашей новой мебели по выгодной цене']],
                 ['type' => 'ActionsCTA',    'defaults' => ['eyebrow' => 'Не упустите момент', 'title' => 'Запишитесь на бесплатную консультацию', 'description' => 'Наш дизайнер поможет выбрать подходящую акцию, разработает проект и рассчитает точную стоимость с учётом скидок', 'ctaText' => 'Записаться на консультацию', 'ctaLink' => '/contact', 'phone' => '']],
@@ -1762,14 +1765,57 @@ return [
                     'productionImage' => 'https://storage.yandexcloud.net/zovtop/foto/proizvodlkfegbmrgbm.jpg',
                     'assemblyImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-assembly-2-9-3-1-20261109.webp',
                 ]],
-                ['type' => 'KitchenStyles',   'defaults' => ['heading' => 'Варианты стилистических решений', 'description' => 'Мы адаптируем индивидуальный проект под любой стиль.']],
+                ['type' => 'KitchenStyles',   'defaults' => [
+                    'heading' => 'Удобство в деталях',
+                    'description' => 'Продумываем, где хранить посуду и продукты и как осветить рабочую зону.',
+                    'styles' => [
+                        [
+                            'title' => 'Посуда под рукой',
+                            'description' => 'Глубокий ящик выдвигается целиком, а переставляемые держатели удерживают стопки тарелок на месте.',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-details-2-9-4-1/dish-drawer.webp',
+                        ],
+                        [
+                            'title' => 'Запасы на виду',
+                            'description' => 'Выдвижная колонна открывает доступ к банкам и бутылкам по всей глубине шкафа.',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-details-2-9-4-1/pull-out-pantry.webp',
+                        ],
+                        [
+                            'title' => 'Свет там, где готовите',
+                            'description' => 'Встроенная подсветка под верхними шкафами освещает столешницу вдоль всей рабочей зоны.',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/kitchen-details-2-9-4-1/worktop-lighting.webp',
+                        ],
+                    ],
+                ]],
                 ['type' => 'KitchensCTA',     'defaults' => ['heading' => 'Хотите заказать кухню?', 'description' => 'Запишитесь в наши салоны для бесплатной консультации с дизайнером.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
             ],
             '/wardrobes' => [
                 ['type' => 'Hero',             'defaults' => ['label' => 'Системы хранения', 'title' => 'Идеальный порядок в каждой детали', 'description' => 'Мы создаем уникальные встроенные и корпусные шкафы, которые становятся органичным продолжением вашей квартиры.', 'ctaText' => 'Спроектировать шкаф', 'ctaLink' => '/contact', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/wardrobes-hero-20261105.webp']],
                 ['type' => 'WardrobesGallery', 'defaults' => ['label' => 'Галерея', 'heading' => 'Наши шкафы и гардеробные']],
                 ['type' => 'WardrobeFeatures', 'defaults' => ['heading' => 'Безупречное качество от замера до установки']],
-                ['type' => 'WardrobeTypes',    'defaults' => ['label' => 'Варианты решений', 'heading' => 'Виды систем']],
+                ['type' => 'WardrobeTypes',    'defaults' => [
+                    'label' => 'Варианты решений',
+                    'heading' => 'Виды систем',
+                    'types' => [
+                        [
+                            'title' => 'Встроенные шкафы',
+                            'description' => 'Монтируются от пола до потолка, скрывая неровности стен и максимально эффективно используя ниши',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/wardrobe-types-2-10-4-1/built-in-sliding-wardrobe.webp',
+                            'offset' => '',
+                        ],
+                        [
+                            'title' => 'Корпусные решения',
+                            'description' => 'Самостоятельные модули, которые можно перемещать. Акцентные фасады и витринные стеклянные элементы',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/wardrobe-types-2-10-4-1/freestanding-wardrobe.webp',
+                            'offset' => 'lg:-translate-y-8',
+                        ],
+                        [
+                            'title' => 'Гардеробные комнаты',
+                            'description' => 'Открытые и закрытые модульные системы премиум-класса с умной подсветкой и организаторами',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/wardrobe-types-2-10-4-1/walk-in-closet.webp',
+                            'offset' => 'lg:-translate-y-16',
+                        ],
+                    ],
+                ]],
                 ['type' => 'WardrobesCTA',     'defaults' => ['heading' => 'Закажите расчет стоимости', 'ctaText' => 'Запись в салон', 'ctaLink' => '/contact']],
             ],
             '/showrooms' => [

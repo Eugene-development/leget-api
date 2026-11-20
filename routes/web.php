@@ -7,6 +7,7 @@ use App\Http\Controllers\AdminPromoController;
 use App\Http\Controllers\AdminUniversityController;
 use App\Http\Controllers\AttributionController;
 use App\Http\Controllers\Crm\CrmController;
+use App\Http\Controllers\Crm\SitePromotionsController;
 use App\Http\Controllers\Crm\CrmDocumentController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PromoClientController;
@@ -247,6 +248,10 @@ Route::prefix('crm')->middleware(['auth:api', 'throttle:120,1'])->group(function
         Route::post('/deals/{id}/documents', [$d, 'generate'])->middleware('throttle:20,1');
         Route::post('/deals/{id}/upload', [$d, 'upload'])->middleware('throttle:20,1');
         Route::get('/documents/{id}/download', [$d, 'download']);
+        Route::get('/promotions', [SitePromotionsController::class, 'index']);
+        Route::get('/promotions/{id}/history', [SitePromotionsController::class, 'history'])->where('id', '[a-f0-9]{64}');
+        Route::post('/promotions', [SitePromotionsController::class, 'save']);
+        Route::post('/promotions/{id}', [SitePromotionsController::class, 'save'])->where('id', '[a-f0-9]{64}');
         Route::get('/{resource}', [$c, 'index']);
         Route::get('/{resource}/{id}', [$c, 'show']);
         Route::post('/{resource}', [$c, 'save']);

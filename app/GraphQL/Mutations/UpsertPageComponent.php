@@ -8,6 +8,7 @@ use App\Exceptions\GraphQLException;
 use App\Models\License;
 use App\Models\Page;
 use App\Models\PageComponent;
+use App\Services\SitePromotions;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Cache;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
@@ -40,6 +41,18 @@ final class UpsertPageComponent
         }
 
         $pageId = (string) $args['page_id'];
+        $slug = str_starts_with($pageId, 'slug:')
+            ? substr($pageId, 5)
+            : Page::where('license_id', $license->id)->whereKey($pageId)->value('slug');
+        $promotions = app(SitePromotions::class);
+        $tracked = $promotions->supports($license, $slug, $args['type']);
+
+        return $promotions->change($license, $slug, $args['type'], $context->user()->id,
+            fn () => $this->save($license, $pageId, $args, $tracked));
+    }
+
+    private function save(License $license, string $pageId, array $args, bool $tracked): PageComponent
+    {
         $page = null;
 
         if (str_starts_with($pageId, 'slug:')) {
@@ -64,6 +77,11 @@ final class UpsertPageComponent
             ->where('type', $args['type'])
             ->first();
 
+        $expected = $args['data']['_promotionVersion'] ?? null;
+        if ($tracked && $expected !== null && $expected !== SitePromotions::componentVersion($component)) {
+            throw new GraphQLException('Акции изменены. Обновите страницу перед сохранением.', 'CONFLICT');
+        }
+
         if (! $component) {
             $component = new PageComponent([
                 'page_id' => $page->id,
@@ -81,6 +99,9 @@ final class UpsertPageComponent
         }
 
         $data = $args['data'];
+        if ($tracked && is_array($data)) {
+            unset($data['_componentId'], $data['_promotionVersion']);
+        }
         if ((int) $license->template_id === 2 && in_array($args['type'], ['KitchensGallery', 'WardrobesGallery'], true) && is_array($data)) {
             // Enriched products must never be saved as a stale component snapshot.
             unset($data['items']);
@@ -89,6 +110,12 @@ final class UpsertPageComponent
         $component->license_id = $license->id;
         $component->is_active = true;
         $component->save();
+
+        if ($tracked) {
+            $component->data = [...($component->data ?? []), '_promotionVersion' => SitePromotions::componentVersion($component->refresh())];
+
+            return $component;
+        }
 
         // Invalidate cache for the license (tagged if supported, plain otherwise)
         try {

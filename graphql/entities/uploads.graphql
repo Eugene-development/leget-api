@@ -1,10 +1,12 @@
 extend type Query {
-    "List uploaded files in a bucket folder for the authenticated license. Requires authentication."
+    "List uploaded files in a bucket folder for a license owned by the authenticated user."
     listBucketFiles(
-        "Folder prefix (e.g. 'bg'). Files are scoped to the user's license automatically."
+        "Folder prefix (e.g. 'bg')."
         folder: String
         "Maximum number of keys to return (default 100, max 200)."
         maxKeys: Int
+        "Site license. Defaults to the user's first license."
+        licenseId: ID
     ): [BucketFile!]! @guard @field(resolver: "App\\GraphQL\\Queries\\ListBucketFiles")
 }
 

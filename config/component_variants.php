@@ -42,6 +42,16 @@ return [
 
     // Ключ «страница:тип» переопределяет число только на данной странице.
     // Hero встречается и на других страницах Promo-2, где остаётся v1.
-    2 => ['/actions:Hero' => 4, '/facades:FacadesCatalog' => 4],
+    2 => [
+        '/actions:Hero' => 4,
+        '/facades:FacadesCatalog' => 4,
+        '/equipment:EquipmentHero' => 2,
+        '/equipment:EquipmentAppliances' => 2,
+        '/equipment:EquipmentWorktops' => 2,
+        '/equipment:EquipmentPlumbing' => 2,
+        '/equipment:EquipmentLighting' => 2,
+        '/equipment:EquipmentStorage' => 2,
+        '/equipment:EquipmentCTA' => 2,
+    ],
     3 => [],
 ];

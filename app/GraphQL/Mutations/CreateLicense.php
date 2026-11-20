@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Services\BillingService;
 use App\Services\TemplateService;
+use App\Services\SitePromotions;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -79,6 +80,8 @@ final class CreateLicense
                 $page = Page::create(['license_id' => $license->id, 'slug' => $slug]);
                 $this->templateService->seedDefaultComponents($page, $templateId);
             }
+
+            app(SitePromotions::class)->materialize($license);
 
             return $license;
         }, 3);

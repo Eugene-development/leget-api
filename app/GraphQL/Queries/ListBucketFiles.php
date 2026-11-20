@@ -12,13 +12,10 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 final class ListBucketFiles
 {
     /**
-     * List uploaded files in a bucket folder for the authenticated license.
-     *
-     * Files are scoped to the user's license ID automatically:
-     * the prefix is built as "{folder}/{licenseId}/".
+     * List uploaded files under the requested license's bucket prefix.
      *
      * @param  mixed  $root
-     * @param  array{folder?: string|null, maxKeys?: int|null}  $args
+     * @param  array{folder?: string|null, maxKeys?: int|null, licenseId?: string|null}  $args
      *
      * @throws GraphQLException
      *
@@ -26,8 +23,9 @@ final class ListBucketFiles
      */
     public function __invoke($root, array $args, GraphQLContext $context, ResolveInfo $info): array
     {
-        $user = $context->user();
-        $license = $user->licenses()->first();
+        $licenses = $context->user()->licenses();
+        $requestedLicenseId = $args['licenseId'] ?? null;
+        $license = $requestedLicenseId === null ? $licenses->first() : $licenses->find($requestedLicenseId);
 
         if (! $license) {
             throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');

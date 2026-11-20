@@ -136,6 +136,64 @@ class CrmTest extends TestCase
         }
     }
 
+    public function test_site_promotions_keep_history_and_can_be_reactivated_by_the_sites_manager(): void
+    {
+        Schema::table('licenses', fn (Blueprint $table) => $table->unsignedInteger('template_id')->default(2));
+        Schema::create('pages', function (Blueprint $table) {
+            $table->id();
+            $table->char('license_id', 26);
+            $table->string('slug');
+            $table->timestamps();
+            $table->unique(['license_id', 'slug']);
+        });
+        (require base_path('../leget-db/database/migrations/2026_10_03_100002_page_drafts_and_revisions.php'))->up();
+        $site = \App\Models\License::findOrFail($this->site);
+        $promotions = app(\App\Services\SitePromotions::class);
+        $this->artisan('site-promotions:backfill')->assertSuccessful();
+        $component = \App\Models\PageComponent::where('license_id', $site->id)->where('type', 'ActionsCards')->firstOrFail();
+        $this->assertCount(3, $component->data['cards']);
+        $this->artisan('site-promotions:backfill')->assertSuccessful();
+        $this->assertSame($component->id, $component->fresh()->id);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-18T10:00:00Z'));
+        $url = '/crm/sites/'.$site->id.'/promotions';
+        $body = ['title' => 'Тестовая акция', 'enabled' => true, 'ends_at' => '2026-11-18T11:00:00.000Z', 'request_key' => (string) Str::uuid()];
+        $this->postJson($url, $body)->assertOk();
+        $this->postJson($url, $body)->assertOk();
+        $byTitle = fn () => collect($this->getJson($url)->assertOk()->json('items'))->firstWhere('title', 'Тестовая акция');
+        $active = $byTitle();
+        $this->assertSame('active', $active['status']);
+        $this->assertCount(4, $component->fresh()->data['cards']);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-18T11:00:00Z'));
+        $this->assertSame('expired', $byTitle()['status']);
+        $this->assertCount(4, $component->fresh()->data['cards']);
+        $this->postCrm('promotions/'.$active['id'], ['version' => $active['version'], 'enabled' => true])->assertUnprocessable();
+        $this->postCrm('promotions/'.$active['id'], ['version' => $active['version'], 'enabled' => true, 'ends_at' => '2026-11-19T11:00:00.000Z'])->assertOk();
+        $this->postCrm('promotions/'.$active['id'], ['version' => $active['version'], 'enabled' => false])->assertConflict();
+        $this->assertSame('active', $byTitle()['status']);
+
+        // The website editor removes a card from the current component.
+        $promotions->change($site, '/actions', 'ActionsCards', $this->owner->id, function () use ($component) {
+            $component->refresh();
+            $data = $component->data;
+            array_pop($data['cards']);
+            $component->update(['data' => $data]);
+        });
+        $removed = $byTitle();
+        $this->assertSame('removed', $removed['status']);
+        $this->getJson($url.'/'.$removed['id'].'/history')->assertOk()->assertJsonPath('items.0.present', false);
+        $this->postCrm('promotions/'.$removed['id'], ['version' => $removed['version'], 'enabled' => true])->assertOk();
+        $this->assertSame('active', $byTitle()['status']);
+        $this->assertCount(4, $component->fresh()->data['cards']);
+
+        $this->getJson('/crm/sites/'.$this->foreignSite.'/promotions')->assertForbidden();
+        $this->postCrm('promotions/'.$active['id'], ['version' => $active['version'], 'enabled' => false], $this->foreignSite)->assertForbidden();
+        DB::table('crm_memberships')->where('license_id', $site->id)->update(['status' => 'revoked']);
+        $this->getJson($url)->assertForbidden();
+        $this->actingAs($this->owner, 'api')->getJson($url)->assertOk();
+    }
+
     private function postCrm(string $path, array $body = [], ?string $site = null)
     {
         return $this->postJson('/crm/sites/'.($site ?? $this->site).'/'.$path, $body + ['request_key' => (string) Str::uuid()]);

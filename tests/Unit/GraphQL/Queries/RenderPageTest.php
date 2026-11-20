@@ -132,6 +132,8 @@ class RenderPageTest extends TestCase
             });
         }
 
+        (require base_path('../leget-db/database/migrations/2026_10_03_100002_page_drafts_and_revisions.php'))->up();
+
         if (! Schema::hasTable('rubrics')) {
             Schema::create('rubrics', function (Blueprint $table) {
                 $table->ulid('id')->primary();

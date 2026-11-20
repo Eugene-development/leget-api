@@ -18,6 +18,7 @@ use App\Services\BrandTags;
 use App\Services\CatalogVisibility;
 use App\Services\PagePublicationService;
 use App\Services\SiteSearch;
+use App\Services\SitePromotions;
 use App\Services\TemplateService;
 use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Collection;
@@ -33,7 +34,7 @@ final class RenderPage
      * GraphQL fields after a zero-downtime deploy.
      */
     // UniversityProgram is a separate block; actionCards now contains both action groups.
-    private const CACHE_VERSION = 'v22';
+    private const CACHE_VERSION = 'v23';
 
     public function __construct(
         private TemplateService $templateService,
@@ -511,6 +512,7 @@ final class RenderPage
                 ]]);
         }
 
+        $promotions = app(SitePromotions::class);
         $response = [
             'site' => [
                 'name' => $license->name,
@@ -540,7 +542,12 @@ final class RenderPage
                     'id' => $c->exists ? (string) $c->id : null,
                     'type' => $c->type,
                     'catalog' => $catalog->get($c->type),
-                    'data' => array_merge($c->data ?? [], $c->exists ? ['_componentId' => (string) $c->id] : []),
+                    'data' => array_merge(
+                        $c->data ?? [],
+                        $c->exists ? ['_componentId' => (string) $c->id] : [],
+                        $draftSnapshot === null && $promotions->supports($license, $templateSlug, $c->type)
+                            ? ['_promotionVersion' => SitePromotions::componentVersion($c)] : [],
+                    ),
                 ])->values()->all(),
                 'seo' => $seo,
             ],
@@ -648,6 +655,7 @@ final class RenderPage
                 'badge' => isset($card['badge']) ? (string) $card['badge'] : null,
                 // Ключа нет — карточка активна: так же читает его страница акций.
                 'enabled' => ($card['enabled'] ?? true) !== false,
+                ...array_intersect_key($card, array_flip(['expiresAt', 'until', 'validUntil'])),
             ],
             array_filter($cards, 'is_array')
         ));

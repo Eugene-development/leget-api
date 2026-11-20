@@ -84,7 +84,7 @@ final class PagePublicationService
                     'sort_order' => array_search($operation['type'], $this->allowedTypes($license, $slug), true),
                 ] : $snapshot[$scope][$index];
                 $row['data'] = $operation['data'];
-                unset($row['data']['_componentId']);
+                unset($row['data']['_componentId'], $row['data']['_promotionVersion']);
                 if ((int) $license->template_id === 2 && in_array($operation['type'], ['KitchensGallery', 'WardrobesGallery'], true)) {
                     unset($row['data']['items']);
                 }
@@ -170,9 +170,9 @@ final class PagePublicationService
                 $this->conflict();
             }
             $snapshot = json_decode($draft->snapshot, true, flags: JSON_THROW_ON_ERROR);
-            $this->record($license, $user, $draft->slug, $live, 'baseline');
+            $this->record($license, $user->id, $draft->slug, $live, 'baseline');
             $this->apply($license, $draft->slug, $snapshot);
-            $revisionId = $this->record($license, $user, $draft->slug, $snapshot, 'publish');
+            $revisionId = $this->record($license, $user->id, $draft->slug, $snapshot, 'publish');
             DB::table('page_drafts')->where('id', $id)->delete();
 
             return ['revisionId' => $revisionId, 'liveHash' => $this->hash($snapshot)];
@@ -198,11 +198,11 @@ final class PagePublicationService
             }
             $snapshot = json_decode($revision->snapshot, true, flags: JSON_THROW_ON_ERROR);
             $this->validateSlug($license, $revision->slug);
-            $this->record($license, $user, $revision->slug, $live, 'baseline');
+            $this->record($license, $user->id, $revision->slug, $live, 'baseline');
             $this->apply($license, $revision->slug, $snapshot);
 
             return [
-                'revisionId' => $this->record($license, $user, $revision->slug, $snapshot, 'restore'),
+                'revisionId' => $this->record($license, $user->id, $revision->slug, $snapshot, 'restore'),
                 'liveHash' => $this->hash($snapshot),
             ];
         });
@@ -323,7 +323,13 @@ final class PagePublicationService
         }
     }
 
-    private function record(License $license, User $user, string $slug, array $snapshot, string $action): string
+    public function recordPromotionChange(License $license, int $userId, string $slug, array $before, array $after): void
+    {
+        $this->record($license, $userId, $slug, $before, 'baseline');
+        $this->record($license, $userId, $slug, $after, 'promotion');
+    }
+
+    private function record(License $license, int $userId, string $slug, array $snapshot, string $action): string
     {
         $hash = $this->hash($snapshot);
         // No duplicate baselines when current state was already captured.
@@ -332,7 +338,7 @@ final class PagePublicationService
         }
         $id = (string) Str::ulid();
         DB::table('page_revisions')->insert([
-            'id' => $id, 'license_id' => $license->id, 'slug' => $slug, 'author_id' => $user->id,
+            'id' => $id, 'license_id' => $license->id, 'slug' => $slug, 'author_id' => $userId,
             'action' => $action, 'snapshot' => $this->encode($snapshot), 'content_hash' => $hash, 'created_at' => now(),
         ]);
 
@@ -413,7 +419,7 @@ final class PagePublicationService
         throw new HttpException(409, 'Страница или черновик уже изменились. Обновите страницу перед продолжением.');
     }
 
-    private function invalidate(string $licenseId): void
+    public function invalidate(string $licenseId): void
     {
         try {
             Cache::tags(["license:{$licenseId}"])->flush();
