@@ -1588,7 +1588,20 @@ return [
             ],
             '/privacy' => [$privacyPolicy],
             '/' => [
-                ['type' => 'Hero',       'defaults' => ['label' => 'Белорусская фабрика мебели', 'title' => 'Мебель европейского качества по доступной цене', 'description' => 'Создаём кухонные гарнитуры, шкафы и гардеробы, которые сочетают безупречный дизайн, премиальные материалы и выверенную функциональность изделий', 'ctaPrimary' => 'Выездной дизайнер', 'ctaPrimaryLink' => '/contact', 'ctaSecondary' => 'Запись в салон', 'ctaSecondaryLink' => '/actions']],
+                [
+                    'type' => 'Hero',
+                    'inherit_default_fields' => ['mobileImage'],
+                    'defaults' => [
+                        'label' => 'Белорусская фабрика мебели',
+                        'title' => 'Мебель европейского качества по доступной цене',
+                        'description' => 'Создаём кухонные гарнитуры, шкафы и гардеробы, которые сочетают безупречный дизайн, премиальные материалы и выверенную функциональность изделий',
+                        'ctaPrimary' => 'Выездной дизайнер',
+                        'ctaPrimaryLink' => '/contact',
+                        'ctaSecondary' => 'Запись в салон',
+                        'ctaSecondaryLink' => '/actions',
+                        'mobileImage' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/mobile-hero-oak-kitchen.webp',
+                    ],
+                ],
                 ['type' => 'Styles',     'defaults' => ['label' => 'Коллекции', 'heading' => 'Найдите свой стиль', 'allLinkText' => 'Все стили', 'allLink' => '/styles']],
                 ['type' => 'Video',      'defaults' => ['src' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/zov.mp4']],
                 ['type' => 'Advantages', 'defaults' => ['label' => 'Преимущества', 'heading' => 'Почему выбирают нас', 'description' => 'Мы объединяем многолетний опыт, передовые технологии и внимание к деталям для создания мебели, которая превосходит ожидания.']],
@@ -1625,7 +1638,7 @@ return [
                 ['type' => 'StylesCTA',  'defaults' => ['heading' => 'Поможем с выбором', 'description' => 'Запишитесь на встречу с нашим дизайнером. Мы подберем идеальный стиль, материалы и фурнитуру, учитывая архитектуру вашего пространства.', 'ctaText' => 'Записаться в салон', 'ctaLink' => '/contact']],
             ],
             '/facades' => [
-                ['type' => 'Hero',           'defaults' => ['label' => 'Материалы', 'title' => 'Фасад это лицо вашей мебели', 'description' => 'Фасады задают характер вашего домашнего интерьера. От натурального массива до технологичного акрила: мы предлагаем материалы, которые сочетают в себе безупречную эстетику, функциональность и долговечность.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/facades-hero-20261105.webp']],
+                ['type' => 'Hero',           'defaults' => ['label' => 'Материалы', 'title' => 'Фасад это лицо вашей мебели', 'description' => 'Фасады задают характер вашего домашнего интерьера. От натурального массива до технологичного акрила: мы предлагаем материалы, которые сочетают в себе безупречную эстетику, функциональность и долговечность.', 'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-2/actions-furniture-fronts.webp']],
                 ['type' => 'FacadesCatalog', 'defaults' => [
                     'facades' => [
                         [

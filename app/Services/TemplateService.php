@@ -34,9 +34,7 @@ class TemplateService
     /**
      * Return the ordered list of component definitions for a template page.
      *
-     * Each item: ['type' => string, 'defaults' => array]
-     *
-     * @return list<array{type: string, defaults: array<string, mixed>}>
+     * @return list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>}>
      */
     public function getPageComponents(int $templateId, string $slug): array
     {
@@ -161,7 +159,7 @@ class TemplateService
      * Если для типа есть DB-запись — берём её; иначе создаём виртуальный компонент
      * (exists=false, не сохраняется в БД) с дефолтами.
      *
-     * @param  list<array{type: string, defaults: array<string, mixed>}>  $definitions
+     * @param  list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>}>  $definitions
      * @return Collection<int, PageComponent>
      */
     private function mergeDefinitions(License $license, ?Page $page, array $definitions, ?array $overrides = null): Collection
@@ -195,8 +193,14 @@ class TemplateService
 
             if ($dbComponents->has($type)) {
                 $component = $dbComponents->get($type);
-                // We could merge data here if we want to support adding new keys to defaults
-                // $component->data = array_merge($definition['defaults'] ?? [], $component->data ?? []);
+                if (! empty($definition['inherit_default_fields'])) {
+                    $inheritedDefaults = array_intersect_key(
+                        $definition['defaults'] ?? [],
+                        array_flip($definition['inherit_default_fields']),
+                    );
+                    // Existing keys take precedence, including explicitly cleared values.
+                    $component->data = ($component->data ?? []) + $inheritedDefaults;
+                }
                 $result->push($component);
             } else {
                 // Create a virtual component (not persisted in DB)
