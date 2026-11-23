@@ -34,7 +34,7 @@ final class GenerateUploadUrl
 
         // Validate mimeType matches valid MIME type pattern (type/subtype)
         if (! preg_match('/^[\w\-]+\/[\w\-\.\+]+$/', $mimeType)) {
-            throw new GraphQLException('Invalid MIME type format.', 'VALIDATION');
+            throw new GraphQLException('Выберите файл поддерживаемого формата.', 'UPLOAD_FORMAT');
         }
 
         // Get the license_id from the authenticated user
@@ -44,13 +44,13 @@ final class GenerateUploadUrl
         if ($licenseIdArg) {
             $license = $user->licenses()->find($licenseIdArg);
             if (! $license) {
-                throw new GraphQLException("License with ID {$licenseIdArg} not found or access denied.", 'VALIDATION');
+                throw new GraphQLException('У вас нет доступа к загрузке файлов для этого сайта.', 'FORBIDDEN');
             }
         } else {
             $domain = $context->request()->header('X-Forwarded-Host') ?? $context->request()->getHost();
             $license = $user->licenses()->where('domain', $domain)->first() ?? $user->licenses()->first();
             if (! $license) {
-                throw new GraphQLException('No license found for the authenticated user.', 'VALIDATION');
+                throw new GraphQLException('У вас нет доступа к загрузке файлов для этого сайта.', 'FORBIDDEN');
             }
         }
 
@@ -98,7 +98,9 @@ final class GenerateUploadUrl
             $bucket = $s3Config['bucket'];
             $objectUrl = "{$endpoint}/{$bucket}/{$objectKey}";
         } catch (\Throwable $e) {
-            throw new GraphQLException('Failed to generate upload URL.', 'INTERNAL');
+            report($e);
+
+            throw new GraphQLException('Хранилище файлов временно недоступно. Повторите попытку позже.', 'INTERNAL');
         }
 
         return [

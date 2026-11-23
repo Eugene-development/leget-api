@@ -1,0 +1,27 @@
+extend type Query {
+    partnerCompanies(
+        type: PartnerCompanyType
+        page: Int = 1 @rules(apply: ["min:1"])
+        perPage: Int @rules(apply: ["min:1", "max:24"])
+    ): PartnerCompanyPage! @field(resolver: "App\\GraphQL\\Queries\\PartnerCompanies")
+}
+
+enum PartnerCompanyType {
+    MANUFACTURER @enum(value: "manufacturer")
+    SUPPLIER @enum(value: "supplier")
+}
+
+type PartnerCompanyPage {
+    items: [PartnerCompanySummary!]!
+    page: Int!
+    lastPage: Int!
+}
+
+type PartnerCompanySummary {
+    path: String!
+    name: String!
+    typeLabel: String!
+    description: String!
+    city: String
+    logoUrl: String
+}

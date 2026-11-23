@@ -12,6 +12,7 @@ type Mutation
 #import entities/render-page.graphql
 #import entities/site-search.graphql
 #import entities/site-map.graphql
+#import entities/partner-companies.graphql
 #import entities/components.graphql
 #import entities/design-systems.graphql
 #import entities/rubrics.graphql

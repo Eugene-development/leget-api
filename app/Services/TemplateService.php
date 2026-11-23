@@ -34,7 +34,7 @@ class TemplateService
     /**
      * Return the ordered list of component definitions for a template page.
      *
-     * @return list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>}>
+     * @return list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>, legacy_placeholder?: array<string, mixed>}>
      */
     public function getPageComponents(int $templateId, string $slug): array
     {
@@ -159,7 +159,7 @@ class TemplateService
      * Если для типа есть DB-запись — берём её; иначе создаём виртуальный компонент
      * (exists=false, не сохраняется в БД) с дефолтами.
      *
-     * @param  list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>}>  $definitions
+     * @param  list<array{type: string, defaults: array<string, mixed>, inherit_default_fields?: list<string>, legacy_placeholder?: array<string, mixed>}>  $definitions
      * @return Collection<int, PageComponent>
      */
     private function mergeDefinitions(License $license, ?Page $page, array $definitions, ?array $overrides = null): Collection
@@ -193,6 +193,18 @@ class TemplateService
 
             if ($dbComponents->has($type)) {
                 $component = $dbComponents->get($type);
+                if (! empty($definition['legacy_placeholder'])) {
+                    $placeholder = $definition['legacy_placeholder'];
+                    $savedData = $component->data ?? [];
+                    $savedFields = array_intersect_key($savedData, $placeholder);
+                    // Заменяем только полное совпадение с прежней заготовкой.
+                    if ($savedFields === array_replace($savedFields, $placeholder)) {
+                        $component->data = array_replace(
+                            $savedData,
+                            array_intersect_key($definition['defaults'], $placeholder),
+                        );
+                    }
+                }
                 if (! empty($definition['inherit_default_fields'])) {
                     $inheritedDefaults = array_intersect_key(
                         $definition['defaults'] ?? [],

@@ -69,12 +69,15 @@ class AdminPartnerTest extends TestCase
     public function test_revoking_an_approval_takes_the_role_back(): void
     {
         $profile = $this->application('anna@example.test', PartnerStatus::Approved, Role::Partner);
+        $profile->forceFill(['directory_name' => 'Компания', 'directory_published_at' => now()])->save();
 
         $this->actingAs($this->superadmin(), 'api')
             ->postJson("/admin/partners/{$profile->id}/reject", ['note' => 'Договор расторгнут'])
             ->assertOk();
 
         $this->assertSame(Role::Client, $profile->user->fresh()->role);
+        $this->assertNull($profile->fresh()->directory_published_at);
+        $this->assertSame('Компания', $profile->fresh()->directory_name);
     }
 
     public function test_client_cannot_reach_the_queue(): void

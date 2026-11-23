@@ -33,7 +33,7 @@ final class PublicSitePages
         return $result;
     }
 
-    public function sources(License $license): array
+    public function sources(License $license, bool $includeCompanies = true): array
     {
         $definitions = $this->templates->getTemplate((int) $license->template_id)['pages'] ?? [];
         $sources = array_fill_keys(array_keys($definitions), []);
@@ -65,9 +65,26 @@ final class PublicSitePages
             $sources['/mebel/'.$category->slug.'/'.$project->slug] = ['category' => $category, 'project' => $project];
         }
 
+        if ($includeCompanies) {
+            $sources += $this->companySources($license);
+        }
+
         return array_filter($sources, function ($source, $path) use ($definitions, $license) {
             return SiteSearch::publicPath($path)
                 && isset($definitions[$this->templates->resolveTemplateSlug((int) $license->template_id, $path)]);
         }, ARRAY_FILTER_USE_BOTH);
+    }
+
+    public function companySources(License $license): array
+    {
+        if ((int) $license->template_id !== 1 || ! $this->templates->getPageComponents(1, '/b2b/{company}')) {
+            return [];
+        }
+
+        $directory = app(PartnerDirectory::class);
+
+        return $directory->published()->select(['id', 'directory_name', 'directory_card', 'partner_type'])->get()
+            ->mapWithKeys(fn ($profile) => [$directory->path($profile) => ['company' => $directory->detail($profile)]])
+            ->all();
     }
 }

@@ -42,7 +42,9 @@ final class CreateOnlinePayment
         try {
             $result = $this->payments->start($context->user(), $args['amount']);
         } catch (RuntimeException $e) {
-            throw new GraphQLException($e->getMessage(), 'PAYMENT_PROVIDER_ERROR');
+            report($e);
+
+            throw new GraphQLException('Сервис оплаты временно недоступен. Попробуйте позже.', 'PAYMENT_PROVIDER_ERROR');
         }
 
         $payment = $result['payment'];

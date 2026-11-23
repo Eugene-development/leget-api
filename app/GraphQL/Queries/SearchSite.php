@@ -35,14 +35,14 @@ final class SearchSite
         }
         RateLimiter::hit($rateKey, 60);
 
-        $key = 'site-search:v4:'.$license->id.app(CatalogVisibility::class)->cacheSuffix($license);
+        $key = 'site-search:v5:'.$license->id.app(CatalogVisibility::class)->cacheSuffix($license);
         try {
             $cache = Cache::tags(['license:'.$license->id]);
         } catch (\BadMethodCallException) {
             $cache = Cache::store();
         }
-        $documents = $cache->remember($key, 60, fn () => $this->search->documents($license));
+        $documents = $cache->remember($key, 60, fn () => $this->search->documents($license, false));
 
-        return SiteSearch::search($documents, $query, $args['offset'] ?? 0);
+        return SiteSearch::search([...$documents, ...$this->search->companyDocuments($license)], $query, $args['offset'] ?? 0);
     }
 }

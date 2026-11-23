@@ -3,6 +3,7 @@
 namespace Tests\Unit\GraphQL\Queries;
 
 use App\Exceptions\GraphQLException;
+use App\Enums\Role;
 use App\GraphQL\Mutations\CreateTag;
 use App\GraphQL\Mutations\DeleteApplianceBrand;
 use App\GraphQL\Mutations\DeleteTag;
@@ -1072,6 +1073,41 @@ class RenderPageTest extends TestCase
             ],
         ];
         $this->assertSame($expectedComponents, $result['page']['componentsData']);
+    }
+
+    public function test_promo1_about_fills_the_legacy_mission_placeholder_only(): void
+    {
+        $placeholder = [
+            'text1' => '',
+            'text2' => '',
+            'text3' => '',
+            'title' => 'Наша миссия',
+            'imageUrl' => '',
+            'theme' => 'dark',
+        ];
+        $defaults = collect(config('templates.1.pages')['/about'])->firstWhere('type', 'Mission')['defaults'];
+        $custom = array_replace($placeholder, ['text1' => 'Текст владельца', 'imageUrl' => null]);
+
+        foreach ([
+            'placeholder' => [$placeholder, array_replace($placeholder, $defaults)],
+            'custom' => [$custom, $custom],
+        ] as $site => [$savedData, $expected]) {
+            $license = $this->createLicense(['template_id' => 1, 'domain' => $site.'.test']);
+            $page = Page::create(['license_id' => $license->id, 'slug' => '/about']);
+            $mission = PageComponent::create([
+                'license_id' => $license->id,
+                'page_id' => $page->id,
+                'type' => 'Mission',
+                'data' => $savedData,
+                'is_active' => true,
+            ]);
+            $result = ($this->resolver)(null, ['slug' => '/about'],
+                $this->createContext(['X-Forwarded-Host' => $license->domain]), $this->createResolveInfo());
+            $block = collect($result['page']['componentsData'])->firstWhere('type', 'Mission');
+
+            $this->assertSame($expected + ['_componentId' => $mission->id], $block['data']);
+            $this->assertSame($savedData, $mission->fresh()->data);
+        }
     }
 
     public function test_initial_response_contains_catalog_for_saved_and_virtual_components(): void
@@ -2696,6 +2732,106 @@ class RenderPageTest extends TestCase
         $otherContext = $this->createContext(['X-Forwarded-Host' => $other->domain]);
         $this->assertSame(0, $search(null, ['query' => 'Редкий'], $otherContext, $this->createResolveInfo())['total']);
         $this->assertSame(0, $search(null, ['query' => 'ку'], $context, $this->createResolveInfo())['total']);
+    }
+
+    public function test_b2b_uses_the_same_published_companies_across_promo1_sites(): void
+    {
+        $first = $this->createLicense(['template_id' => 1]);
+        $second = $this->createLicense(['template_id' => 1, 'domain' => 'second.example.com']);
+        $otherTemplate = $this->createLicense(['template_id' => 2, 'domain' => 'other.example.com']);
+        $company = $this->directoryProfile('manufacturer', 'Альфа Фасады');
+        $logo = 'https://storage.yandexcloud.net/leget-main/partner-logos/example/logo.webp';
+        $company->forceFill(['directory_card' => $company->directory_card + ['logoUrl' => $logo, 'logoKey' => 'private-key']])->save();
+        $path = '/b2b/'.$company->id;
+        $this->directoryProfile('supplier', 'Бета Комплект');
+        $this->directoryProfile('manufacturer', 'Скрытая компания', published: false);
+        $this->directoryProfile('supplier', 'Отозванный участник', role: Role::Client);
+        $this->directoryProfile('designer', 'Дизайнер');
+        $this->directoryProfile('manufacturer', 'Заявка на рассмотрении', status: 'pending');
+
+        $list = 'query($type: PartnerCompanyType) {
+            partnerCompanies(type: $type) { items { path name description city logoUrl } page lastPage }
+        }';
+        $detail = 'query($slug: String!) { renderPage(slug: $slug) { page { seo { title } componentsData } } }';
+        foreach ([$first, $second] as $site) {
+            $headers = ['X-Forwarded-Host' => $site->domain];
+            $result = $this->postJson('/graphql', ['query' => $list], $headers)->assertOk();
+            $this->assertNull($result->json('errors'), $result->getContent());
+            $result->assertJsonCount(2, 'data.partnerCompanies.items')
+                ->assertJsonPath('data.partnerCompanies.items.0.path', $path)
+                ->assertJsonPath('data.partnerCompanies.items.0.logoUrl', $logo)
+                ->assertJsonPath('data.partnerCompanies.items.1.logoUrl', null);
+            $this->postJson('/graphql', ['query' => $list, 'variables' => ['type' => 'MANUFACTURER']], $headers)
+                ->assertJsonCount(1, 'data.partnerCompanies.items')
+                ->assertJsonPath('data.partnerCompanies.items.0.name', 'Альфа Фасады');
+            $this->postJson('/graphql', ['query' => $detail, 'variables' => ['slug' => $path]], $headers)->assertOk()
+                ->assertJsonPath('data.renderPage.page.seo.title', 'Альфа Фасады — Каталог B2B')
+                ->assertJsonPath('data.renderPage.page.componentsData.0.data.company.email', 'sales@example.com')
+                ->assertJsonPath('data.renderPage.page.componentsData.0.data.company.logoUrl', $logo)
+                ->assertJsonMissingPath('data.renderPage.page.componentsData.0.data.company.logoKey')
+                ->assertJsonMissingPath('data.renderPage.page.componentsData.0.data.company.inn')
+                ->assertJsonMissingPath('data.renderPage.page.componentsData.0.data.company.comment');
+            $this->assertContains($path, app(PublicSitePages::class)->paths($site));
+        }
+
+        $otherHeaders = ['X-Forwarded-Host' => $otherTemplate->domain];
+        $this->postJson('/graphql', ['query' => $list], $otherHeaders)
+            ->assertJsonPath('errors.0.extensions.code', 'PAGE_NOT_FOUND');
+        $this->postJson('/graphql', ['query' => $detail, 'variables' => ['slug' => $path]], $otherHeaders)
+            ->assertJsonPath('errors.0.extensions.code', 'PAGE_NOT_FOUND');
+        $this->assertNotContains($path, app(PublicSitePages::class)->paths($otherTemplate));
+
+        $search = app(SearchSite::class);
+        $context = $this->createContext(['X-Forwarded-Host' => $first->domain]);
+        $info = $this->createResolveInfo();
+        $this->assertSame($path, $search(null, ['query' => 'Альфа'], $context, $info)['items'][0]['url']);
+        $company->forceFill(['directory_published_at' => null])->save();
+        $this->assertSame(0, $search(null, ['query' => 'Альфа'], $context, $info)['total']);
+        $this->assertNotContains($path, app(PublicSitePages::class)->paths($first));
+        $this->postJson('/graphql', ['query' => $detail, 'variables' => ['slug' => $path]],
+            ['X-Forwarded-Host' => $first->domain])->assertJsonPath('errors.0.extensions.code', 'PAGE_NOT_FOUND');
+    }
+
+    public function test_b2b_directory_paginates_after_applying_the_filter(): void
+    {
+        $site = $this->createLicense(['template_id' => 1]);
+        for ($number = 1; $number <= 25; $number++) {
+            $this->directoryProfile('supplier', sprintf('Поставщик %02d', $number));
+        }
+        $this->directoryProfile('manufacturer', 'Фабрика');
+
+        $result = $this->postJson('/graphql', ['query' => '{
+            partnerCompanies(type: SUPPLIER, page: 2) { items { name } page lastPage }
+        }'], ['X-Forwarded-Host' => $site->domain])->assertOk();
+        $this->assertNull($result->json('errors'), $result->getContent());
+        $result->assertJsonPath('data.partnerCompanies.page', 2)
+            ->assertJsonPath('data.partnerCompanies.lastPage', 2)
+            ->assertJsonCount(1, 'data.partnerCompanies.items')
+            ->assertJsonPath('data.partnerCompanies.items.0.name', 'Поставщик 25');
+
+        $this->postJson('/graphql', ['query' => '{
+            partnerCompanies(type: SUPPLIER, page: 2, perPage: 9) { items { name } page lastPage }
+        }'], ['X-Forwarded-Host' => $site->domain])->assertOk()
+            ->assertJsonPath('data.partnerCompanies.page', 2)
+            ->assertJsonPath('data.partnerCompanies.lastPage', 3)
+            ->assertJsonCount(9, 'data.partnerCompanies.items')
+            ->assertJsonPath('data.partnerCompanies.items.0.name', 'Поставщик 10')
+            ->assertJsonPath('data.partnerCompanies.items.8.name', 'Поставщик 18');
+    }
+
+    private function directoryProfile(string $type, string $name, bool $published = true, Role $role = Role::Partner, string $status = 'approved'): \App\Models\PartnerProfile
+    {
+        $user = User::create(['name' => 'Данные аккаунта', 'email' => Str::uuid().'@example.com', 'password' => 'unused']);
+        $user->forceFill(['role' => $role])->save();
+        $company = $user->partnerProfile()->create([
+            'partner_type' => $type, 'inn' => '000000000000', 'comment' => 'Личный комментарий',
+        ]);
+        $company->forceFill([
+            'status' => $status, 'directory_name' => $name, 'directory_published_at' => $published ? now() : null,
+            'directory_card' => ['description' => 'Делаем интерьерные фасады.', 'city' => 'Казань', 'email' => 'sales@example.com'],
+        ])->save();
+
+        return $company;
     }
 
     public function test_site_search_paths_exclude_hidden_categories_and_foreign_projects(): void

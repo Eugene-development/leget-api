@@ -29,7 +29,7 @@ return [
         'ContactsHero' => 2,
         'Direction' => 2,
         'Equipment' => 2,
-        'Incentives' => 3,
+        'Incentives' => 4,
         'MebelBenefits' => 2,
         'MebelProcess' => 2,
         'Mission' => 2,

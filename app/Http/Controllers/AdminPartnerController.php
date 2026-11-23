@@ -102,6 +102,7 @@ final class AdminPartnerController extends Controller
 
             $profile->forceFill([
                 'status' => PartnerStatus::Rejected,
+                'directory_published_at' => null,
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
                 'review_note' => $validated['note'] ?? null,

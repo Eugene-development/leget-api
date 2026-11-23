@@ -44,7 +44,9 @@ final class SyncOnlinePayment
         try {
             $payment = $this->payments->sync($payment);
         } catch (RuntimeException $e) {
-            throw new GraphQLException($e->getMessage(), 'PAYMENT_PROVIDER_ERROR');
+            report($e);
+
+            throw new GraphQLException('Не удалось проверить платёж. Обновите его статус позже.', 'PAYMENT_PROVIDER_ERROR');
         }
 
         return [

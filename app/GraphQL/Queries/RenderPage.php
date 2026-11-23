@@ -16,6 +16,7 @@ use App\Models\Rubric;
 use App\Services\ApplianceBrands;
 use App\Services\BrandTags;
 use App\Services\CatalogVisibility;
+use App\Services\PartnerDirectory;
 use App\Services\PagePublicationService;
 use App\Services\SiteSearch;
 use App\Services\SitePromotions;
@@ -67,6 +68,23 @@ final class RenderPage
             throw new GraphQLException('Site is suspended', 'SITE_SUSPENDED');
         }
 
+        $isDirectory = $slug === '/b2b' || str_starts_with($slug, '/b2b/');
+        $company = null;
+        if ($isDirectory) {
+            if ((int) $license->template_id !== 1) {
+                throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+            }
+            if ($slug !== '/b2b') {
+                $directory = app(PartnerDirectory::class);
+                $profile = preg_match('~^/b2b/([0-7][0-9a-hjkmnp-tv-z]{25})$~D', $slug, $matches)
+                    ? $directory->published()->find($matches[1]) : null;
+                if (! $profile) {
+                    throw new GraphQLException('Page not found', 'PAGE_NOT_FOUND');
+                }
+                $company = $directory->detail($profile);
+            }
+        }
+
         $publication = app(PagePublicationService::class);
         try {
             $draftSnapshot = $publication->forRender($request, $license);
@@ -82,7 +100,7 @@ final class RenderPage
 
         // Check cache first (use tagged cache if supported, plain cache otherwise)
         $cached = null;
-        if ($draftSnapshot === null) {
+        if ($draftSnapshot === null && ! $isDirectory) {
             try {
                 $cached = Cache::tags($cacheTags)->get($cacheKey);
             } catch (\BadMethodCallException) {
@@ -104,7 +122,7 @@ final class RenderPage
         $brand = null;
         $material = null;
         $shop = null;
-        $templateSlug = $slug;
+        $templateSlug = $company ? '/b2b/{company}' : $slug;
 
         // Check directory visibility even for an explicitly saved concrete URL.
         // Otherwise creating a Page would bypass the dynamic route's gate.
@@ -216,7 +234,20 @@ final class RenderPage
 
         // ── Enrich components with dynamic data ──────────────────────────────
         $catalogItems = [];
-        $components = $components->map(function ($component) use ($category, $project, $brand, $material, $shop, $license, &$catalogItems) {
+        $components = $components->map(function ($component) use ($category, $project, $brand, $material, $shop, $license, $company, &$catalogItems) {
+            if ($component->type === 'B2BDirectory') {
+                $component = clone $component;
+                $component->is_active = true;
+
+                return $component;
+            }
+            if ($component->type === 'B2BCompany' && $company) {
+                $component = clone $component;
+                $component->data = ['company' => $company];
+                $component->is_active = true;
+
+                return $component;
+            }
             // Brand cards and the sidebar share one ordered directory + site overrides.
             $catalogType = match ($component->type) {
                 'ByttehnikaBrands' => 'ByttehnikaSidebar',
@@ -492,6 +523,13 @@ final class RenderPage
         // текущей страницы, чтобы футер получил реальный id/`_componentId` в componentsData.
         $components = $components->concat($this->templateService->getGlobalComponents($license->id, $draftSnapshot['globalComponents'] ?? null));
         $seo = $this->resolveSeo($license, $page, $templateSlug, $category ?? $material, $project, $brand ?? $shop);
+        if ($company !== null) {
+            $seo['title'] = $company['name'].' — Каталог B2B';
+            $seo['description'] = mb_strimwidth($company['description'], 0, 160, '…');
+        } elseif ($isDirectory) {
+            $seo['title'] = $seo['rawTitle'] ?: 'Каталог B2B — '.$license->name;
+            $seo['description'] = $seo['rawDescription'] ?: 'Производители и поставщики проекта.';
+        }
 
         // Каталожные метаданные едут с первым ответом, отдельно от контента тенанта.
         // Eager load исключает запрос на каждый блок. Для динамических страниц
@@ -554,7 +592,7 @@ final class RenderPage
         ];
 
         // Store in cache with configurable TTL (default 1 hour)
-        if ($ttl > 0 && $draftSnapshot === null) {
+        if ($ttl > 0 && $draftSnapshot === null && ! $isDirectory) {
             try {
                 Cache::tags($cacheTags)->put($cacheKey, $response, $ttl);
             } catch (\BadMethodCallException) {

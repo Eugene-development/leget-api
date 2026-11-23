@@ -20,13 +20,13 @@ final class SiteSearch
     }
 
     /** Batch-load content instead of rendering every URL (and its catalog) on each cold search. */
-    public function documents(License $license): array
+    public function documents(License $license, bool $includeCompanies = true): array
     {
         $definitions = $this->templates->getTemplate((int) $license->template_id)['pages'] ?? [];
         $pages = Page::where('license_id', $license->id)
             ->with(['pageComponents' => fn ($q) => $q->where('license_id', $license->id)])->get()->keyBy('slug');
         $documents = [];
-        foreach (app(PublicSitePages::class)->sources($license) as $path => $dynamic) {
+        foreach (app(PublicSitePages::class)->sources($license, false) as $path => $dynamic) {
             $pattern = $this->templates->resolveTemplateSlug((int) $license->template_id, $path);
             $page = $pages->get($path) ?? $pages->get($pattern);
             $saved = $page?->pageComponents->keyBy('type') ?? collect();
@@ -75,6 +75,20 @@ final class SiteSearch
                 $title = $page->seo_title;
             }
             $documents[] = self::document($path, ['page' => ['componentsData' => $components, 'seo' => ['title' => $title]]]);
+        }
+
+        return $includeCompanies ? [...$documents, ...$this->companyDocuments($license)] : $documents;
+    }
+
+    public function companyDocuments(License $license): array
+    {
+        $documents = [];
+        foreach (app(PublicSitePages::class)->companySources($license) as $path => ['company' => $company]) {
+            $documents[] = [
+                'url' => $path,
+                'title' => $company['name'],
+                'text' => implode(' ', array_filter([$company['typeLabel'], $company['city'], $company['description']])),
+            ];
         }
 
         return $documents;

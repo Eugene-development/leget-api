@@ -173,74 +173,40 @@ return [
                 // по `sort_order`, поэтому перестановка действует и на тех тенантов,
                 // кто блок уже правил. Номер компонента (1.1.9) от позиции не зависит:
                 // `component_number` присваивается один раз при заведении.
-                // Анатомия перенесена из Direction/v2: кадр во всю карточку, кнопка
-                // поверх. Отсюда `image`/`alt` в каждом предложении и две карточки,
-                // а не три — сетка блока двухколоночная.
-                //
-                // Ключи `title`/`text` секции блок не рисует (у этой анатомии шапки
-                // нет) и в дефолтах их поэтому нет. `partner`, `offer`, `terms`,
-                // `validUntil` остаются: они описывают предмет и понадобятся, если
-                // содержимое решат вынести на кадр.
                 ['type' => 'PartnerOffers', 'defaults' => [
-                    // Заголовок и описание заведены 17.08.2026, когда блок стал экранным:
-                    // кнопка ушла с кадра вниз, на фотографии не осталось ни слова, и весь
-                    // текст блока собрался в шапке. Ключи новые — существующих не трогали,
-                    // поэтому у тенантов, уже правивших офферы, ничего не обнулилось.
                     'title' => 'Предложения партнёров',
                     'description' => 'Специальные предложения от партнёров для компании «Новострой» — собрали их для вас ниже.',
-                    // `validFrom` — вторая половина срока к уже существовавшему `validUntil`,
-                    // который до 17.08.2026 лежал в данных и не рисовался. Демо-контент
-                    // намеренно показывает все три формы срока: «с и по», «по» и «с», —
-                    // пустая строка значит «границы нет», а не «дата потерялась».
                     'offers' => [
                         [
-                            'image' => 'https://storage.yandexcloud.net/novostroy/bg/vector-kitchen.jpg',
-                            'alt' => 'Скидка 15% на фурнитуру Blum',
-                            'partner' => 'Blum',
-                            'offer' => 'Скидка 15% на фурнитуру',
-                            'terms' => 'При заказе кухни от 150 000 ₽',
-                            'validFrom' => '01.09.2026',
-                            'validUntil' => '31.12.2026',
-                            'buttonText' => 'Получить предложение',
-                            'buttonHref' => '/actions',
-                        ],
-                        [
-                            'image' => 'https://storage.yandexcloud.net/novostroy/bg/prih.jpg',
-                            'alt' => 'Столешница в подарок от Egger',
-                            'partner' => 'Egger',
-                            'offer' => 'Столешница в подарок',
-                            'terms' => 'К любому кухонному гарнитуру от 200 000 ₽',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/partner-offers/landscape/appliance-connection-gift.webp',
+                            'alt' => 'Подключение бытовой техники в подарок',
+                            'partner' => 'Новострой',
+                            'offer' => 'Подключение бытовой техники в подарок',
+                            'terms' => '',
                             'validFrom' => '',
-                            'validUntil' => '30.11.2026',
-                            'buttonText' => 'Получить предложение',
-                            'buttonHref' => '/actions',
-                        ],
-                        // Третий и четвёртый оффер заведены 16.08.2026 вместе с ленточной
-                        // раскладкой: блок переключается на слайдер при числе офферов
-                        // больше двух, и на прежней паре эта раскладка не показалась бы
-                        // ни новому тенанту, ни карточке в /_ds. Партнёры — те же, что
-                        // уже перечислены логотипами в HeroMain, чтобы стартовый контент
-                        // не расходился сам с собой. Картинки — существующие объекты
-                        // бакета, новых локальных файлов не добавлено.
-                        [
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_wardrobes.png',
-                            'alt' => 'Бесплатный подъём и сборка от Aristo',
-                            'partner' => 'Aristo',
-                            'offer' => 'Подъём и сборка бесплатно',
-                            'terms' => 'При заказе шкафа-купе от 120 000 ₽',
-                            'validFrom' => '15.09.2026',
                             'validUntil' => '',
                             'buttonText' => 'Получить предложение',
                             'buttonHref' => '/actions',
                         ],
                         [
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_kitchens.png',
-                            'alt' => 'Доводчики на все фасады от Hettich',
-                            'partner' => 'Hettich',
-                            'offer' => 'Доводчики на все фасады',
-                            'terms' => 'При заказе кухни от 100 000 ₽',
-                            'validFrom' => '01.10.2026',
-                            'validUntil' => '31.12.2026',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/partner-offers/landscape/company-paid-assembly.webp',
+                            'alt' => 'Сборка за счёт компании',
+                            'partner' => 'Новострой',
+                            'offer' => 'Сборка за счёт компании',
+                            'terms' => '',
+                            'validFrom' => '',
+                            'validUntil' => '',
+                            'buttonText' => 'Получить предложение',
+                            'buttonHref' => '/actions',
+                        ],
+                        [
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/partner-offers/landscape/refrigerator-gift.webp',
+                            'alt' => 'Холодильник в подарок',
+                            'partner' => 'Новострой',
+                            'offer' => 'Холодильник в подарок',
+                            'terms' => '',
+                            'validFrom' => '',
+                            'validUntil' => '',
                             'buttonText' => 'Получить предложение',
                             'buttonHref' => '/actions',
                         ],
@@ -272,8 +238,8 @@ return [
                         [
                             'title' => 'Гардеробная 9 м²',
                             'description' => 'Система хранения от пола до потолка: обувной модуль, подсветка полок.',
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_wardrobes.png',
-                            'alt' => 'Гардеробная комната с подсветкой полок',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/message-1.1.2.1/walk-in-wardrobe-9m2.webp',
+                            'alt' => 'Гардеробная комната с подсветкой полок и обувным модулем',
                             'link' => '',
                             'specs' => [
                                 ['label' => 'Площадь', 'value' => '9 м²'],
@@ -296,7 +262,7 @@ return [
                         [
                             'title' => 'Детская с рабочим местом',
                             'description' => 'Кровать, стол и стеллаж одним объёмом. Плиты с сертификатом класса E0.',
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/incentives/quality-v2.webp',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/message-1.1.2.1/childrens-study-bedroom.webp',
                             'alt' => 'Детская мебель с рабочим местом у окна',
                             'link' => '',
                             'specs' => [
@@ -308,7 +274,19 @@ return [
                     ],
                 ]],
                 ['type' => 'PromoOffer', 'defaults' => ['badge' => 'Эксклюзивное предложение', 'title' => 'Специальное предложение', 'textPrimary' => 'Скидка 15% на мебель этой весной', 'textSecondary' => 'Воспользуйтесь уникальной возможностью приобрести качественную мебель по выгодной цене', 'primaryButton' => 'Получить предложение', 'secondaryButton' => 'Узнать больше', 'primaryHref' => '/contact', 'secondaryHref' => '/about']],
-                ['type' => 'Equipment',  'defaults' => ['badge' => 'Дополнительно', 'title' => 'Комплектация проектов']],
+                [
+                    'type' => 'Equipment',
+                    'inherit_default_fields' => ['item1Image', 'item2Image', 'item3Image', 'item4Image', 'item5Image'],
+                    'defaults' => [
+                        'badge' => 'Дополнительно',
+                        'title' => 'Комплектация проектов',
+                        'item1Image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/equipment-1.1.4.1/countertops.webp',
+                        'item2Image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/equipment-1.1.4.1/drawer-systems.webp',
+                        'item3Image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/equipment-1.1.4.1/appliances.webp',
+                        'item4Image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/equipment-1.1.4.1/sink-and-faucet.webp',
+                        'item5Image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/equipment-1.1.4.1/task-lighting.webp',
+                    ],
+                ],
                 ['type' => 'Stage',      'defaults' => ['badge' => 'Это важно', 'title' => 'Порядок работы', 'description' => 'Мы поддержим вас на всех этапах работы над мебельным проектом: от первой консультации до дня финальной сборки.']],
                 ['type' => 'Incentives', 'defaults' => [
                     'badge' => 'Выгода',
@@ -365,13 +343,24 @@ return [
                 ['type' => 'Hero',       'defaults' => ['badge' => 'О компании', 'title' => 'О проекте', 'lead' => 'Мы помогаем пройти путь от идеи до готового интерьера: подбираем материалы, считаем проект и ведём его до финальной сборки.', 'text' => '', 'buttonText' => 'Связаться с нами', 'img1' => '', 'img2' => '', 'img3' => '', 'img4' => '']],
                 ['type' => 'Text',       'defaults' => ['content' => '<p>Мы делаем мебель под конкретное помещение и конкретных людей.</p><p>Сначала замер и разговор о том, как вы живёте и что храните, потом дизайн-проект, расчёт и подбор материалов под ваш бюджет.</p><p>Ведём проект до конца — согласуем детали, держим сроки и остаёмся на связи после сборки.</p>']],
                 ['type' => 'Statistics', 'defaults' => []],
-                ['type' => 'Mission',    'defaults' => [
-                    'title' => 'Наша миссия',
-                    'text1' => 'Мы создаём мебель, которая помогает людям чувствовать себя дома: точно подходит пространству, отвечает привычкам семьи и служит годами.',
-                    'text2' => 'Нам важно пройти весь путь вместе с клиентом — от первой идеи и замера до установки. Мы понятно объясняем решения, учитываем бюджет и берём ответственность за результат.',
-                    'text3' => 'Наша цель — превратить сложный выбор мебели в понятный и спокойный процесс, а каждый готовый интерьер — в место, куда хочется возвращаться.',
-                    'imageUrl' => '',
-                ]],
+                [
+                    'type' => 'Mission',
+                    'inherit_default_fields' => ['imageUrl'],
+                    'legacy_placeholder' => [
+                        'title' => 'Наша миссия',
+                        'text1' => '',
+                        'text2' => '',
+                        'text3' => '',
+                        'imageUrl' => '',
+                    ],
+                    'defaults' => [
+                        'title' => 'Мебель, с которой удобно жить',
+                        'text1' => 'Проектируем мебель под ваш дом и ваши привычки, чтобы ею было удобно пользоваться каждый день.',
+                        'text2' => 'Заранее продумываем, где хранить повседневные вещи, как будут открываться дверцы и сколько места останется для прохода.',
+                        'text3' => 'Подбираем материалы с учётом бюджета и назначения мебели. Для столешницы важен простой уход, для прихожей — стойкость к влаге.',
+                        'imageUrl' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/about/mission-custom-oak-joinery.webp',
+                    ],
+                ],
                 ['type' => 'Values',     'defaults' => ['title' => 'Наши ценности', 'subtitle' => 'Принципы, которыми мы руководствуемся в работе', 'items' => []]],
                 ['type' => 'WhyUs',      'defaults' => ['title' => 'Почему выбирают нас', 'subtitle' => 'Преимущества работы с нами', 'items' => []]],
                 ['type' => 'AboutCTA',   'defaults' => ['title' => 'Ждём вас в качестве клиента', 'subtitle' => 'Свяжитесь с нами, чтобы обсудить ваш проект', 'buttonText' => 'Получить консультацию', 'phone' => '']],
@@ -418,7 +407,7 @@ return [
             '/guarantees' => [
                 ['type' => 'GuaranteesHero',  'defaults' => ['title' => 'Гарантия качества', 'subtitle' => 'Мы уверены в качестве продукции наших партнёров. Вся продукция имеет расширенную гарантию на материалы и работу мастеров.']],
                 ['type' => 'GuaranteeTerms',  'defaults' => ['title' => 'Сроки гарантии', 'subtitle' => 'Официальная гарантия от производителей на все категории', 'items' => []]],
-                ['type' => 'WhatsCovered',    'defaults' => ['title' => 'Что покрывает гарантия', 'description' => 'Наша гарантия распространяется на производственные дефекты материалов и качество сборки.', 'items' => [], 'imageUrl' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/guarantees/whats-covered-craftsmanship-20260918.png']],
+                ['type' => 'WhatsCovered',    'defaults' => ['title' => 'Что покрывает гарантия', 'description' => 'Наша гарантия распространяется на производственные дефекты материалов и качество сборки.', 'items' => [], 'imageUrl' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/guarantees/warranty-work-acceptance-20261122.webp']],
                 ['type' => 'HowToApply',      'defaults' => ['title' => 'Как обратиться по гарантии', 'subtitle' => 'Простой процесс решения гарантийных вопросов', 'steps' => []]],
                 ['type' => 'GuaranteesCTA',   'defaults' => ['title' => 'Гарантийный случай?', 'subtitle' => 'Заполните форму или позвоните нам — решим вопрос в кратчайшие сроки', 'buttonText' => 'Оставить заявку', 'phone' => '']],
             ],
@@ -1450,12 +1439,29 @@ return [
                 ]],
             ],
 
+            '/b2b' => [
+                ['type' => 'B2BDirectory', 'defaults' => [
+                    'title' => 'Каталог B2B',
+                    'description' => 'Производители и поставщики, зарегистрированные как партнёры проекта.',
+                ]],
+            ],
+            '/b2b/{company}' => [
+                ['type' => 'B2BCompany', 'defaults' => []],
+            ],
         ],
     ],
 
     2 => [
         'name' => 'Promo-2',
         'pages' => [
+            '/404' => [
+                ['type' => 'NotFound', 'defaults' => [
+                    'title' => 'Страница не найдена',
+                    'description' => 'Возможно, ссылка устарела или страницу перенесли.',
+                    'homeLabel' => 'На главную',
+                    'kitchensLabel' => 'Смотреть кухни',
+                ]],
+            ],
             '/equipment' => [
                 ['type' => 'EquipmentHero', 'defaults' => [
                     'heading' => 'Комплектация',
