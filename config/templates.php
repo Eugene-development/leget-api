@@ -226,7 +226,7 @@ return [
                         [
                             'title' => 'Кухня из массива дуба',
                             'description' => 'Гарнитур 4,2 м со встроенной техникой и столешницей из кварцевого агломерата.',
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/custom_kitchens.png',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/message-1.1.2.1/solid-oak-kitchen.webp',
                             'alt' => 'Кухня из массива дуба со встроенной техникой',
                             'link' => '',
                             'specs' => [
@@ -250,7 +250,7 @@ return [
                         [
                             'title' => 'Гостиная со стенкой под ТВ',
                             'description' => 'Прямая стенка 3,6 м: закрытые секции, ниша под технику, скрытая подсветка.',
-                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/furniture_hero.png',
+                            'image' => 'https://storage.yandexcloud.net/leget-main/templates/promo-1/message-1.1.2.1/living-room-tv-wall.webp',
                             'alt' => 'Гостиная со встроенной стенкой под телевизор',
                             'link' => '',
                             'specs' => [
