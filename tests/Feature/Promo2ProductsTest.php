@@ -205,9 +205,9 @@ class Promo2ProductsTest extends TestCase
         $service = app(Promo2Products::class);
         $items = $service->items($this->license);
         $this->assertCount(15, $items);
-        $this->assertSame('Бостон', $items[0]['title']);
-        $this->assertSame('Флитвуд', $items[14]['title']);
-        $this->assertStringEndsWith('/cam-1-1600x0.webp', $items[0]['image']);
+        $this->assertSame('Флитвуд', $items[0]['title']);
+        $this->assertSame('Бостон', $items[14]['title']);
+        $this->assertStringEndsWith('/cam-1-1600x0.webp', $items[14]['image']);
         $this->assertNotSame($items[0]['id'], $service->items($other)[0]['id']);
     }
 
@@ -287,7 +287,13 @@ class Promo2ProductsTest extends TestCase
         $this->import();
         $service = app(Promo2Products::class);
         $item = $service->items($this->license)[0];
-        foreach ([['image' => 'https://example.com/foreign.webp'], ['title' => '  '], ['sortOrder' => -1]] as $invalid) {
+        foreach ([
+            ['image' => 'https://example.com/foreign.webp'],
+            ['title' => '  '],
+            ['description' => ''],
+            ['description' => " \n\u{00A0}"],
+            ['sortOrder' => -1],
+        ] as $invalid) {
             try {
                 $service->save($this->license, [...$item, ...$invalid]);
                 $this->fail('Invalid data must be rejected');
@@ -312,5 +318,26 @@ class Promo2ProductsTest extends TestCase
         $this->assertSame($this->license->id, MebelProject::findOrFail($saved['id'])->license_id);
         $this->assertSame('Новая кухня', $saved['title']);
         $this->assertDatabaseCount('images', 1);
+    }
+
+    public function test_new_products_with_the_same_priority_are_listed_first_in_both_galleries(): void
+    {
+        $this->import();
+        $this->importWardrobes();
+        $service = app(Promo2Products::class);
+
+        foreach (['kitchen', 'wardrobe'] as $kind) {
+            $previous = $service->items($this->license, $kind)[0];
+            $new = MebelProject::findOrFail($previous['id'])->replicate(['key', 'slug', 'value']);
+            $new->forceFill([
+                'id' => (string) Str::ulid(),
+                'key' => (string) Str::ulid(),
+                'slug' => 'new-'.$kind,
+                'value' => 'New '.$kind,
+            ])->save();
+
+            $this->assertSame($new->id, $service->items($this->license, $kind)[0]['id']);
+            $this->assertSame($new->id, $service->items($this->license, $kind, true)[0]['id']);
+        }
     }
 }

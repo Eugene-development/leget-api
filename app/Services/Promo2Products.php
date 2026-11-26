@@ -37,8 +37,7 @@ final class Promo2Products
         return MebelProject::where('license_id', $license->id)
             ->whereHas('category', fn ($q) => $q->where('slug', $slug)
                 ->whereHas('rubric', fn ($r) => $r->where('slug', 'mebel')))
-            ->with(['images' => fn ($q) => $q->active()])
-            ->orderBy('sort_order')->orderBy('id');
+            ->with(['images' => fn ($q) => $q->active()]);
     }
 
     public function items(License $license, string $kind = 'kitchen', bool $includeHidden = false): array
@@ -48,7 +47,8 @@ final class Promo2Products
             $query->active();
         }
 
-        return $query->get()->map(fn ($product) => $this->present($product))->all();
+        return $query->orderByDesc('sort_order')->orderByDesc('id')
+            ->get()->map(fn ($product) => $this->present($product))->all();
     }
 
     public function present(MebelProject $product): array
@@ -67,10 +67,13 @@ final class Promo2Products
     {
         $categorySlug = $this->categorySlug($kind);
         $input['title'] = is_string($input['title'] ?? null) ? trim($input['title']) : ($input['title'] ?? null);
+        $input['description'] = is_string($input['description'] ?? null)
+            ? Str::trim($input['description'])
+            : ($input['description'] ?? null);
         Validator::make($input, [
             'id' => ['sometimes', 'nullable', 'string', 'ulid'],
             'title' => ['required', 'string', 'max:255'],
-            'description' => ['present', 'nullable', 'string', 'max:1000'],
+            'description' => ['required', 'string', 'max:1000'],
             'image' => ['required', 'string', 'max:2048', 'url:https'],
             'isActive' => ['required', 'boolean'],
             'sortOrder' => ['required', 'integer', 'min:0', 'max:1000000'],
@@ -100,7 +103,7 @@ final class Promo2Products
             $product->fill([
                 'category_id' => $category->id,
                 'meta' => [...($product->meta ?? []), 'promo2_title' => $input['title']],
-                'short_description' => $input['description'] ?? '',
+                'short_description' => $input['description'],
                 'is_active' => $input['isActive'],
                 'sort_order' => $input['sortOrder'],
             ])->save();
