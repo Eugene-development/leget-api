@@ -23,6 +23,10 @@ extend type Mutation {
         templateId: Int @rename(attribute: "template_id")
         headerData: JSON @rename(attribute: "header_data")
         footerData: JSON @rename(attribute: "footer_data")
+        "Update only the given top-level keys in the stored header data."
+        headerDataPatch: JSON @rename(attribute: "header_data_patch")
+        "Set the shared header and footer logo. Pass null to remove it."
+        logoUrl: String @rename(attribute: "logo_url")
     ): License! @guard @field(resolver: "App\\GraphQL\\Mutations\\UpdateLicense")
 
     "Cancel a license. Stops daily billing and deactivates the site. Requires authentication."

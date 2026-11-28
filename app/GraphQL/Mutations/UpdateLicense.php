@@ -26,7 +26,7 @@ final class UpdateLicense
      * components — so the site is immediately ready to view.
      *
      * @param  mixed  $root
-     * @param  array{id: string, domain?: string, name?: string, meta_description?: string, template_id?: int, header_data?: mixed, footer_data?: mixed}  $args
+     * @param  array{id: string, domain?: string, name?: string, meta_description?: string, template_id?: int, header_data?: mixed, footer_data?: mixed, header_data_patch?: mixed, logo_url?: ?string}  $args
      *
      * @throws GraphQLException
      */
@@ -64,6 +64,27 @@ final class UpdateLicense
             // Resiliently support camelCase faviconUrl if Lighthouse did not rename it in resolver args
             if (array_key_exists('faviconUrl', $args)) {
                 $updateData['favicon_url'] = $args['faviconUrl'];
+            }
+
+            if (isset($args['header_data_patch'])) {
+                $patch = $args['header_data_patch'];
+                if (! is_array($patch) || ($patch !== [] && array_is_list($patch))) {
+                    throw new GraphQLException('headerDataPatch must be an object.', 'VALIDATION');
+                }
+
+                $header = (array) ($updateData['header_data'] ?? $license->header_data);
+                $updateData['header_data'] = array_replace($header, $patch);
+            }
+
+            if (array_key_exists('logo_url', $args)) {
+                $logo = ['logoUrl' => $args['logo_url']];
+                $header = (array) ($updateData['header_data'] ?? $license->header_data);
+                $footer = (array) ($updateData['footer_data'] ?? $license->footer_data);
+                $updateData['header_data'] = array_replace($header, $logo);
+                $updateData['footer_data'] = array_replace($footer, $logo);
+                if ($args['logo_url'] !== null) {
+                    $updateData['header_data']['logoMode'] = 'image';
+                }
             }
 
             if (isset($args['template_id'])) {
